@@ -1,41 +1,40 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
-	"sharedDataFolderName": ".vscode-oss-shared",
-	"win32MutexName": "vscodeoss",
+	"nameShort": "Open Cursor",
+	"nameLong": "Open Cursor",
+	"applicationName": "open-cursor",
+	"dataFolderName": ".open-cursor",
+	"sharedDataFolderName": ".open-cursor-shared",
+	"win32MutexName": "opencursor",
 	"licenseName": "MIT",
-	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
+	"licenseUrl": "https://github.com/noah-thing/open-cursor/blob/main/LICENSE.txt",
 	"serverLicenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
 	"serverGreeting": [],
 	"serverLicense": [],
 	"serverLicensePrompt": "",
-	"serverApplicationName": "code-server-oss",
-	"serverDataFolderName": ".vscode-server-oss",
-	"tunnelApplicationName": "code-tunnel-oss",
-	"win32DirName": "Microsoft Code OSS",
-	"win32NameVersion": "Microsoft Code OSS",
-	"win32RegValueName": "CodeOSS",
-	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
-	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
-	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
-	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
-	"win32AppUserModelId": "Microsoft.CodeOSS",
-	"win32ShellNameShort": "C&ode - OSS",
-	"win32TunnelServiceMutex": "vscodeoss-tunnelservice",
-	"win32TunnelMutex": "vscodeoss-tunnel",
-	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
-	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
-	"linuxDesktopName": "com.visualstudio.CodeOSS",
-	"linuxIconName": "code-oss",
+	"serverApplicationName": "open-cursor-server",
+	"serverDataFolderName": ".open-cursor-server",
+	"tunnelApplicationName": "open-cursor-tunnel",
+	"win32DirName": "Open Cursor",
+	"win32NameVersion": "Open Cursor",
+	"win32RegValueName": "OpenCursor",
+	"win32x64AppId": "{{74923DB9-73B7-4425-B7FD-A0738293DEAF}",
+	"win32arm64AppId": "{{936E91C5-7072-48A3-BE54-20DC5E38BE90}",
+	"win32x64UserAppId": "{{A52BB5A7-6B4B-438A-BEEF-FAEEC3680DF4}",
+	"win32arm64UserAppId": "{{656A6FAE-92B0-4B6C-8BD6-C6BAE873FC6F}",
+	"win32AppUserModelId": "OpenCursor.OpenCursor",
+	"win32ShellNameShort": "Open &Cursor",
+	"win32TunnelServiceMutex": "opencursor-tunnelservice",
+	"win32TunnelMutex": "opencursor-tunnel",
+	"darwinBundleIdentifier": "dev.opencursor.OpenCursor",
+	"darwinProfileUUID": "6FC44E4A-0A2B-4F68-8E55-2F6FEEEE566B",
+	"darwinProfilePayloadUUID": "9D6B772A-89AF-4C3E-819F-B0239A71BE94",
+	"linuxDesktopName": "open-cursor.desktop",
+	"linuxIconName": "open-cursor",
 	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
+	"reportIssueUrl": "https://github.com/noah-thing/open-cursor/issues/new",
 	"nodejsArtifactFeed": "",
 	"electronArtifactFeed": "",
-	"urlProtocol": "code-oss",
-	"agentsTelemetryAppName": "agents",
+	"urlProtocol": "open-cursor",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
 		{
@@ -86,6 +85,68 @@
 				"publisherDisplayName": "Microsoft"
 			}
 		}
+	],
+	"trustedExtensionAuthAccess": {
+		"github": [
+			"GitHub.copilot-chat"
+		],
+		"github-enterprise": [
+			"GitHub.copilot-chat"
+		],
+		"microsoft": [
+			"vscode.github-authentication"
+		]
+	},
+	"onboardingThemes": [
+		{
+			"id": "dark-2026",
+			"label": "Dark 2026",
+			"themeId": "Dark 2026",
+			"type": "dark"
+		},
+		{
+			"id": "hc-dark",
+			"label": "Dark High Contrast",
+			"themeId": "Default High Contrast",
+			"type": "hcDark"
+		},
+		{
+			"id": "solarized-dark",
+			"label": "Solarized Dark",
+			"themeId": "Solarized Dark",
+			"type": "dark"
+		},
+		{
+			"id": "light-2026",
+			"label": "Light 2026",
+			"themeId": "Light 2026",
+			"type": "light"
+		},
+		{
+			"id": "hc-light",
+			"label": "Light High Contrast",
+			"themeId": "Default High Contrast Light",
+			"type": "hcLight"
+		},
+		{
+			"id": "solarized-light",
+			"label": "Solarized Light",
+			"themeId": "Solarized Light",
+			"type": "light"
+		}
+	],
+	"builtInExtensionsEnabledWithAutoUpdates": [
+		"GitHub.copilot-chat"
+	],
+	"extensionsGallery": {
+		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"itemUrl": "https://open-vsx.org/vscode/item",
+		"extensionUrlTemplate": "https://open-vsx.org/vscode/gallery/{publisher}/{name}/latest",
+		"controlUrl": "",
+		"nlsBaseUrl": ""
+	},
+	"linkProtectionTrustedDomains": [
+		"https://open-vsx.org"
 	],
 	"defaultChatAgent": {
 		"extensionId": "GitHub.copilot",
@@ -155,96 +216,5 @@
 		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry",
 		"mcpConnectorsUrl": "https://api.github.com/copilot-connectors/api/v1",
 		"managedSettingsUrl": "https://api.github.com/copilot_internal/managed_settings"
-	},
-	"trustedExtensionAuthAccess": {
-		"github": [
-			"GitHub.copilot-chat"
-		],
-		"github-enterprise": [
-			"GitHub.copilot-chat"
-		],
-		"microsoft": [
-			"vscode.github-authentication"
-		]
-	},
-	"onboardingKeymaps": [
-		{
-			"id": "vscode",
-			"label": "VS Code",
-			"description": "Default keyboard mapping"
-		},
-		{
-			"id": "sublime",
-			"label": "Sublime Text",
-			"extensionId": "ms-vscode.sublime-keybindings",
-			"description": "Keyboard mapping from Sublime Text"
-		},
-		{
-			"id": "intellij",
-			"label": "IntelliJ / JetBrains",
-			"extensionId": "k--kato.intellij-idea-keybindings",
-			"description": "Keyboard mapping from IntelliJ IDEA"
-		},
-		{
-			"id": "vim",
-			"label": "Vim",
-			"extensionId": "vscodevim.vim",
-			"description": "Vim modal editing"
-		},
-		{
-			"id": "eclipse",
-			"label": "Eclipse",
-			"extensionId": "alphabotsec.vscode-eclipse-keybindings",
-			"description": "Keyboard mapping from Eclipse"
-		},
-		{
-			"id": "notepadpp",
-			"label": "Notepad++",
-			"extensionId": "ms-vscode.notepadplusplus-keybindings",
-			"description": "Keyboard mapping from Notepad++"
-		}
-	],
-	"onboardingThemes": [
-		{
-			"id": "dark-2026",
-			"label": "Dark 2026",
-			"themeId": "Dark 2026",
-			"type": "dark"
-		},
-		{
-			"id": "hc-dark",
-			"label": "Dark High Contrast",
-			"themeId": "Default High Contrast",
-			"type": "hcDark"
-		},
-		{
-			"id": "solarized-dark",
-			"label": "Solarized Dark",
-			"themeId": "Solarized Dark",
-			"type": "dark"
-		},
-		{
-			"id": "light-2026",
-			"label": "Light 2026",
-			"themeId": "Light 2026",
-			"type": "light"
-		},
-		{
-			"id": "hc-light",
-			"label": "Light High Contrast",
-			"themeId": "Default High Contrast Light",
-			"type": "hcLight"
-		},
-		{
-			"id": "solarized-light",
-			"label": "Solarized Light",
-			"themeId": "Solarized Light",
-			"type": "light"
-		}
-	],
-	"builtInExtensionsEnabledWithAutoUpdates": [
-		"GitHub.copilot-chat"
-	],
-	"sessionsWindowAllowedExtensions": [],
-	"voiceWsUrl": "wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice"
+	}
 }

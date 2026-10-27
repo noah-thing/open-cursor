@@ -232,6 +232,9 @@ import './contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 
+// Open Cursor
+import './contrib/openCursor/browser/openCursor.contribution.js';
+
 // Copilot Voice
 import './contrib/agentsVoice/browser/agentsVoice.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
