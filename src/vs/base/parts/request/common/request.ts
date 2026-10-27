@@ -1,0 +1,81 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { VSBufferReadableStream } from '../../../common/buffer.js';
+
+const offlineName = 'Offline';
+
+/**
+ * Checks if the given error is offline error
+ */
+export function isOfflineError(error: unknown): boolean {
+	if (error instanceof OfflineError) {
+		return true;
+	}
+	return error instanceof Error && error.name === offlineName && error.message === offlineName;
+}
+
+export class OfflineError extends Error {
+	constructor() {
+		super(offlineName);
+		this.name = this.message;
+	}
+}
+
+export interface IHeaders {
+	'Proxy-Authorization'?: string;
+	'x-operation-id'?: string;
+	'retry-after'?: string;
+	etag?: string;
+	'Content-Length'?: string;
+	'activityid'?: string;
+	'X-Market-User-Id'?: string;
+	[header: string]: string | string[] | undefined;
+}
+
+export interface IRequestOptions {
+	type?: string;
+	url?: string;
+	user?: string;
+	password?: string;
+	headers?: IHeaders;
+	timeout?: number;
+	data?: string;
+	followRedirects?: number;
+	proxyAuthorization?: string;
+	/**
+	 * A signal to not cache the response. This may not
+	 * be supported in all implementations.
+	 */
+	disableCache?: boolean;
+	/** `false` logs only this request's host, status and error name or code, never its URL, headers or error message (for signed URLs). */
+	logUrl?: boolean;
+	/**
+	 * Identifies the call site making this request, used for telemetry.
+	 * Use "NO_FETCH_TELEMETRY" to opt out of request telemetry.
+	 */
+	callSite: string;
+	/** Opts into local timing diagnostics and User Timing marks; never sent to the server. */
+	diagnosticId?: string;
+}
+
+export interface IRequestTimings {
+	/** Client wait until response headers arrive, including connection setup and redirects. */
+	readonly responseHeadersMs: number;
+	/** Time spent consuming the response after receiving headers. */
+	readonly responseBodyMs: number;
+	/** Decompressed response size, not compressed bytes transferred on the wire. */
+	readonly decodedBodyBytes: number;
+}
+
+export interface IRequestContext {
+	res: {
+		headers: IHeaders;
+		statusCode?: number;
+	};
+	stream: VSBufferReadableStream;
+	/** Available for diagnostic requests using the fetch-backed implementation. */
+	timings?: IRequestTimings;
+}

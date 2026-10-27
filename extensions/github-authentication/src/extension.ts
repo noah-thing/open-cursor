@@ -1,0 +1,90 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import { GitHubSessionEngine, UriEventHandler } from './github';
+import { GitHubEnterpriseAuthenticationProvider } from './githubEnterprise';
+import { enterpriseUrisSetting, getEnterpriseUris } from './common/enterpriseConfiguration';
+import { enterpriseUriSetting } from './common/enterpriseStorage';
+import { getSafeNotificationMessage } from './common/notification';
+
+export async function activate(context: vscode.ExtensionContext) {
+	const uriHandler = new UriEventHandler();
+	context.subscriptions.push(uriHandler);
+	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
+
+	const github = new GitHubSessionEngine(context, uriHandler);
+	context.subscriptions.push(github);
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('github', 'GitHub', github, {
+		supportsMultipleAccounts: true,
+		supportedAuthorizationServers: [vscode.Uri.parse('https://github.com/login/oauth')]
+	}));
+
+	const githubEnterpriseAuthProvider = new GitHubEnterpriseAuthenticationProvider(context, uriHandler);
+	context.subscriptions.push(githubEnterpriseAuthProvider);
+	const updateEnterpriseConfiguration = async () => {
+		const configuration = vscode.workspace.getConfiguration();
+		let uris: vscode.Uri[];
+		try {
+			uris = getEnterpriseUris(configuration, vscode.workspace.isTrusted);
+		} catch (error) {
+			const safeMessage = getSafeNotificationMessage(
+				error.message,
+				vscode.l10n.t('Invalid GitHub Enterprise instance URI.'),
+			);
+			await githubEnterpriseAuthProvider.update([], { error: safeMessage });
+			void vscode.window.showErrorMessage(safeMessage);
+			return;
+		}
+		const legacy = configuration.get<string>(enterpriseUriSetting);
+		const legacyUri = typeof legacy === 'string' && /^https?:\/\//i.test(legacy) ? vscode.Uri.parse(legacy) : undefined;
+		await githubEnterpriseAuthProvider.update(uris, { legacyUri });
+	};
+	const refreshEnterpriseConfiguration = async () => {
+		try {
+			await updateEnterpriseConfiguration();
+		} catch (error) {
+			void vscode.window.showErrorMessage(getSafeNotificationMessage(
+				vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)),
+				vscode.l10n.t('Could not update GitHub Enterprise authentication.'),
+			));
+		}
+	};
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration(enterpriseUrisSetting) || e.affectsConfiguration(enterpriseUriSetting)) {
+			void refreshEnterpriseConfiguration();
+		}
+	}));
+	context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(refreshEnterpriseConfiguration));
+	try {
+		await updateEnterpriseConfiguration();
+	} catch (error) {
+		void vscode.window.showErrorMessage(getSafeNotificationMessage(
+			vscode.l10n.t('Could not initialize GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)),
+			vscode.l10n.t('Could not initialize GitHub Enterprise authentication.'),
+		));
+	}
+
+	// Listener to prompt for reload when the fetch implementation setting changes
+	const beforeFetchSetting = vscode.workspace.getConfiguration().get<boolean>('github-authentication.useElectronFetch', true);
+	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
+		if (e.affectsConfiguration('github-authentication.useElectronFetch')) {
+			const afterFetchSetting = vscode.workspace.getConfiguration().get<boolean>('github-authentication.useElectronFetch', true);
+			if (beforeFetchSetting !== afterFetchSetting) {
+				const selection = await vscode.window.showInformationMessage(
+					vscode.l10n.t('GitHub Authentication - Reload required'),
+					{
+						modal: true,
+						detail: vscode.l10n.t('A reload is required for the fetch setting change to take effect.')
+					},
+					vscode.l10n.t('Reload Window')
+				);
+				if (selection) {
+					await vscode.commands.executeCommand('workbench.action.reloadWindow');
+				}
+			}
+		}
+	}));
+}
