@@ -1,0 +1,30 @@
+{
+	"name": "theme-open-cursor",
+	"displayName": "Open Cursor Themes",
+	"description": "The default Open Cursor dark and light themes.",
+	"version": "1.0.0",
+	"publisher": "open-cursor",
+	"license": "MIT",
+	"engines": {
+		"vscode": "*"
+	},
+	"categories": [
+		"Themes"
+	],
+	"contributes": {
+		"themes": [
+			{
+				"id": "Open Cursor Dark",
+				"label": "Open Cursor Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/open-cursor-dark.json"
+			},
+			{
+				"id": "Open Cursor Light",
+				"label": "Open Cursor Light",
+				"uiTheme": "vs",
+				"path": "./themes/open-cursor-light.json"
+			}
+		]
+	}
+}

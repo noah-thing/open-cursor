@@ -1511,7 +1511,7 @@ export class ChatEntitlementContext extends Disposable {
 		}));
 	}
 
-	private _forceHidden = false;
+	private _forceHidden = true; // Open Cursor: built-in Copilot chat is replaced by the open-cursor extension
 
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
 		if (this._forceHidden || this.configurationService.getValue(ChatAIDisabledSettingId) === true) {

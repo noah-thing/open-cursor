@@ -14,6 +14,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		// The built-in Copilot chat stack is replaced by Open Cursor's own agent.
 		'chat.disableAIFeatures': true,
 		'workbench.activityBar.location': 'top',
+		// Flat, edge to edge panels instead of floating cards.
+		'window.density.layout': 'compact',
 		'workbench.secondarySideBar.defaultVisibility': 'visible',
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
