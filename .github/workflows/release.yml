@@ -37,7 +37,7 @@ jobs:
           all='[{"id":"macos-arm64","arch":"arm64","runner":"macos-15"},{"id":"macos-x64","arch":"x64","runner":"macos-15-intel"},{"id":"windows-x64","arch":"x64","runner":"windows-2022"},{"id":"windows-arm64","arch":"arm64","runner":"windows-2022"},{"id":"linux-x64","arch":"x64","runner":"ubuntu-22.04"},{"id":"linux-arm64","arch":"arm64","runner":"ubuntu-22.04"}]'
           pick() {
             echo "$all" | jq -c --arg os "$1" --arg only "$ONLY" \
-              '[.[] | select(.id | startswith($os + "-")) | select($only == "all" or ($only | split(",") | map(gsub(" "; "")) | index(.id)))]'
+              '[.[] | select(.id | startswith($os + "-")) | select(.id as $id | $only == "all" or ([$only | split(",")[] | gsub(" "; "")] | index($id)))]'
           }
           echo "mac=$(pick macos)" >> "$GITHUB_OUTPUT"
           echo "win=$(pick windows)" >> "$GITHUB_OUTPUT"
