@@ -376,5 +376,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :CFBundleName" -c "Print :CFBundleIdentifier" -c "Print :CFBundleIconFile" "$APP/Contents/Info.plist"
           codesign --verify --deep --strict --verbose=2 "$APP"
           lipo -archs "$APP/Contents/MacOS/OpenCursor"
-          "$APP/Contents/Resources/app/bin/open-cursor" --version | tee version.txt
+          ls "$APP/Contents/Resources/app/bin"
+          CLI=$(find "$APP/Contents/Resources/app/bin" -maxdepth 1 -type f | head -1)
+          "$CLI" --version | tee version.txt
           grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' version.txt
