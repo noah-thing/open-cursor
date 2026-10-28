@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Cursor chat (dev harness)</title>
+<link rel="stylesheet" href="out/chat.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+	html { background: #0b0b0b; }
+	:root[data-theme='light'] { background: #e4e4e4; }
+	#frame { height: 100vh; margin: 0 auto; background: var(--vscode-sideBar-background); box-shadow: 0 0 0 1px rgba(128,128,128,.25); }
+</style>
+</head>
+<body>
+<div id="frame"><div id="root"></div></div>
+<script>
+	const q = new URLSearchParams(location.search);
+	document.documentElement.dataset.theme = q.get('theme') === 'light' ? 'light' : 'dark';
+	document.getElementById('frame').style.width = (q.get('w') || '400') + 'px';
+</script>
+<script src="out/mock.js"></script>
+<script src="out/chat.js"></script>
+</body>
+</html>

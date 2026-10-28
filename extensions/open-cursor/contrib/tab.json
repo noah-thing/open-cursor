@@ -1,0 +1,47 @@
+{
+	"commands": [
+		{ "command": "openCursor.tab.toggle", "title": "Toggle Tab Completion", "category": "Open Cursor" },
+		{ "command": "openCursor.tab.showLog", "title": "Show Tab Log", "category": "Open Cursor" },
+		{ "command": "openCursor.tab.trigger", "title": "Trigger Tab Suggestion", "category": "Open Cursor" },
+		{ "command": "openCursor.inline.openFallback", "title": "Edit Selection with AI (Quick Input)", "category": "Open Cursor" },
+		{ "command": "openCursor.terminal.cmdK", "title": "Generate Terminal Command", "category": "Open Cursor" },
+		{ "command": "openCursor.scm.generateCommitMessage", "title": "Generate Commit Message", "category": "Open Cursor", "icon": "$(sparkle)" }
+	],
+	"keybindings": [
+		{ "command": "openCursor.terminal.cmdK", "key": "ctrl+k", "mac": "cmd+k", "when": "terminalFocus" },
+		{ "command": "workbench.action.terminal.clear", "key": "ctrl+shift+k", "mac": "cmd+shift+k", "when": "terminalFocus" }
+	],
+	"menus": {
+		"scm/inputBox": [
+			{ "command": "openCursor.scm.generateCommitMessage", "when": "scmProvider == git" }
+		],
+		"scm/title": [
+			{ "command": "openCursor.scm.generateCommitMessage", "when": "scmProvider == git", "group": "navigation" }
+		]
+	},
+	"configuration": {
+		"title": "Open Cursor: Tab",
+		"properties": {
+			"openCursor.tab.enabled": {
+				"type": "boolean", "default": true,
+				"markdownDescription": "Enable Tab completions (multi-line ghost text as you type)."
+			},
+			"openCursor.tab.debounceMs": {
+				"type": "number", "default": 75, "minimum": 0, "maximum": 2000,
+				"markdownDescription": "Wait this long after the last keystroke before asking the model. Lower is faster but sends more requests."
+			},
+			"openCursor.tab.maxLines": {
+				"type": "number", "default": 10, "minimum": 1, "maximum": 60,
+				"markdownDescription": "Maximum lines in one Tab suggestion."
+			},
+			"openCursor.tab.disabledLanguages": {
+				"type": "array", "items": { "type": "string" }, "default": ["plaintext", "scminput"],
+				"markdownDescription": "Language ids where Tab is off."
+			},
+			"openCursor.tab.nextEdit": {
+				"type": "boolean", "default": false,
+				"markdownDescription": "Experimental. After you accept a suggestion, ask the inline model whether a related edit is needed further down the file and offer it (needs the `inlineCompletionsAdditions` proposal)."
+			}
+		}
+	}
+}

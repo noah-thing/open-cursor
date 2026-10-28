@@ -1,0 +1,62 @@
+{
+	"commands": [
+		{ "command": "openCursor.providers.setKey", "title": "Set API Key", "category": "Open Cursor" },
+		{ "command": "openCursor.providers.verify", "title": "Verify Provider Connection", "category": "Open Cursor" }
+	],
+	"configuration": {
+		"title": "Open Cursor: Models",
+		"properties": {
+			"openCursor.models.default": {
+				"type": "string", "default": "",
+				"markdownDescription": "Model id for chat and the agent, e.g. `anthropic/claude-sonnet-5-5`. Empty picks the best available."
+			},
+			"openCursor.models.inline": {
+				"type": "string", "default": "",
+				"markdownDescription": "Model id for Cmd+K inline edits. Empty picks a fast model."
+			},
+			"openCursor.models.tab": {
+				"type": "string", "default": "",
+				"markdownDescription": "Model id for Tab completions. Fill-in-the-middle models work best: `mistral/codestral-latest`, `deepseek/deepseek-chat`, or a local `ollama/qwen2.5-coder:7b`. Empty picks one automatically."
+			},
+			"openCursor.models.enabled": {
+				"type": "array", "items": { "type": "string" }, "default": [],
+				"markdownDescription": "Model ids shown in the picker. Empty shows every available model."
+			},
+			"openCursor.models.custom": {
+				"type": "array", "default": [],
+				"markdownDescription": "Extra models. `provider` is one of anthropic, openai, google, openrouter, deepseek, xai, mistral, groq, ollama, lmstudio, custom.",
+				"items": {
+					"type": "object",
+					"required": ["provider", "model"],
+					"properties": {
+						"provider": { "type": "string", "enum": ["anthropic", "openai", "google", "openrouter", "deepseek", "xai", "mistral", "groq", "ollama", "lmstudio", "custom"] },
+						"model": { "type": "string", "description": "Model id the provider's API expects." },
+						"label": { "type": "string" },
+						"contextWindow": { "type": "number", "description": "Context window in tokens." },
+						"baseUrl": { "type": "string", "description": "Override the base URL for this model only." }
+					}
+				}
+			},
+			"openCursor.providers.ollama.baseUrl": {
+				"type": "string", "default": "http://localhost:11434",
+				"description": "Ollama server URL."
+			},
+			"openCursor.providers.ollama.numCtx": {
+				"type": "number", "default": 16384,
+				"description": "Context length requested from Ollama (num_ctx). Ollama's own default is very small; larger values use more memory. 0 leaves it to the server."
+			},
+			"openCursor.providers.lmstudio.baseUrl": {
+				"type": "string", "default": "http://localhost:1234/v1",
+				"description": "LM Studio local server URL."
+			},
+			"openCursor.providers.custom.baseUrl": {
+				"type": "string", "default": "",
+				"markdownDescription": "Base URL of any OpenAI-compatible endpoint (vLLM, llama.cpp, LiteLLM, ...), e.g. `http://localhost:8000/v1`. Set a key with **Open Cursor: Set API Key** if it needs one."
+			},
+			"openCursor.providers.openai.baseUrl": {
+				"type": "string", "default": "",
+				"markdownDescription": "Override the OpenAI base URL, for Azure OpenAI or a proxy. Empty uses `https://api.openai.com/v1`."
+			}
+		}
+	}
+}

@@ -1,0 +1,784 @@
+{
+	"name": "open-cursor",
+	"displayName": "Open Cursor",
+	"description": "Agent, Tab, inline edit and chat for Open Cursor.",
+	"version": "0.1.0",
+	"publisher": "open-cursor",
+	"license": "MIT",
+	"private": true,
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"main": "./dist/extension.js",
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"extensionKind": [
+		"workspace",
+		"ui"
+	],
+	"capabilities": {
+		"untrustedWorkspaces": {
+			"supported": "limited"
+		},
+		"virtualWorkspaces": false
+	},
+	"enabledApiProposals": [
+		"contribSourceControlInputBoxMenu",
+		"inlineCompletionsAdditions"
+	],
+	"contributes": {
+		"commands": [
+			{
+				"command": "openCursor.chat.open",
+				"title": "Focus Chat / Add Selection to Chat",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.chat.newChat",
+				"title": "New Chat",
+				"category": "Open Cursor",
+				"icon": "$(add)"
+			},
+			{
+				"command": "openCursor.chat.addSelectionToNewChat",
+				"title": "Add Selection to New Chat",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.chat.toggle",
+				"title": "Toggle Chat Sidebar",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.chat.history",
+				"title": "Show Chat History",
+				"category": "Open Cursor",
+				"icon": "$(history)"
+			},
+			{
+				"command": "openCursor.chat.stop",
+				"title": "Stop Chat Generation",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.chat.openSettings",
+				"title": "Open Chat Settings",
+				"category": "Open Cursor",
+				"icon": "$(gear)"
+			},
+			{
+				"command": "openCursor.chat.addFileToChat",
+				"title": "Add to Chat",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.chat.addTerminalSelection",
+				"title": "Add Terminal Selection to Chat",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.chat.fixWithAgent",
+				"title": "Fix with Open Cursor",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.chat.explainSelection",
+				"title": "Explain Selection",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.acceptHunk",
+				"title": "Keep Change",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.rejectHunk",
+				"title": "Undo Change",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.acceptFile",
+				"title": "Keep File",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.rejectFile",
+				"title": "Undo File",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.acceptAll",
+				"title": "Keep All Changes",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.rejectAll",
+				"title": "Undo All Changes",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.openDiff",
+				"title": "Open Diff for Current File",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.nextFile",
+				"title": "Next File With Changes",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.prevFile",
+				"title": "Previous File With Changes",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.nextHunk",
+				"title": "Next Change",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.diff.prevHunk",
+				"title": "Previous Change",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.mcp.reload",
+				"title": "Reload MCP Servers",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.mcp.openUserConfig",
+				"title": "Open User MCP Config",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.mcp.openWorkspaceConfig",
+				"title": "Open Workspace MCP Config",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.index.rebuild",
+				"title": "Rebuild Codebase Index",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.index.clear",
+				"title": "Clear Codebase Index",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.providers.setKey",
+				"title": "Set API Key",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.providers.verify",
+				"title": "Verify Provider Connection",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.settings.open",
+				"title": "Open Settings",
+				"category": "Open Cursor",
+				"icon": "$(gear)"
+			},
+			{
+				"command": "openCursor.tab.toggle",
+				"title": "Toggle Tab Completion",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.tab.showLog",
+				"title": "Show Tab Log",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.tab.trigger",
+				"title": "Trigger Tab Suggestion",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.inline.openFallback",
+				"title": "Edit Selection with AI (Quick Input)",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.terminal.cmdK",
+				"title": "Generate Terminal Command",
+				"category": "Open Cursor"
+			},
+			{
+				"command": "openCursor.scm.generateCommitMessage",
+				"title": "Generate Commit Message",
+				"category": "Open Cursor",
+				"icon": "$(sparkle)"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "openCursor.chat.open",
+				"key": "ctrl+l",
+				"mac": "cmd+l"
+			},
+			{
+				"command": "openCursor.chat.open",
+				"key": "ctrl+i",
+				"mac": "cmd+i"
+			},
+			{
+				"command": "openCursor.chat.addSelectionToNewChat",
+				"key": "ctrl+shift+l",
+				"mac": "cmd+shift+l"
+			},
+			{
+				"command": "openCursor.chat.toggle",
+				"key": "ctrl+alt+b",
+				"mac": "cmd+alt+b"
+			},
+			{
+				"command": "openCursor.chat.newChat",
+				"key": "ctrl+n",
+				"mac": "cmd+n",
+				"when": "openCursor.chatFocused"
+			},
+			{
+				"command": "openCursor.chat.newChat",
+				"key": "ctrl+t",
+				"mac": "cmd+t",
+				"when": "openCursor.chatFocused"
+			},
+			{
+				"command": "openCursor.chat.history",
+				"key": "ctrl+alt+'",
+				"mac": "cmd+alt+'"
+			},
+			{
+				"command": "openCursor.chat.stop",
+				"key": "ctrl+shift+backspace",
+				"mac": "cmd+shift+backspace",
+				"when": "openCursor.chatFocused"
+			},
+			{
+				"command": "openCursor.diff.acceptHunk",
+				"key": "ctrl+y",
+				"mac": "cmd+y",
+				"when": "openCursor.diff.cursorInHunk && editorTextFocus"
+			},
+			{
+				"command": "openCursor.diff.rejectHunk",
+				"key": "ctrl+n",
+				"mac": "cmd+n",
+				"when": "openCursor.diff.cursorInHunk && editorTextFocus"
+			},
+			{
+				"command": "openCursor.diff.acceptFile",
+				"key": "ctrl+enter",
+				"mac": "cmd+enter",
+				"when": "openCursor.diff.fileHasPending && editorTextFocus && !openCursor.inline.active"
+			},
+			{
+				"command": "openCursor.diff.rejectFile",
+				"key": "ctrl+backspace",
+				"mac": "cmd+backspace",
+				"when": "openCursor.diff.fileHasPending && editorTextFocus && !openCursor.inline.active"
+			},
+			{
+				"command": "openCursor.diff.nextHunk",
+				"key": "alt+j",
+				"when": "openCursor.diff.hasPending && editorTextFocus"
+			},
+			{
+				"command": "openCursor.diff.prevHunk",
+				"key": "alt+k",
+				"when": "openCursor.diff.hasPending && editorTextFocus"
+			},
+			{
+				"command": "openCursor.settings.open",
+				"key": "ctrl+shift+j",
+				"mac": "cmd+shift+j"
+			},
+			{
+				"command": "openCursor.terminal.cmdK",
+				"key": "ctrl+k",
+				"mac": "cmd+k",
+				"when": "terminalFocus"
+			},
+			{
+				"command": "workbench.action.terminal.clear",
+				"key": "ctrl+shift+k",
+				"mac": "cmd+shift+k",
+				"when": "terminalFocus"
+			}
+		],
+		"menus": {
+			"explorer/context": [
+				{
+					"command": "openCursor.chat.addFileToChat",
+					"group": "6_openCursor@1"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "openCursor.chat.addFileToChat",
+					"group": "6_openCursor@1"
+				}
+			],
+			"editor/context": [
+				{
+					"command": "openCursor.chat.open",
+					"group": "6_openCursor@1",
+					"when": "editorHasSelection"
+				},
+				{
+					"command": "openCursor.chat.explainSelection",
+					"group": "6_openCursor@2",
+					"when": "editorHasSelection"
+				}
+			],
+			"terminal/context": [
+				{
+					"command": "openCursor.chat.addTerminalSelection",
+					"group": "6_openCursor@1",
+					"when": "terminalTextSelected"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "openCursor.chat.fixWithAgent",
+					"when": "false"
+				},
+				{
+					"command": "openCursor.chat.addFileToChat",
+					"when": "false"
+				}
+			],
+			"scm/inputBox": [
+				{
+					"command": "openCursor.scm.generateCommitMessage",
+					"when": "scmProvider == git"
+				}
+			],
+			"scm/title": [
+				{
+					"command": "openCursor.scm.generateCommitMessage",
+					"when": "scmProvider == git",
+					"group": "navigation"
+				}
+			]
+		},
+		"viewsContainers": {
+			"secondarySidebar": [
+				{
+					"id": "openCursor",
+					"title": "Chat",
+					"icon": "media/chat.svg"
+				}
+			]
+		},
+		"views": {
+			"openCursor": [
+				{
+					"id": "openCursor.chat",
+					"name": "Chat",
+					"type": "webview"
+				}
+			]
+		},
+		"configuration": [
+			{
+				"title": "Open Cursor: Agent",
+				"properties": {
+					"openCursor.agent.autoRun": {
+						"type": "string",
+						"enum": [
+							"ask",
+							"allowlist",
+							"always"
+						],
+						"enumDescriptions": [
+							"Ask before every terminal command.",
+							"Run commands on the allowlist automatically, ask for the rest.",
+							"Run every command without asking (denylisted commands still ask)."
+						],
+						"default": "allowlist",
+						"markdownDescription": "How the agent runs terminal commands. File edits never ask; they land as pending edits you can keep or undo."
+					},
+					"openCursor.agent.commandAllowlist": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [
+							"ls",
+							"pwd",
+							"cat",
+							"head",
+							"tail",
+							"wc",
+							"echo",
+							"which",
+							"whoami",
+							"date",
+							"tree",
+							"grep",
+							"rg",
+							"file",
+							"stat",
+							"du",
+							"df",
+							"basename",
+							"dirname",
+							"git status",
+							"git diff",
+							"git log",
+							"git show",
+							"git branch --list",
+							"git rev-parse",
+							"git remote -v",
+							"git blame",
+							"npm test",
+							"npm run test",
+							"npm run lint",
+							"npm run build",
+							"npm run typecheck",
+							"npm ls",
+							"npm outdated",
+							"pnpm test",
+							"pnpm run test",
+							"pnpm lint",
+							"pnpm build",
+							"pnpm typecheck",
+							"pnpm ls",
+							"yarn test",
+							"yarn lint",
+							"yarn build",
+							"npx tsc",
+							"tsc",
+							"node --version",
+							"python --version",
+							"python3 --version",
+							"cargo check",
+							"cargo test",
+							"cargo build",
+							"cargo clippy",
+							"go build",
+							"go test",
+							"go vet",
+							"pytest",
+							"python -m pytest",
+							"python3 -m pytest",
+							"make test",
+							"make build"
+						],
+						"markdownDescription": "Command prefixes the agent may run without asking when `#openCursor.agent.autoRun#` is `allowlist`. Chained commands (`&&`, `|`, `;`) must all match; redirects to files and command substitution always ask."
+					},
+					"openCursor.agent.commandDenylist": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [
+							"rm -rf /",
+							"rm -rf ~",
+							"rm -rf *",
+							"rm -rf .",
+							"sudo ",
+							"mkfs",
+							"dd if=",
+							":(){",
+							"> /dev/sd",
+							"chmod -R 777 /",
+							"git push --force",
+							"git push -f",
+							"git reset --hard",
+							"git clean -f",
+							"DROP TABLE",
+							"DROP DATABASE",
+							"| sh",
+							"| bash",
+							"| zsh",
+							"shutdown",
+							"reboot"
+						],
+						"markdownDescription": "Substrings that always require approval, in every auto-run mode."
+					},
+					"openCursor.agent.maxIterations": {
+						"type": "number",
+						"default": 50,
+						"minimum": 1,
+						"maximum": 500,
+						"markdownDescription": "Maximum model steps (tool call rounds) in one agent turn."
+					},
+					"openCursor.agent.thinking": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "Ask models that support it to think before answering."
+					},
+					"openCursor.rules.user": {
+						"type": "string",
+						"default": "",
+						"editPresentation": "multilineText",
+						"markdownDescription": "Rules that apply to every chat in every workspace. Project rules live in `.open-cursor/rules` and `.cursor/rules`."
+					},
+					"openCursor.chat.defaultMode": {
+						"type": "string",
+						"enum": [
+							"agent",
+							"plan",
+							"debug",
+							"ask"
+						],
+						"default": "agent",
+						"description": "Mode new chats start in."
+					},
+					"openCursor.chat.showThinking": {
+						"type": "boolean",
+						"default": true,
+						"description": "Show the model's reasoning in chat."
+					},
+					"openCursor.chat.fontSize": {
+						"type": "number",
+						"default": 13,
+						"minimum": 10,
+						"maximum": 22,
+						"description": "Font size in the chat view."
+					},
+					"openCursor.chat.submitWithModEnter": {
+						"type": "boolean",
+						"default": false,
+						"description": "Send messages with Cmd/Ctrl+Enter instead of Enter."
+					}
+				}
+			},
+			{
+				"title": "Open Cursor: CLI agents",
+				"properties": {
+					"openCursor.cli.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "Offer installed agent CLIs (Claude Code, Codex, Gemini CLI) in the model picker. They run on your own subscription."
+					},
+					"openCursor.cli.paths": {
+						"type": "object",
+						"default": {},
+						"markdownDescription": "Explicit binary paths when auto-detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\" }`.",
+						"properties": {
+							"claude-code": {
+								"type": "string"
+							},
+							"codex": {
+								"type": "string"
+							},
+							"gemini-cli": {
+								"type": "string"
+							}
+						},
+						"additionalProperties": {
+							"type": "string"
+						}
+					},
+					"openCursor.cli.claudeCode.extraArgs": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [],
+						"markdownDescription": "Extra command line arguments appended to every `claude` run, e.g. `[\"--effort\", \"high\"]`."
+					},
+					"openCursor.cli.codex.extraArgs": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [],
+						"markdownDescription": "Extra command line arguments appended to every `codex exec` run, e.g. `[\"-c\", \"model_reasoning_effort=\\\"high\\\"\"]`."
+					},
+					"openCursor.cli.gemini.extraArgs": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [],
+						"markdownDescription": "Extra command line arguments appended to every `gemini` run."
+					}
+				}
+			},
+			{
+				"title": "Open Cursor: Indexing",
+				"properties": {
+					"openCursor.index.enabled": {
+						"type": "boolean",
+						"default": true,
+						"description": "Index the workspace for semantic codebase search. Without an embedding backend, search falls back to ripgrep keyword search."
+					},
+					"openCursor.index.embeddingModel": {
+						"type": "string",
+						"default": "auto",
+						"markdownDescription": "Embedding model for the codebase index: `auto` (OpenAI key, then Gemini key, then a local Ollama embedding model) or `provider/model`, for example `openai/text-embedding-3-large`, `google/gemini-embedding-001` or `ollama/nomic-embed-text`. Changing it rebuilds the index."
+					}
+				}
+			},
+			{
+				"title": "Open Cursor: Models",
+				"properties": {
+					"openCursor.models.default": {
+						"type": "string",
+						"default": "",
+						"markdownDescription": "Model id for chat and the agent, e.g. `anthropic/claude-sonnet-5-5`. Empty picks the best available."
+					},
+					"openCursor.models.inline": {
+						"type": "string",
+						"default": "",
+						"markdownDescription": "Model id for Cmd+K inline edits. Empty picks a fast model."
+					},
+					"openCursor.models.tab": {
+						"type": "string",
+						"default": "",
+						"markdownDescription": "Model id for Tab completions. Fill-in-the-middle models work best: `mistral/codestral-latest`, `deepseek/deepseek-chat`, or a local `ollama/qwen2.5-coder:7b`. Empty picks one automatically."
+					},
+					"openCursor.models.enabled": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [],
+						"markdownDescription": "Model ids shown in the picker. Empty shows every available model."
+					},
+					"openCursor.models.custom": {
+						"type": "array",
+						"default": [],
+						"markdownDescription": "Extra models. `provider` is one of anthropic, openai, google, openrouter, deepseek, xai, mistral, groq, ollama, lmstudio, custom.",
+						"items": {
+							"type": "object",
+							"required": [
+								"provider",
+								"model"
+							],
+							"properties": {
+								"provider": {
+									"type": "string",
+									"enum": [
+										"anthropic",
+										"openai",
+										"google",
+										"openrouter",
+										"deepseek",
+										"xai",
+										"mistral",
+										"groq",
+										"ollama",
+										"lmstudio",
+										"custom"
+									]
+								},
+								"model": {
+									"type": "string",
+									"description": "Model id the provider's API expects."
+								},
+								"label": {
+									"type": "string"
+								},
+								"contextWindow": {
+									"type": "number",
+									"description": "Context window in tokens."
+								},
+								"baseUrl": {
+									"type": "string",
+									"description": "Override the base URL for this model only."
+								}
+							}
+						}
+					},
+					"openCursor.providers.ollama.baseUrl": {
+						"type": "string",
+						"default": "http://localhost:11434",
+						"description": "Ollama server URL."
+					},
+					"openCursor.providers.ollama.numCtx": {
+						"type": "number",
+						"default": 16384,
+						"description": "Context length requested from Ollama (num_ctx). Ollama's own default is very small; larger values use more memory. 0 leaves it to the server."
+					},
+					"openCursor.providers.lmstudio.baseUrl": {
+						"type": "string",
+						"default": "http://localhost:1234/v1",
+						"description": "LM Studio local server URL."
+					},
+					"openCursor.providers.custom.baseUrl": {
+						"type": "string",
+						"default": "",
+						"markdownDescription": "Base URL of any OpenAI-compatible endpoint (vLLM, llama.cpp, LiteLLM, ...), e.g. `http://localhost:8000/v1`. Set a key with **Open Cursor: Set API Key** if it needs one."
+					},
+					"openCursor.providers.openai.baseUrl": {
+						"type": "string",
+						"default": "",
+						"markdownDescription": "Override the OpenAI base URL, for Azure OpenAI or a proxy. Empty uses `https://api.openai.com/v1`."
+					}
+				}
+			},
+			{
+				"title": "Open Cursor: Tab",
+				"properties": {
+					"openCursor.tab.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "Enable Tab completions (multi-line ghost text as you type)."
+					},
+					"openCursor.tab.debounceMs": {
+						"type": "number",
+						"default": 75,
+						"minimum": 0,
+						"maximum": 2000,
+						"markdownDescription": "Wait this long after the last keystroke before asking the model. Lower is faster but sends more requests."
+					},
+					"openCursor.tab.maxLines": {
+						"type": "number",
+						"default": 10,
+						"minimum": 1,
+						"maximum": 60,
+						"markdownDescription": "Maximum lines in one Tab suggestion."
+					},
+					"openCursor.tab.disabledLanguages": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [
+							"plaintext",
+							"scminput"
+						],
+						"markdownDescription": "Language ids where Tab is off."
+					},
+					"openCursor.tab.nextEdit": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "Experimental. After you accept a suggestion, ask the inline model whether a related edit is needed further down the file and offer it (needs the `inlineCompletionsAdditions` proposal)."
+					}
+				}
+			}
+		]
+	},
+	"scripts": {
+		"build": "node .esbuild.mts",
+		"watch": "node .esbuild.mts --watch",
+		"typecheck": "tsc -p tsconfig.json --noEmit && tsc -p webview/tsconfig.json --noEmit"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.32.2",
+		"diff": "^9.0.0",
+		"highlight.js": "^11.12.0",
+		"marked": "^15.0.12",
+		"minimatch": "^10.2.6",
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1"
+	},
+	"devDependencies": {
+		"@types/diff": "^7.0.2",
+		"@types/node": "^22.20.5",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"esbuild": "^0.28.2",
+		"typescript": "5.9"
+	}
+}

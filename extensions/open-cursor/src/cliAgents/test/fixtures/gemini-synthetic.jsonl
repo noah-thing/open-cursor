@@ -1,0 +1,12 @@
+{"type":"init","timestamp":"2026-10-28T00:00:00.000Z","session_id":"2be2f984-5d0a-4736-a69a-5e81c8702c54","model":"gemini-2.5-flash"}
+{"type":"message","timestamp":"2026-10-28T00:00:01.000Z","role":"user","content":"change world to there"}
+{"type":"message","timestamp":"2026-10-28T00:00:02.000Z","role":"assistant","content":"I'll read the file ","delta":true}
+{"type":"message","timestamp":"2026-10-28T00:00:02.100Z","role":"assistant","content":"first.","delta":true}
+{"type":"tool_use","timestamp":"2026-10-28T00:00:03.000Z","tool_name":"read_file","tool_id":"read_file-1","parameters":{"absolute_path":"/work/a.txt"}}
+{"type":"tool_result","timestamp":"2026-10-28T00:00:03.500Z","tool_id":"read_file-1","status":"success","output":"hello\nworld\n"}
+{"type":"tool_use","timestamp":"2026-10-28T00:00:04.000Z","tool_name":"replace","tool_id":"replace-2","parameters":{"file_path":"/work/a.txt","old_string":"world","new_string":"there"}}
+{"type":"tool_result","timestamp":"2026-10-28T00:00:04.500Z","tool_id":"replace-2","status":"success"}
+{"type":"tool_use","timestamp":"2026-10-28T00:00:05.000Z","tool_name":"run_shell_command","tool_id":"sh-3","parameters":{"command":"npm test"}}
+{"type":"tool_result","timestamp":"2026-10-28T00:00:05.500Z","tool_id":"sh-3","status":"error","error":{"type":"EXECUTION_DENIED","message":"Shell commands need approval in headless mode"}}
+{"type":"message","timestamp":"2026-10-28T00:00:06.000Z","role":"assistant","content":"Edited a.txt.","delta":true}
+{"type":"result","timestamp":"2026-10-28T00:00:07.000Z","status":"success","stats":{"total_tokens":1200,"input_tokens":1000,"output_tokens":200,"duration_ms":4000,"tool_calls":3}}

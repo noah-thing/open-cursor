@@ -1,0 +1,135 @@
+{
+	"commands": [
+		{
+			"command": "openCursor.diff.acceptHunk",
+			"title": "Keep Change",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.rejectHunk",
+			"title": "Undo Change",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.acceptFile",
+			"title": "Keep File",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.rejectFile",
+			"title": "Undo File",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.acceptAll",
+			"title": "Keep All Changes",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.rejectAll",
+			"title": "Undo All Changes",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.openDiff",
+			"title": "Open Diff for Current File",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.nextFile",
+			"title": "Next File With Changes",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.prevFile",
+			"title": "Previous File With Changes",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.nextHunk",
+			"title": "Next Change",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.diff.prevHunk",
+			"title": "Previous Change",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.mcp.reload",
+			"title": "Reload MCP Servers",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.mcp.openUserConfig",
+			"title": "Open User MCP Config",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.mcp.openWorkspaceConfig",
+			"title": "Open Workspace MCP Config",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.index.rebuild",
+			"title": "Rebuild Codebase Index",
+			"category": "Open Cursor"
+		},
+		{
+			"command": "openCursor.index.clear",
+			"title": "Clear Codebase Index",
+			"category": "Open Cursor"
+		}
+	],
+	"keybindings": [
+		{
+			"command": "openCursor.diff.acceptHunk",
+			"key": "ctrl+y",
+			"mac": "cmd+y",
+			"when": "openCursor.diff.cursorInHunk && editorTextFocus"
+		},
+		{
+			"command": "openCursor.diff.rejectHunk",
+			"key": "ctrl+n",
+			"mac": "cmd+n",
+			"when": "openCursor.diff.cursorInHunk && editorTextFocus"
+		},
+		{
+			"command": "openCursor.diff.acceptFile",
+			"key": "ctrl+enter",
+			"mac": "cmd+enter",
+			"when": "openCursor.diff.fileHasPending && editorTextFocus && !openCursor.inline.active"
+		},
+		{
+			"command": "openCursor.diff.rejectFile",
+			"key": "ctrl+backspace",
+			"mac": "cmd+backspace",
+			"when": "openCursor.diff.fileHasPending && editorTextFocus && !openCursor.inline.active"
+		},
+		{
+			"command": "openCursor.diff.nextHunk",
+			"key": "alt+j",
+			"when": "openCursor.diff.hasPending && editorTextFocus"
+		},
+		{
+			"command": "openCursor.diff.prevHunk",
+			"key": "alt+k",
+			"when": "openCursor.diff.hasPending && editorTextFocus"
+		}
+	],
+	"configuration": {
+		"title": "Open Cursor: Indexing",
+		"properties": {
+			"openCursor.index.enabled": {
+				"type": "boolean",
+				"default": true,
+				"description": "Index the workspace for semantic codebase search. Without an embedding backend, search falls back to ripgrep keyword search."
+			},
+			"openCursor.index.embeddingModel": {
+				"type": "string",
+				"default": "auto",
+				"markdownDescription": "Embedding model for the codebase index: `auto` (OpenAI key, then Gemini key, then a local Ollama embedding model) or `provider/model`, for example `openai/text-embedding-3-large`, `google/gemini-embedding-001` or `ollama/nomic-embed-text`. Changing it rebuilds the index."
+			}
+		}
+	}
+}

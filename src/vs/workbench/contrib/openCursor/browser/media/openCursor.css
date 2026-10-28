@@ -85,13 +85,14 @@
 .monaco-editor .oc-inline-zone.oc-generating .oc-inline-box {
 	border-color: var(--vscode-widget-border, var(--vscode-focusBorder));
 }
-.monaco-editor .oc-inline-input {
+.monaco-editor .oc-inline-box textarea.oc-inline-input {
 	display: block;
 	width: 100%;
 	resize: none;
-	border: 0;
-	outline: 0;
-	background: transparent;
+	border: 0 !important;
+	outline: 0 !important;
+	box-shadow: none !important;
+	background: transparent !important;
 	color: var(--vscode-input-foreground, var(--vscode-foreground));
 	font: 13px/19px var(--vscode-font-family);
 	padding: 0;

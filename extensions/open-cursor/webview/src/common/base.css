@@ -1,0 +1,206 @@
+/* Open Cursor. MIT License. Shared tokens and controls for the chat and settings webviews.
+   Everything derives from VS Code theme variables so every theme works. */
+
+:root {
+	--oc-fg: var(--vscode-foreground, #cccccc);
+	--oc-fg-2: var(--vscode-descriptionForeground, color-mix(in srgb, var(--oc-fg) 72%, transparent));
+	--oc-fg-3: color-mix(in srgb, var(--oc-fg) 48%, transparent);
+	--oc-bg: var(--vscode-sideBar-background, var(--vscode-editor-background, #181818));
+	--oc-bg-editor: var(--vscode-editor-background, #181818);
+	--oc-ink-4: color-mix(in srgb, var(--oc-fg) 4%, transparent);
+	--oc-ink-6: color-mix(in srgb, var(--oc-fg) 6%, transparent);
+	--oc-ink-8: color-mix(in srgb, var(--oc-fg) 8%, transparent);
+	--oc-ink-12: color-mix(in srgb, var(--oc-fg) 12%, transparent);
+	--oc-ink-20: color-mix(in srgb, var(--oc-fg) 20%, transparent);
+	--oc-stroke: color-mix(in srgb, var(--oc-fg) 12%, transparent);
+	--oc-stroke-2: color-mix(in srgb, var(--oc-fg) 8%, transparent);
+	--oc-stroke-3: color-mix(in srgb, var(--oc-fg) 20%, transparent);
+	--oc-accent: var(--vscode-button-background, #81a1c1);
+	--oc-accent-fg: var(--vscode-button-foreground, #141414);
+	--oc-accent-hover: var(--vscode-button-hoverBackground, var(--oc-accent));
+	--oc-link: var(--vscode-textLink-foreground, #81a1c1);
+	--oc-focus: var(--vscode-focusBorder, color-mix(in srgb, var(--oc-fg) 40%, transparent));
+	--oc-add: var(--vscode-gitDecoration-addedResourceForeground, #81b88b);
+	--oc-del: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+	--oc-warn: var(--vscode-editorWarning-foreground, #cca700);
+	--oc-error: var(--vscode-errorForeground, #f85149);
+	--oc-hover: var(--vscode-list-hoverBackground, var(--oc-ink-8));
+	--oc-popup-bg: var(--vscode-editorWidget-background, var(--vscode-quickInput-background, var(--oc-bg-editor)));
+	--oc-popup-border: var(--vscode-editorWidget-border, var(--vscode-widget-border, var(--oc-stroke)));
+	--oc-shadow: var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
+	--oc-input-bg: var(--vscode-input-background, var(--oc-ink-4));
+	--oc-mode-agent: var(--oc-fg-2);
+	--oc-mode-plan: var(--vscode-charts-yellow, #d9a343);
+	--oc-mode-debug: var(--vscode-charts-red, #e0617a);
+	--oc-mode-ask: var(--vscode-charts-green, #4fa87a);
+	--oc-font: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif);
+	--oc-mono: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+	--oc-ease: cubic-bezier(0.2, 0, 0, 1);
+	--oc-dur: 150ms;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; padding: 0; }
+
+body {
+	background: var(--oc-bg);
+	color: var(--oc-fg);
+	font-family: var(--oc-font);
+	font-size: var(--vscode-font-size, 13px);
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+	overflow: hidden;
+}
+
+#root { height: 100%; }
+
+button, input, textarea, select {
+	font: inherit;
+	color: inherit;
+}
+
+button { cursor: pointer; background: none; border: 0; padding: 0; text-align: inherit; }
+button:disabled { cursor: default; }
+
+:focus { outline: none; }
+:focus-visible { outline: 1px solid var(--oc-focus); outline-offset: 1px; }
+
+::selection { background: var(--vscode-editor-selectionBackground, var(--oc-ink-20)); }
+
+* { scrollbar-width: thin; scrollbar-color: var(--oc-ink-20) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--oc-ink-12); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--oc-ink-20); background-clip: content-box; border: 2px solid transparent; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+.oc-icon { flex: none; display: block; }
+.oc-spacer { flex: 1 1 auto; min-width: 0; }
+
+/* Icon button */
+.oc-iconbtn {
+	display: inline-grid;
+	place-items: center;
+	width: 24px;
+	height: 24px;
+	flex: none;
+	border-radius: 6px;
+	color: var(--oc-fg-2);
+	transition: background-color 100ms ease-in-out, color 100ms ease-in-out;
+}
+.oc-iconbtn:hover:not(:disabled) { background: var(--oc-ink-8); color: var(--oc-fg); }
+.oc-iconbtn:active:not(:disabled) { background: var(--oc-ink-12); }
+.oc-iconbtn:disabled { opacity: 0.4; }
+.oc-iconbtn.is-on { background: var(--oc-ink-8); color: var(--oc-fg); }
+.oc-iconbtn.is-danger { color: var(--oc-error); background: color-mix(in srgb, var(--oc-error) 14%, transparent); }
+.oc-iconbtn.is-keep:hover { color: var(--oc-add); }
+
+/* Buttons */
+.oc-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	height: 26px;
+	padding: 0 10px;
+	border-radius: 6px;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1;
+	white-space: nowrap;
+	color: var(--oc-fg);
+	background: var(--oc-ink-8);
+	border: 1px solid transparent;
+	transition: background-color 100ms ease-in-out, border-color 100ms ease-in-out, opacity 100ms;
+}
+.oc-btn:hover:not(:disabled) { background: var(--oc-ink-12); }
+.oc-btn:active:not(:disabled) { transform: translateY(0.5px); }
+.oc-btn:disabled { opacity: 0.45; }
+.oc-btn.is-primary { background: var(--oc-accent); color: var(--oc-accent-fg); }
+.oc-btn.is-primary:hover:not(:disabled) { background: var(--oc-accent-hover); filter: brightness(1.06); }
+.oc-btn.is-ghost { background: transparent; color: var(--oc-fg-2); }
+.oc-btn.is-ghost:hover:not(:disabled) { background: var(--oc-ink-8); color: var(--oc-fg); }
+.oc-btn.is-sm { height: 22px; padding: 0 8px; font-size: 11.5px; }
+.oc-btn.is-danger { color: var(--oc-error); }
+
+.oc-linkbtn {
+	font-size: 12px;
+	color: var(--oc-link);
+	padding: 2px 4px;
+	border-radius: 4px;
+}
+.oc-linkbtn:hover { text-decoration: underline; }
+
+.oc-tag {
+	flex: none;
+	font-size: 10px;
+	line-height: 14px;
+	padding: 0 5px;
+	border-radius: 4px;
+	background: var(--oc-ink-8);
+	color: var(--oc-fg-2);
+}
+
+.oc-badge {
+	flex: none;
+	font-size: 10px;
+	line-height: 14px;
+	padding: 0 5px;
+	border-radius: 4px;
+	background: var(--oc-ink-8);
+	color: var(--oc-fg-2);
+}
+
+kbd {
+	font-family: var(--oc-font);
+	font-size: 11px;
+	line-height: 16px;
+	min-width: 18px;
+	padding: 0 5px;
+	text-align: center;
+	border-radius: 4px;
+	background: var(--oc-ink-8);
+	border: 1px solid var(--oc-stroke-2);
+	color: var(--oc-fg-2);
+}
+
+.oc-added { color: var(--oc-add); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+.oc-removed { color: var(--oc-del); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+
+/* Motion */
+.is-shimmer {
+	background-image: linear-gradient(90deg, var(--oc-fg-2) 0%, var(--oc-fg-2) 38%, var(--oc-fg) 50%, var(--oc-fg-2) 62%, var(--oc-fg-2) 100%);
+	background-size: 250% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	color: transparent;
+	animation: oc-shimmer 1.8s linear infinite;
+}
+@keyframes oc-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+.oc-spinner { animation: oc-spin 0.8s linear infinite; flex: none; }
+@keyframes oc-spin { to { transform: rotate(360deg); } }
+
+@keyframes oc-rise { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes oc-pop { from { opacity: 0; transform: translateY(4px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+	.is-shimmer { animation: none; -webkit-text-fill-color: currentColor; color: var(--oc-fg-2); background: none; }
+}
+
+/* highlight.js tokens, theme aware */
+.hljs { color: inherit; background: transparent; }
+.hljs-comment, .hljs-quote { color: var(--oc-fg-3); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag, .hljs-meta .hljs-keyword { color: var(--vscode-symbolIcon-keywordForeground, #c586c0); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-meta .hljs-string { color: var(--vscode-symbolIcon-stringForeground, #ce9178); }
+.hljs-number, .hljs-symbol, .hljs-bullet { color: var(--vscode-symbolIcon-numberForeground, #b5cea8); }
+.hljs-title, .hljs-title.function_, .hljs-section { color: var(--vscode-symbolIcon-functionForeground, #dcdcaa); }
+.hljs-title.class_, .hljs-type, .hljs-built_in, .hljs-class .hljs-title { color: var(--vscode-symbolIcon-classForeground, #4ec9b0); }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable, .hljs-property, .hljs-params { color: var(--vscode-symbolIcon-variableForeground, #9cdcfe); }
+.hljs-tag, .hljs-name, .hljs-selector-id, .hljs-selector-class { color: var(--vscode-symbolIcon-keywordForeground, #569cd6); }
+.hljs-deletion { color: var(--oc-del); }
+.hljs-meta { color: var(--oc-fg-3); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }

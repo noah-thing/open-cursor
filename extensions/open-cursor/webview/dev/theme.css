@@ -1,0 +1,66 @@
+/* Stand-ins for the variables VS Code injects into every webview. */
+:root, :root[data-theme='dark'] {
+	--vscode-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+	--vscode-font-size: 13px;
+	--vscode-editor-font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	--vscode-editor-font-size: 12px;
+	--vscode-foreground: #f0f0f0;
+	--vscode-descriptionForeground: #f0f0f0bd;
+	--vscode-editor-background: #181818;
+	--vscode-sideBar-background: #141414;
+	--vscode-input-background: #f0f0f00a;
+	--vscode-focusBorder: #f0f0f040;
+	--vscode-button-background: #81a1c1;
+	--vscode-button-foreground: #141414;
+	--vscode-button-hoverBackground: #8fabc9;
+	--vscode-textLink-foreground: #81a1c1;
+	--vscode-list-hoverBackground: #f0f0f011;
+	--vscode-widget-border: #f0f0f01f;
+	--vscode-editorWidget-background: #1c1c1c;
+	--vscode-editorWidget-border: #f0f0f01f;
+	--vscode-widget-shadow: rgba(0, 0, 0, 0.5);
+	--vscode-badge-background: #88c0d0;
+	--vscode-errorForeground: #f07178;
+	--vscode-editorWarning-foreground: #e0b04a;
+	--vscode-gitDecoration-addedResourceForeground: #7fc28d;
+	--vscode-gitDecoration-deletedResourceForeground: #e0617a;
+	--vscode-charts-yellow: #e0b04a;
+	--vscode-charts-red: #e0617a;
+	--vscode-charts-green: #6cc08b;
+	--vscode-symbolIcon-keywordForeground: #c792ea;
+	--vscode-symbolIcon-stringForeground: #c3e88d;
+	--vscode-symbolIcon-numberForeground: #f78c6c;
+	--vscode-symbolIcon-functionForeground: #82aaff;
+	--vscode-symbolIcon-classForeground: #ffcb6b;
+	--vscode-symbolIcon-variableForeground: #89ddff;
+}
+:root[data-theme='light'] {
+	--vscode-foreground: #3b3b3b;
+	--vscode-descriptionForeground: #717171;
+	--vscode-editor-background: #ffffff;
+	--vscode-sideBar-background: #f8f8f8;
+	--vscode-input-background: #ffffff;
+	--vscode-focusBorder: #0090f1;
+	--vscode-button-background: #005fb8;
+	--vscode-button-foreground: #ffffff;
+	--vscode-button-hoverBackground: #0258a8;
+	--vscode-textLink-foreground: #005fb8;
+	--vscode-list-hoverBackground: #00000010;
+	--vscode-widget-border: #00000024;
+	--vscode-editorWidget-background: #ffffff;
+	--vscode-editorWidget-border: #00000024;
+	--vscode-widget-shadow: rgba(0, 0, 0, 0.16);
+	--vscode-errorForeground: #c72e0f;
+	--vscode-editorWarning-foreground: #bf8803;
+	--vscode-gitDecoration-addedResourceForeground: #2e7d4f;
+	--vscode-gitDecoration-deletedResourceForeground: #ad0707;
+	--vscode-charts-yellow: #bf8803;
+	--vscode-charts-red: #c72e0f;
+	--vscode-charts-green: #2e7d4f;
+	--vscode-symbolIcon-keywordForeground: #af00db;
+	--vscode-symbolIcon-stringForeground: #a31515;
+	--vscode-symbolIcon-numberForeground: #098658;
+	--vscode-symbolIcon-functionForeground: #795e26;
+	--vscode-symbolIcon-classForeground: #267f99;
+	--vscode-symbolIcon-variableForeground: #001080;
+}

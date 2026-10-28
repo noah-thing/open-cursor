@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"01a17fc1-e7eb-74a1-8c28-ce71807d60fa"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"/bin/zsh -lc \"sed -i '' 's/there/over/' a.txt\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"/bin/zsh -lc \"sed -i '' 's/there/over/' a.txt\"","aggregated_output":"","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"over"}}
+{"type":"turn.completed","usage":{"input_tokens":98818,"cached_input_tokens":85632,"cache_write_input_tokens":0,"output_tokens":603,"reasoning_output_tokens":447}}
