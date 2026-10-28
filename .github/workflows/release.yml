@@ -160,7 +160,6 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.linux) }}
     env:
       VSCODE_ARCH: ${{ matrix.arch }}
-      npm_config_arch: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -175,8 +174,10 @@ jobs:
           sudo apt-get install -y pkg-config libkrb5-dev libxkbfile-dev libx11-dev libsecret-1-dev \
             libgbm1 libgtk-3-0 fakeroot dpkg-dev rpm xz-utils
       - name: Build tool dependencies
-        run: (cd build && npm_config_arch= npm ci)
+        run: cd build && npm ci
       - name: Install dependencies (cross toolchain from the upstream sysroot)
+        env:
+          npm_config_arch: ${{ matrix.arch }}
         run: |
           set -e
           ln -sf "$(command -v python3)" "$RUNNER_TEMP/python" || true
@@ -185,7 +186,7 @@ jobs:
           node build/npm/preinstall.ts
           npm ci
       - name: Build extension
-        run: cd extensions/open-cursor && npm_config_arch= npm ci && npm run build
+        run: cd extensions/open-cursor && npm ci && npm run build
       - name: Build client
         run: |
           set -e
