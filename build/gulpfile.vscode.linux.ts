@@ -120,7 +120,7 @@ function prepareDebPackage(arch: string) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/templates'));
 
-		const all = es.merge(control, templates, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
+		const all = es.merge(control, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
 
 		return all.pipe(vfs.dest(destination));
 	};

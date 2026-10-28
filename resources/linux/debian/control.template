@@ -5,14 +5,9 @@ Depends: @@DEPENDS@@
 Recommends: @@RECOMMENDS@@
 Priority: optional
 Architecture: @@ARCHITECTURE@@
-Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
-Homepage: https://code.visualstudio.com/
+Maintainer: Open Cursor <noreply@users.noreply.github.com>
+Homepage: https://github.com/noah-thing/open-cursor
 Installed-Size: @@INSTALLEDSIZE@@
-Provides: visual-studio-@@NAME@@
-Conflicts: visual-studio-@@NAME@@
-Replaces: visual-studio-@@NAME@@
-Description: Code editing. Redefined.
- Visual Studio Code is a new choice of tool that combines the simplicity of
- a code editor with what developers need for the core edit-build-debug cycle.
- See https://code.visualstudio.com/docs/setup/linux for installation
- instructions and FAQ.
+Description: An AI code editor built on Code - OSS
+ Open Cursor is a code editor with an AI agent, inline edits and tab completion,
+ built on the open source Code - OSS. It uses your own model subscriptions and keys.
