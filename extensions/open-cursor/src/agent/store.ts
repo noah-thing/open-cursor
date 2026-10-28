@@ -127,6 +127,11 @@ export class ChatStore {
 		this.markIndex();
 	}
 
+	/** Chats already read from disk this session. */
+	loaded(): StoredChat[] {
+		return [...this.cache.values()];
+	}
+
 	has(id: string): boolean {
 		return this.cache.has(id) || this.index.chats.some(c => c.id === id);
 	}

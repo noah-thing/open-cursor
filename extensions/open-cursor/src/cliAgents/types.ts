@@ -5,7 +5,7 @@
 
 import type { ChatMode, ToolPart } from '../shared/protocol';
 
-export type CliAgentId = 'claude-code' | 'codex' | 'gemini-cli';
+export type CliAgentId = 'claude-code' | 'codex' | 'grok' | 'gemini-cli';
 export type AutoRun = 'ask' | 'allowlist' | 'always';
 export type Approval = 'run' | 'skip' | 'allowAlways';
 

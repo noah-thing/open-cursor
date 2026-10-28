@@ -58,7 +58,13 @@ export type MessagePart =
 	| { readonly type: 'text'; readonly text: string }
 	| { readonly type: 'thinking'; readonly text: string; readonly durationMs?: number; readonly done: boolean }
 	| ToolPart
-	| { readonly type: 'error'; readonly message: string; readonly action?: 'openSettings' | 'retry' };
+	| {
+		readonly type: 'error'; readonly message: string; readonly action?: 'openSettings' | 'retry';
+		/** A model the user can run right now, offered as a one-click retry. */
+		readonly switchTo?: { readonly id: string; readonly label: string };
+		/** What would make the chosen model work: signing in to its CLI, or adding an API key. */
+		readonly fix?: { readonly kind: 'signIn'; readonly agentId: string; readonly label: string } | { readonly kind: 'addKey' };
+	};
 
 export interface UserMessage {
 	readonly id: string;
@@ -167,7 +173,7 @@ export type WebviewMessage =
 	| { readonly type: 'ready' }
 	| { readonly type: 'send'; readonly chatId: string; readonly text: string; readonly context: ContextItem[]; readonly mode: ChatMode; readonly modelId: string }
 	/** Edit an earlier user message and resend from there (reverts the checkpoint first if `revert`). */
-	| { readonly type: 'resend'; readonly chatId: string; readonly messageId: string; readonly text: string; readonly context: ContextItem[]; readonly revert: boolean }
+	| { readonly type: 'resend'; readonly chatId: string; readonly messageId: string; readonly text: string; readonly context: ContextItem[]; readonly revert: boolean; readonly modelId?: string }
 	| { readonly type: 'stop'; readonly chatId: string }
 	| { readonly type: 'queue'; readonly chatId: string; readonly text: string; readonly context: ContextItem[] }
 	| { readonly type: 'unqueue'; readonly chatId: string; readonly queuedId: string }
@@ -210,11 +216,25 @@ export type HostMessageExt =
 	/** Reply to `requestSlashCommands`; also fine to push whenever commands change. */
 	| { readonly type: 'slashCommands'; readonly commands: SlashCommandInfo[] }
 	/** The file in the active editor, shown as a suggested context pill. `null` when there is none. */
-	| { readonly type: 'activeEditor'; readonly item: ContextItem | null };
+	| { readonly type: 'activeEditor'; readonly item: ContextItem | null }
+	/** Agent CLIs on this machine and whether they are signed in, for the start screen. */
+	| { readonly type: 'agents'; readonly agents: AgentStatus[] };
+
+export interface AgentStatus {
+	readonly id: string;
+	readonly label: string;
+	readonly installed: boolean;
+	/** `undefined` when the CLI gives no way to tell. */
+	readonly loggedIn?: boolean;
+	/** The model id to pick when the user chooses this agent. */
+	readonly modelId?: string;
+}
 
 export type WebviewMessageExt =
 	| WebviewMessage
 	| { readonly type: 'requestSlashCommands' }
 	| { readonly type: 'requestActiveEditor' }
 	/** Start screen actions that hand off to the workbench. */
-	| { readonly type: 'workbench'; readonly action: 'openFolder' | 'openRecent' | 'cloneRepo' | 'showEditor' };
+	| { readonly type: 'workbench'; readonly action: 'openFolder' | 'openRecent' | 'cloneRepo' | 'showEditor' }
+	/** Start screen: install or sign in to an agent CLI in a terminal, or look again after doing so. */
+	| { readonly type: 'agentAction'; readonly id: string; readonly action: 'install' | 'signIn' | 'refresh' };

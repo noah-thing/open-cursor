@@ -103,7 +103,7 @@ export interface ProviderRow {
 }
 
 export interface CliRow {
-	id: 'claude-code' | 'codex' | 'gemini-cli';
+	id: 'claude-code' | 'codex' | 'grok' | 'gemini-cli';
 	label: string;
 	installed: boolean;
 	binaryPath?: string;

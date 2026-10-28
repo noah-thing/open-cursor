@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Open Cursor. MIT License.
- *  "Bring your own CLI subscription": runs Claude Code, Codex or Gemini CLI headless in the
+ *  "Bring your own CLI subscription": runs Claude Code, Codex, Grok or Gemini CLI headless in the
  *  workspace and translates their event streams into Open Cursor chat parts. Entry point for
  *  src/cliAgents. Everything except this file is vscode-free so it can be tested in plain node.
  *--------------------------------------------------------------------------------------------*/
@@ -12,6 +12,8 @@ import { runClaude } from './claude';
 import { runCodex } from './codex';
 import { AGENT_IDS, cliEnv, detectAll, resetLoginShellCache, type DetectConfig } from './detect';
 import { runGemini } from './gemini';
+import { runGrok } from './grok';
+import { cliHint } from '../shared/cliHints';
 import type { CliAgentId, RunOptions, RunResult, TurnHost } from './types';
 
 const REDETECT_MS = 5 * 60_000;
@@ -23,8 +25,8 @@ function readConfig(): DetectConfig & { extraArgs: Record<CliAgentId, string[]>;
 	const list = (key: string): string[] => (c.get<unknown[]>(key) ?? []).filter((x): x is string => typeof x === 'string');
 	return {
 		enabled: c.get<boolean>('cli.enabled') ?? true,
-		paths: { 'claude-code': paths['claude-code'] ?? paths.claude, codex: paths.codex, 'gemini-cli': paths['gemini-cli'] ?? paths.gemini },
-		extraArgs: { 'claude-code': list('cli.claudeCode.extraArgs'), codex: list('cli.codex.extraArgs'), 'gemini-cli': list('cli.gemini.extraArgs') },
+		paths: { 'claude-code': paths['claude-code'] ?? paths.claude, codex: paths.codex, grok: paths.grok, 'gemini-cli': paths['gemini-cli'] ?? paths.gemini },
+		extraArgs: { 'claude-code': list('cli.claudeCode.extraArgs'), codex: list('cli.codex.extraArgs'), grok: list('cli.grok.extraArgs'), 'gemini-cli': list('cli.gemini.extraArgs') },
 		allowlist: list('agent.commandAllowlist'),
 	};
 }
@@ -91,6 +93,14 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 			return infos;
 		},
 
+		async refresh(): Promise<CliAgentInfo[]> {
+			// Keep the old infos so run() can tell whether anything changed.
+			resetLoginShellCache();
+			detectedAt = 0;
+			inflight = undefined;
+			return run();
+		},
+
 		get(id: CliAgentInfo['id']): CliAgentInfo | undefined {
 			return infos.find(i => i.id === id);
 		},
@@ -111,7 +121,7 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 				info = (await run()).find(i => i.id === opts.agent);
 			}
 			if (!info?.binaryPath) {
-				const hint = opts.agent === 'claude-code' ? 'Install Claude Code, then run `claude login`.' : opts.agent === 'codex' ? 'Install Codex (`npm i -g @openai/codex`), then run `codex login`.' : 'Install Gemini CLI (`npm i -g @google/gemini-cli`) and sign in.';
+				const hint = `Install it with \`${cliHint(opts.agent).install}\`, then sign in.`;
 				return { stopReason: 'error', error: `${info?.label ?? opts.agent} was not found on this machine. ${hint} You can also set openCursor.cli.paths.` };
 			}
 			if (opts.signal.aborted) {
@@ -140,6 +150,8 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 						return await runClaude(runOpts);
 					case 'codex':
 						return await runCodex(runOpts);
+					case 'grok':
+						return await runGrok(runOpts);
 					case 'gemini-cli':
 						return await runGemini(runOpts);
 				}

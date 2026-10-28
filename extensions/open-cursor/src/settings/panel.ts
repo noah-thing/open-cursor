@@ -9,6 +9,7 @@ import * as nodePath from 'node:path';
 import * as os from 'node:os';
 import type { Services } from '../services';
 import type { ModelInfo } from '../providers/types';
+import { cliHint } from '../shared/cliHints';
 import {
 	CONFIG_DEFAULTS, SECTIONS,
 	type CliRow, type CommandRow, type ConfigKey, type ConfigValues, type ModelRow, type ProviderKey, type ProviderRow,
@@ -29,11 +30,7 @@ const PROVIDERS: { id: ProviderKey; label: string; keyless: boolean }[] = [
 	{ id: 'custom', label: 'Custom (OpenAI compatible)', keyless: false },
 ];
 
-const CLI_HINTS: Record<CliRow['id'], { install: string; login: string }> = {
-	'claude-code': { install: 'npm install -g @anthropic-ai/claude-code', login: 'Run `claude` once in a terminal and sign in with your Claude account.' },
-	codex: { install: 'npm install -g @openai/codex', login: 'Run `codex login` in a terminal and sign in with ChatGPT.' },
-	'gemini-cli': { install: 'npm install -g @google/gemini-cli', login: 'Run `gemini` once in a terminal and sign in with Google.' },
-};
+
 
 const MODELS_CACHE_KEY = 'openCursor.settings.allModels';
 const RULE_EXTS = new Set(['.md', '.mdc']);
@@ -260,8 +257,8 @@ class SettingsPanel implements vscode.Disposable {
 				binaryPath: a.binaryPath,
 				version: a.version,
 				loggedIn: a.loggedIn,
-				installHint: CLI_HINTS[a.id].install,
-				loginHint: CLI_HINTS[a.id].login,
+				installHint: cliHint(a.id).install,
+				loginHint: cliHint(a.id).login,
 			}));
 		} catch { /* detection failed, show none */ }
 		const commands: CommandRow[] = await context.getSlashCommands().then(list => list.map(c => ({ name: c.name, description: c.description, source: c.source }))).catch(() => []);

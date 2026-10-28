@@ -53,12 +53,13 @@ function Chevron({ open }: { readonly open: boolean }): ReactElement {
 }
 
 /** The sentence being thought right now, without markdown marks. */
-function lastLine(text: string): string {
+function lastLine(text: string): { text: string; n: number } {
 	const lines = text.replace(/[*_`#>]/g, '').split(/\n+/).map(l => l.trim()).filter(Boolean);
 	const last = lines[lines.length - 1] ?? '';
 	const sentences = last.split(/(?<=[.!?])\s+/);
 	const line = sentences[sentences.length - 1].length > 12 ? sentences[sentences.length - 1] : last;
-	return line.length > 110 ? '…' + line.slice(-110) : line;
+	// `n` counts sentences so far: the line slides in once per new sentence, not once per streamed word.
+	return { text: line.length > 110 ? '…' + line.slice(-110) : line, n: lines.length * 1000 + sentences.length };
 }
 
 export const Thinking = memo(function Thinking({ part, show }: { readonly part: Extract<MessagePart, { type: 'thinking' }>; readonly show: boolean }): ReactElement {
@@ -67,7 +68,7 @@ export const Thinking = memo(function Thinking({ part, show }: { readonly part: 
 	const open = canOpen && (userOpen ?? false);
 	const secs = formatDuration(part.durationMs);
 	// While it thinks, the newest line of thought drifts past under the title, so the wait reads as work.
-	const live = !part.done && show && !open ? lastLine(part.text) : '';
+	const live = !part.done && show && !open ? lastLine(part.text) : undefined;
 	return (
 		<div className={'oc-thinking' + (part.done ? '' : ' is-live')}>
 			<button type="button" className="oc-row-head" disabled={!canOpen} onClick={() => setUserOpen(!open)} aria-expanded={open}>
@@ -77,7 +78,7 @@ export const Thinking = memo(function Thinking({ part, show }: { readonly part: 
 				</span>
 				{canOpen ? <Chevron open={open} /> : null}
 			</button>
-			{live ? <div className="oc-think-live"><span key={live.slice(0, 24)}>{live}</span></div> : null}
+			{live?.text ? <div className="oc-think-live"><span key={live.n}>{live.text}</span></div> : null}
 			{open ? (
 				<div className="oc-thinking-body">
 					<Markdown text={part.text} />
@@ -210,23 +211,36 @@ const ApprovalCard = memo(function ApprovalCard({ part, chatId }: { readonly par
 	);
 });
 
-export const ErrorCard = memo(function ErrorCard({ message, action, onRetry }: {
+export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fix, onRetry, onSwitch }: {
 	readonly message: string;
 	readonly action?: 'openSettings' | 'retry';
+	readonly switchTo?: { readonly id: string; readonly label: string };
+	readonly fix?: Extract<MessagePart, { type: 'error' }>['fix'];
 	readonly onRetry?: () => void;
+	readonly onSwitch?: (id: string) => void;
 }): ReactElement {
+	const [switched, setSwitched] = useState(false);
 	return (
 		<div className="oc-error" role="alert">
 			<Icon name="warning" size={14} className="oc-error-icon" />
 			<div className="oc-error-main">
 				<div className="oc-error-text">{message}</div>
-				{action ? (
+				{action || switchTo || fix ? (
 					<div className="oc-error-actions">
-						{action === 'retry' ? (
+						{switchTo && onSwitch ? (
+							<button type="button" className="oc-btn is-primary" disabled={switched} onClick={() => { setSwitched(true); onSwitch(switchTo.id); }}>
+								Use {switchTo.label} and retry
+							</button>
+						) : null}
+						{fix?.kind === 'signIn' ? (
+							<button type="button" className="oc-btn" onClick={() => post({ type: 'agentAction', id: fix.agentId, action: 'signIn' })}>Sign in to {fix.label}</button>
+						) : fix?.kind === 'addKey' ? (
+							<button type="button" className="oc-btn" onClick={() => post({ type: 'openSettings', section: 'models' })}>Add an API key</button>
+						) : action === 'retry' ? (
 							<button type="button" className="oc-btn" onClick={onRetry}>Try again</button>
-						) : (
+						) : action === 'openSettings' ? (
 							<button type="button" className="oc-btn" onClick={() => post({ type: 'openSettings', section: 'models' })}>Open settings</button>
-						)}
+						) : null}
 					</div>
 				) : null}
 			</div>

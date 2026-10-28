@@ -77,14 +77,14 @@ const WorkingLine = memo(function WorkingLine({ message }: { readonly message: A
 	const steps = message.parts.filter((p): p is ToolPart => p.type === 'tool');
 	const secs = Math.max(0, Math.round((now - message.createdAt) / 1000));
 	return (
-		<div className={'oc-working' + (waiting ? ' is-waiting' : '')} aria-live="polite">
-			<span key={label} className={'oc-working-label' + (waiting ? '' : ' is-shimmer')}>{label}</span>
+		<div className={'oc-working' + (waiting ? ' is-waiting' : '')}>
+			<span key={label} className={'oc-working-label' + (waiting ? '' : ' is-shimmer')} aria-live="polite">{label}</span>
 			{steps.length ? (
 				<span className="oc-trace" aria-hidden="true">
 					{steps.slice(-32).map(t => <i key={t.id} className={'is-' + t.status} />)}
 				</span>
 			) : null}
-			<span className="oc-working-time">{secs >= 60 ? Math.floor(secs / 60) + 'm ' + (secs % 60) + 's' : secs + 's'}</span>
+			<span className="oc-working-time" aria-hidden="true">{secs >= 60 ? Math.floor(secs / 60) + 'm ' + (secs % 60) + 's' : secs + 's'}</span>
 		</div>
 	);
 });
@@ -103,7 +103,7 @@ export const AssistantBlock = memo(function AssistantBlock({ message, chatId, sh
 	readonly message: AssistantMessage;
 	readonly chatId: string;
 	readonly showThinking: boolean;
-	readonly onRetry: () => void;
+	readonly onRetry: (modelId?: string) => void;
 }): ReactElement {
 	const nodes = useMemo(() => buildNodes(message.parts), [message.parts]);
 	const fullText = useMemo(() => message.parts.filter((p): p is Extract<MessagePart, { type: 'text' }> => p.type === 'text').map(p => p.text).join('\n\n'), [message.parts]);
@@ -121,7 +121,17 @@ export const AssistantBlock = memo(function AssistantBlock({ message, chatId, sh
 					case 'tool':
 						return <ToolPartView key={n.key} part={p} chatId={chatId} />;
 					case 'error':
-						return <ErrorCard key={n.key} message={p.message} action={p.action} onRetry={onRetry} />;
+						return (
+							<ErrorCard
+								key={n.key}
+								message={p.message}
+								action={p.action}
+								switchTo={p.switchTo}
+								fix={p.fix}
+								onRetry={() => onRetry()}
+								onSwitch={id => onRetry(id)}
+							/>
+						);
 				}
 			})}
 			{message.done ? null : <WorkingLine message={message} />}

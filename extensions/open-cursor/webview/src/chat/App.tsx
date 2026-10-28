@@ -7,7 +7,7 @@ import type { Chat, ChatMode, ContextItem } from '../../../src/shared/protocol';
 import { Icon } from '../common/icons';
 import { Composer } from './composer';
 import { Header, History } from './header';
-import { HomeBottom, HomeTop, buildStarters } from './home';
+import { ConnectBlock, HomeBottom, HomeTop, buildStarters } from './home';
 import { onHostMessage, post, saveUiState } from './host';
 import { AssistantBlock, UserBubble } from './messages';
 import { QueueTray, ReviewBar, TodoTray } from './trays';
@@ -89,11 +89,11 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 		persist();
 	};
 
-	const retry = useCallback(() => {
+	const retry = useCallback((modelId?: string) => {
 		for (let i = chat.messages.length - 1; i >= 0; i--) {
 			const m = chat.messages[i];
 			if (m.role === 'user') {
-				post({ type: 'resend', chatId: chat.id, messageId: m.id, text: m.text, context: m.context, revert: false });
+				post({ type: 'resend', chatId: chat.id, messageId: m.id, text: m.text, context: m.context, revert: false, modelId });
 				return;
 			}
 		}
@@ -172,11 +172,34 @@ function useStageMotion(home: boolean): { stageRef: React.RefObject<HTMLDivEleme
 	const stageRef = useRef<HTMLDivElement>(null);
 	const dockRef = useRef<HTMLDivElement>(null);
 	const last = useRef<{ home: boolean; dockTop: number; ghosts: Ghost[] } | undefined>(undefined);
-	useLayoutEffect(() => {
+	const capture = useCallback((isHome: boolean): void => {
 		const stage = stageRef.current;
 		const dock = dockRef.current;
 		if (!stage || !dock) { last.current = undefined; return; }
 		const box = stage.getBoundingClientRect();
+		const dockRect = dock.getBoundingClientRect();
+		const ghosts: Ghost[] = isHome
+			? [...stage.querySelectorAll<HTMLElement>(':scope > .oc-home-top:not(.oc-leaving), :scope > .oc-home-bottom:not(.oc-leaving)')].map(el => {
+				const r = el.getBoundingClientRect();
+				return { el, top: r.top - box.top, left: r.left - box.left, width: r.width, below: r.top > dockRect.top };
+			})
+			: [];
+		last.current = { home: isHome, dockTop: dockRect.top, ghosts };
+	}, []);
+	// Scrolling the start screen or resizing the panel moves things without a render; keep the snapshot true.
+	useEffect(() => {
+		const stage = stageRef.current;
+		if (!stage) { return; }
+		const again = (): void => capture(stage.classList.contains('is-home'));
+		stage.addEventListener('scroll', again, { passive: true });
+		const ro = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(again);
+		ro?.observe(stage);
+		return () => { stage.removeEventListener('scroll', again); ro?.disconnect(); };
+	});
+	useLayoutEffect(() => {
+		const stage = stageRef.current;
+		const dock = dockRef.current;
+		if (!stage || !dock) { last.current = undefined; return; }
 		const dockRect = dock.getBoundingClientRect();
 		const prev = last.current;
 		if (prev && prev.home !== home && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -195,13 +218,7 @@ function useStageMotion(home: boolean): { stageRef: React.RefObject<HTMLDivEleme
 				).onfinish = () => el.remove();
 			}
 		}
-		const ghosts: Ghost[] = home
-			? [...stage.querySelectorAll<HTMLElement>(':scope > .oc-home-top, :scope > .oc-home-bottom')].map(el => {
-				const r = el.getBoundingClientRect();
-				return { el, top: r.top - box.top, left: r.left - box.left, width: r.width, below: r.top > dockRect.top };
-			})
-			: [];
-		last.current = { home, dockTop: dockRect.top, ghosts };
+		capture(home);
 	});
 	return { stageRef, dockRef };
 }
@@ -213,7 +230,7 @@ export function App(): ReactElement {
 	stateRef.current = state;
 
 	useEffect(() => {
-		persistState = () => saveUiState({ drafts: stateRef.current.drafts, scroll: scrollPositions });
+		persistState = () => saveUiState({ drafts: stateRef.current.drafts, scroll: scrollPositions, connectHidden: stateRef.current.connectHidden });
 		const off = onHostMessage(m => dispatch({ kind: 'host', m }));
 		post({ type: 'ready' });
 		post({ type: 'requestSlashCommands' });
@@ -221,7 +238,7 @@ export function App(): ReactElement {
 		return off;
 	}, []);
 
-	useEffect(() => { saveUiState({ drafts: state.drafts, scroll: scrollPositions }); }, [state.drafts]);
+	useEffect(() => { saveUiState({ drafts: state.drafts, scroll: scrollPositions, connectHidden: state.connectHidden }); }, [state.drafts, state.connectHidden]);
 
 	// Esc stops the agent even when the input does not have focus.
 	useEffect(() => {
@@ -237,7 +254,9 @@ export function App(): ReactElement {
 
 	useEffect(() => { setEditingId(undefined); }, [state.activeId]);
 
-	const chat = state.activeId ? state.chats[state.activeId] : undefined;
+	const shown = useRef<Chat | undefined>(undefined);
+	const chat = (state.activeId ? state.chats[state.activeId] : undefined) ?? (state.ready ? shown.current : undefined);
+	shown.current = chat;
 	const wide = useWide();
 	const { stageRef, dockRef } = useStageMotion(!!chat && chat.messages.length === 0);
 
@@ -278,7 +297,9 @@ export function App(): ReactElement {
 	};
 	const contexts: ContextItem[] = state.contexts[chat.id] ?? [];
 	const home = chat.messages.length === 0;
-	const recent = state.summaries.filter(s => s.id !== chat.id && s.updatedAt > 0).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 4);
+	// Untouched chats are not worth listing; the open one still shows so you can see where you are.
+	const listed = state.summaries.filter(s => s.id === state.activeId || s.title !== 'New chat');
+	const recent = listed.filter(s => s.id !== chat.id && s.updatedAt > 0).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 4);
 	const effectiveChat: Chat = chat.mode === mode ? chat : { ...chat, mode };
 	const hasModel = state.models.some(m => m.hasKey);
 	const starters = buildStarters({
@@ -301,7 +322,7 @@ export function App(): ReactElement {
 					<button type="button" className="oc-rail-new" onClick={() => { post({ type: 'newChat' }); dispatch({ kind: 'view', view: 'chat' }); }}>
 						<Icon name="plus" size={14} /> New chat
 					</button>
-					<History summaries={state.summaries} activeId={state.activeId} onPick={pickChat} autoFocus={false} />
+					<History summaries={listed} activeId={state.activeId} onPick={pickChat} autoFocus={false} />
 					<footer className="oc-rail-foot">
 						<button type="button" className="oc-rail-link" onClick={() => post({ type: 'workbench', action: 'showEditor' })} title="Bring back the editor and files">
 							<Icon name="code" size={14} /> Show editor
@@ -313,7 +334,7 @@ export function App(): ReactElement {
 				</aside>
 			) : null}
 			{state.view === 'history' && !wide ? (
-				<History summaries={state.summaries} activeId={state.activeId} onPick={pickChat} />
+				<History summaries={listed} activeId={state.activeId} onPick={pickChat} />
 			) : (
 				<div className={'oc-stage' + (home ? ' is-home' : '')} ref={stageRef}>
 					{home ? (
@@ -348,7 +369,22 @@ export function App(): ReactElement {
 							onNewChat={() => post({ type: 'newChat' })}
 						/>
 					</div>
-					{home ? <HomeBottom starters={starters} recent={recent.slice(1)} onPick={pickChat} /> : null}
+					{home ? (
+						<HomeBottom
+							starters={starters}
+							recent={recent.slice(1)}
+							onPick={pickChat}
+							connect={state.agents.length > 0 && (!hasModel || !state.connectHidden) ? (
+								<ConnectBlock
+									agents={state.agents}
+									modelId={modelId}
+									needed={!hasModel}
+									onUse={setModel}
+									onHide={() => dispatch({ kind: 'connectHidden', hidden: true })}
+								/>
+							) : null}
+						/>
+					) : null}
 				</div>
 			)}
 			</div>

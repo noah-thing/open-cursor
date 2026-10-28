@@ -255,9 +255,9 @@ export function readTextFile(p: string, maxBytes = 2_000_000): string | undefine
 }
 
 /** Short friendly hints for common failures. */
-export function friendlyError(agent: 'claude-code' | 'codex' | 'gemini-cli', raw: string): string {
-	const login = agent === 'claude-code' ? '`claude login`' : agent === 'codex' ? '`codex login`' : '`gemini` (and sign in)';
-	const label = agent === 'claude-code' ? 'Claude Code' : agent === 'codex' ? 'Codex' : 'Gemini CLI';
+export function friendlyError(agent: 'claude-code' | 'codex' | 'grok' | 'gemini-cli', raw: string): string {
+	const login = agent === 'claude-code' ? '`claude login`' : agent === 'codex' ? '`codex login`' : agent === 'grok' ? '`grok login`' : '`gemini` (and sign in)';
+	const label = agent === 'claude-code' ? 'Claude Code' : agent === 'codex' ? 'Codex' : agent === 'grok' ? 'Grok' : 'Gemini CLI';
 	if (/not logged in|please run \/login|invalid api key|authentication|unauthori[sz]ed|401|oauth|sign in|log in|api key not valid|no credentials|auth(?:entication)? required/i.test(raw)) {
 		return `${label} is not signed in. Run ${login} in a terminal, then try again.\n\n${tail(raw, 400)}`;
 	}

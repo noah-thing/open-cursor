@@ -6,7 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ReactElement } from 'react';
-import type { ChatMode, ChatSummary } from '../../../src/shared/protocol';
+import type { AgentStatus, ChatMode, ChatSummary } from '../../../src/shared/protocol';
 import { Icon, type IconName } from '../common/icons';
 import { post } from './host';
 import { MOD } from './menus';
@@ -46,11 +46,8 @@ export function buildStarters({ hasFolder, hasModel, recent, onMode, onPick }: {
 	readonly onPick: (id: string) => void;
 }): Starter[] {
 	if (!hasModel) {
-		return [
-			{ key: 'sub', icon: 'user', title: 'Use a subscription you have', detail: 'Claude Code, Codex or Gemini CLI on this Mac', run: () => post({ type: 'openSettings', section: 'subscriptions' }) },
-			{ key: 'key', icon: 'key', title: 'Add an API key', detail: 'Anthropic, OpenAI, Gemini, OpenRouter and more', run: () => post({ type: 'openSettings', section: 'models' }) },
-			{ key: 'local', icon: 'cube', title: 'Run a model locally', detail: 'Ollama or LM Studio, free and offline', run: () => post({ type: 'openSettings', section: 'models' }) },
-		];
+		// The connect block above says how to get a model; starting rows would only lead to an error.
+		return [];
 	}
 	const rows: Starter[] = [];
 	if (recent) {
@@ -71,14 +68,77 @@ export function buildStarters({ hasFolder, hasModel, recent, onMode, onPick }: {
 	return rows;
 }
 
+const ORDER = ['claude-code', 'codex', 'grok', 'gemini-cli'];
+
+function monogram(label: string): string {
+	const words = label.replace(/CLI/i, '').trim().split(/\s+/);
+	return (words.length > 1 ? words[0][0] + words[1][0] : label.slice(0, 2)).toUpperCase();
+}
+
+/**
+ * The subscriptions you already pay for, as they stand on this Mac: use one, sign in, or install it.
+ * Nothing here asks for an API key; that is a separate, quieter link at the bottom.
+ */
+export function ConnectBlock({ agents, modelId, needed, onUse, onHide }: {
+	readonly agents: readonly AgentStatus[];
+	readonly modelId: string;
+	/** No model can run yet: the block cannot be put away. */
+	readonly needed: boolean;
+	readonly onUse: (modelId: string) => void;
+	readonly onHide: () => void;
+}): ReactElement {
+	const rows = [...agents].sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
+	return (
+		<section className="oc-connect" aria-label="Connect a subscription">
+			<header className="oc-connect-head">
+				<span className="oc-connect-title">{needed ? 'Connect a model to start' : 'Your subscriptions'}</span>
+				<span className="oc-connect-sub">Use the AI plans you already pay for. No API key needed.</span>
+			</header>
+			<ul className="oc-connect-list">
+				{rows.map((a, i) => {
+					const inUse = !!a.modelId && modelId.startsWith('cli:' + a.id + '/');
+					const ready = a.installed && a.loggedIn !== false;
+					const status = !a.installed ? 'Not installed' : a.loggedIn === false ? 'Not signed in' : inUse ? 'In use' : 'Signed in';
+					return (
+						<li key={a.id} className={'oc-connect-row' + (ready ? ' is-ready' : '') + (inUse ? ' is-in-use' : '')} style={{ ['--i' as string]: i }}>
+							<span className="oc-connect-mark" aria-hidden="true">{monogram(a.label)}</span>
+							<span className="oc-connect-name">{a.label}</span>
+							<span className={'oc-connect-status' + (ready ? ' is-ok' : '')}>{status}</span>
+							{inUse ? (
+								<Icon name="check" size={13} className="oc-connect-check" />
+							) : ready && a.modelId ? (
+								<button type="button" className="oc-btn is-sm is-primary" onClick={() => onUse(a.modelId!)}>Use</button>
+							) : a.installed ? (
+								<button type="button" className="oc-btn is-sm" onClick={() => post({ type: 'agentAction', id: a.id, action: 'signIn' })}>Sign in</button>
+							) : (
+								<button type="button" className="oc-btn is-sm is-ghost" onClick={() => post({ type: 'agentAction', id: a.id, action: 'install' })}>Install</button>
+							)}
+						</li>
+					);
+				})}
+			</ul>
+			<footer className="oc-connect-foot">
+				<button type="button" className="oc-linkbtn" onClick={() => post({ type: 'agentAction', id: '', action: 'refresh' })}>Check again</button>
+				<span className="oc-connect-or">or</span>
+				<button type="button" className="oc-linkbtn" onClick={() => post({ type: 'openSettings', section: 'models' })}>add an API key</button>
+				<span className="oc-connect-or">or</span>
+				<button type="button" className="oc-linkbtn" onClick={() => post({ type: 'openSettings', section: 'models' })}>run a model locally</button>
+				{needed ? null : <button type="button" className="oc-linkbtn oc-connect-hide" onClick={onHide}>Hide</button>}
+			</footer>
+		</section>
+	);
+}
+
 /** Below the composer: ways to begin, recent chats and the three keys worth knowing. */
-export function HomeBottom({ starters, recent, onPick }: {
+export function HomeBottom({ starters, recent, onPick, connect }: {
 	readonly starters: readonly Starter[];
 	readonly recent: readonly ChatSummary[];
 	readonly onPick: (id: string) => void;
+	readonly connect?: ReactElement | null;
 }): ReactElement {
 	return (
 		<div className="oc-home-bottom">
+			{connect}
 			<ul className="oc-starters">
 				{starters.map((s, i) => (
 					<li key={s.key} style={{ ['--i' as string]: i }}>

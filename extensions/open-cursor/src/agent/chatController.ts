@@ -12,6 +12,8 @@ import type {
 } from '../shared/protocol';
 import type { IContextServiceEx } from '../context/service';
 import { toDisplayPath } from '../context/paths';
+import type { CliAgentInfo } from '../services';
+import { cliHint } from '../shared/cliHints';
 import { suggestAllowPrefix } from './approval';
 import { applyCodeToFile } from './applyCode';
 import {
@@ -76,6 +78,15 @@ const BUILTIN_COMMANDS: { name: string; description: string }[] = [
 
 const CHAT_VISIBLE_KEY = 'openCursor.chat.visible';
 
+/** The CLI agent that is the same company's subscription for an API provider. */
+const SUBSCRIPTION_FOR: Record<string, string> = { anthropic: 'claude-code', openai: 'codex', xai: 'grok', google: 'gemini-cli' };
+const SUBSCRIPTION_ORDER = ['claude-code', 'codex', 'grok', 'gemini-cli'];
+const LOCAL_PROVIDERS = new Set(['ollama', 'lmstudio']);
+const PROVIDER_NAMES: Record<string, string> = {
+	anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google Gemini', openrouter: 'OpenRouter', deepseek: 'DeepSeek', xai: 'xAI',
+	mistral: 'Mistral', groq: 'Groq', ollama: 'Ollama', lmstudio: 'LM Studio', custom: 'The custom endpoint',
+};
+
 export function createChatController(ctx: vscode.ExtensionContext, services: Services): IChatController {
 	const controller = new ChatController(ctx, services);
 	controller.register();
@@ -113,7 +124,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		d.push(vscode.window.registerWebviewViewProvider('openCursor.chat', this, { webviewOptions: { retainContextWhenHidden: true } }));
 		d.push(this.services.pendingEdits.onDidChange(() => this.post({ type: 'pendingEdits', files: this.services.pendingEdits.getFiles() })));
 		d.push(this.services.registry.onDidChangeModels(() => { void this.refreshModels(); }));
-		d.push(this.services.cli.onDidChange(() => { void this.refreshModels(); }));
+		d.push(this.services.cli.onDidChange(() => { void this.refreshModels(); void this.postAgents(); }));
 		d.push(vscode.window.onDidChangeActiveTextEditor(() => this.postActiveEditor()));
 		d.push(vscode.workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('openCursor')) { this.post({ type: 'settings', settings: readUiSettings() }); }
@@ -151,6 +162,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			for (const resolve of rt.approvals.values()) { resolve('skip'); }
 		}
 		disposeTerminalRunner();
+		this.agentWatch?.dispose();
 		void this.store.flush();
 	}
 
@@ -269,14 +281,15 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		switch (m.type) {
 			case 'requestSlashCommands': return this.postSlashCommands();
 			case 'requestActiveEditor': return this.postActiveEditor();
+			case 'agentAction': return this.onAgentAction(m.id, m.action);
 			case 'workbench': {
 				const command = { openFolder: 'workbench.action.files.openFolder', openRecent: 'workbench.action.openRecent', cloneRepo: 'git.clone', showEditor: 'workbench.action.restoreAuxiliaryBar' }[m.action];
-				await vscode.commands.executeCommand(command);
+				await vscode.commands.executeCommand(command).then(undefined, e => console.warn('[open-cursor] workbench action failed', m.action, e));
 				return;
 			}
 			case 'ready': return this.onReady();
 			case 'send': return this.onSend(m.chatId, { text: m.text, context: m.context, mode: m.mode, modelId: m.modelId });
-			case 'resend': return this.onResend(m.chatId, m.messageId, m.text, m.context, m.revert);
+			case 'resend': return this.onResend(m.chatId, m.messageId, m.text, m.context, m.revert, m.modelId);
 			case 'stop': return this.stop(m.chatId);
 			case 'queue': return this.queueMessage(m.chatId, m.text, m.context);
 			case 'unqueue': return this.unqueue(m.chatId, m.queuedId);
@@ -327,6 +340,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		});
 		const queued = this.outbox.splice(0);
 		for (const q of queued) { this.post(q); }
+		void this.postAgents();
 	}
 
 	// ---------------------------------------------------------------- models
@@ -354,15 +368,114 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			// keep the previous list
 		}
 		if (post) { this.post({ type: 'models', models: this.modelOptions }); }
+		this.repairEmptyChats();
+	}
+
+	// ---------------------------------------------------------------- agent CLIs on the start screen
+
+	private async postAgents(fresh = false): Promise<void> {
+		let agents: CliAgentInfo[];
+		try {
+			agents = fresh ? await this.services.cli.refresh() : await this.services.cli.detect();
+		} catch {
+			return;
+		}
+		this.post({
+			type: 'agents',
+			agents: agents.map(a => ({
+				id: a.id, label: a.label, installed: !!a.binaryPath, loggedIn: a.loggedIn,
+				modelId: a.binaryPath ? `cli:${a.id}/${a.models.find(x => x.id === 'default')?.id ?? a.models[0]?.id ?? 'default'}` : undefined,
+			})),
+		});
+	}
+
+	/** Installing or signing in happens in a real terminal; we look again when it closes or the window gets focus back. */
+	private async onAgentAction(id: string, action: 'install' | 'signIn' | 'refresh'): Promise<void> {
+		if (action === 'refresh') {
+			await this.postAgents(true);
+			await this.refreshModels();
+			return;
+		}
+		const hint = cliHint(id);
+		const command = action === 'install' ? hint.install : hint.loginCommand;
+		if (!command) {
+			void vscode.window.showInformationMessage(hint.login);
+			return;
+		}
+		const label = this.services.cli.get(id as CliAgentInfo['id'])?.label ?? id;
+		// The chat may fill the window; the terminal lives under the editor, so bring it back first.
+		await vscode.commands.executeCommand('workbench.action.restoreAuxiliaryBar').then(undefined, () => undefined);
+		const term = vscode.window.createTerminal({ name: (action === 'install' ? 'Install ' : 'Sign in to ') + label });
+		term.show();
+		term.sendText(command);
+		this.watchAgent(id, term);
+	}
+
+	private agentWatch: vscode.Disposable | undefined;
+
+	/** Looks again when the terminal closes or the window regains focus, until the agent is ready. One watcher at a time. */
+	private watchAgent(id: string, term: vscode.Terminal): void {
+		this.agentWatch?.dispose();
+		let busy = false;
+		const recheck = async (): Promise<void> => {
+			if (busy) { return; }
+			busy = true;
+			try {
+				await this.onAgentAction(id, 'refresh');
+				const a = this.services.cli.get(id as CliAgentInfo['id']);
+				if (a?.binaryPath && a.loggedIn !== false) { this.agentWatch?.dispose(); this.agentWatch = undefined; }
+			} finally {
+				busy = false;
+			}
+		};
+		const subs = [
+			vscode.window.onDidCloseTerminal(t => { if (t === term) { void recheck(); } }),
+			vscode.window.onDidChangeWindowState(w => { if (w.focused) { void recheck(); } }),
+		];
+		this.agentWatch = { dispose: () => subs.forEach(x => x.dispose()) };
+	}
+
+	private usable(id: string | undefined): boolean {
+		return !!id && this.modelOptions.some(m => m.id === id && m.hasKey);
+	}
+
+	/** A signed-in subscription, preferring the one from `provider`'s company, then the order people most often have. */
+	private subscription(provider?: string): ModelOption | undefined {
+		const order = [...(provider && SUBSCRIPTION_FOR[provider] ? [SUBSCRIPTION_FOR[provider]] : []), ...SUBSCRIPTION_ORDER];
+		for (const agent of order) {
+			const ready = this.modelOptions.filter(m => m.hasKey && m.id.startsWith(`cli:${agent}/`));
+			const pick = ready.find(m => m.id.endsWith('/default')) ?? ready[0];
+			if (pick) { return pick; }
+		}
+		return undefined;
 	}
 
 	private defaultModelId(): string {
 		// A CLI subscription (`cli:<agent>/<model>`) can be the default too; the registry only knows API models.
 		const configured = vscode.workspace.getConfiguration('openCursor').get<string>('models.default');
-		if (configured?.startsWith('cli:')) {
+		if (configured && (this.usable(configured) || !this.modelOptions.length)) {
 			return configured;
 		}
-		return this.services.registry.getDefaultModel('chat')?.id ?? this.modelOptions.find(m => m.hasKey)?.id ?? this.modelOptions[0]?.id ?? '';
+		const api = this.services.registry.getDefaultModel('chat');
+		if (api && this.usable(api.id) && !LOCAL_PROVIDERS.has(api.provider)) {
+			return api.id;
+		}
+		// Nothing configured can run: a subscription the user is signed in to beats a small local model, and both beat
+		// a model that needs a key they never added.
+		return this.subscription()?.id ?? (api && this.usable(api.id) ? api.id : undefined) ?? this.modelOptions.find(m => m.hasKey)?.id ?? configured ?? api?.id ?? this.modelOptions[0]?.id ?? '';
+	}
+
+	/** Empty chats still pointing at a model that cannot run move to one that can, so the first message just works. */
+	private repairEmptyChats(): void {
+		const next = this.defaultModelId();
+		if (!this.usable(next)) { return; }
+		for (const sc of this.store.loaded()) {
+			if (sc.chat.messages.length === 0 && !this.usable(sc.chat.modelId) && sc.chat.modelId !== next) {
+				sc.chat.modelId = next;
+				this.store.markDirty(sc.chat.id);
+				this.postChatNow(sc);
+			}
+		}
 	}
 
 	// ---------------------------------------------------------------- chat lifecycle
@@ -417,6 +530,14 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (cur && cur.chat.messages.length === 0 && cur.chat.status === 'idle') {
 			await this.activate(cur);
 			return cur;
+		}
+		// ...or any other untouched chat left behind, so the list never fills with empty "New chat" rows
+		for (const s of this.store.summaries().filter(x => x.title === DEFAULT_TITLE && x.status === 'idle')) {
+			const empty = await this.store.get(s.id);
+			if (empty && empty.chat.messages.length === 0) {
+				await this.activate(empty);
+				return empty;
+			}
 		}
 		const sc = this.createChat();
 		await this.activate(sc);
@@ -638,7 +759,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		for (const resolve of rt.approvals.values()) { resolve('skip'); }
 	}
 
-	private async onResend(chatId: string, messageId: string, text: string, context: ContextItem[], revert: boolean): Promise<void> {
+	private async onResend(chatId: string, messageId: string, text: string, context: ContextItem[], revert: boolean, modelId?: string): Promise<void> {
 		const sc = await this.store.get(chatId);
 		if (!sc) { return; }
 		const rt = this.runtime(chatId);
@@ -651,7 +772,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		}
 		this.truncateFrom(sc, idx);
 		sc.chat.queued = [];
-		await this.startTurn(sc, { text, context });
+		await this.startTurn(sc, { text, context, modelId });
 	}
 
 	private async restoreCheckpoint(chatId: string, messageId: string): Promise<void> {
@@ -697,7 +818,21 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		rt.idle = new Promise<void>(res => { rt.resolveIdle = res; });
 
 		const mode = req.mode ?? sc.chat.mode;
-		const modelId = req.modelId ?? sc.chat.modelId;
+		let modelId = req.modelId ?? sc.chat.modelId;
+		// An API model without a key, from a company whose subscription the user is signed in to, runs on that subscription.
+		const picked = this.modelOptions.find(m => m.id === modelId);
+		const sameCompany = picked && !picked.hasKey && picked.provider !== 'cli' ? this.subscription(picked.provider) : undefined;
+		if (sameCompany?.id.startsWith(`cli:${SUBSCRIPTION_FOR[picked!.provider]}/`)) {
+			modelId = sameCompany.id;
+		}
+		let blocked = picked && !picked.hasKey && modelId === picked.id ? picked : undefined;
+		// The model list is a snapshot; look again before refusing (a key added a moment ago, a fresh sign-in).
+		if (blocked && (blocked.provider === 'cli'
+			? (await this.services.cli.refresh().catch(() => [])).some(a => blocked!.id.startsWith(`cli:${a.id}/`) && a.binaryPath && a.loggedIn !== false)
+			: await this.services.registry.hasKey(blocked.provider as ModelInfo['provider']).catch(() => false))) {
+			blocked = undefined;
+			void this.refreshModels();
+		}
 		sc.chat.mode = mode;
 		sc.chat.modelId = modelId;
 		sc.chat.status = 'running';
@@ -720,7 +855,22 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 		const turn: TurnState = { sc, rt, parts, msg: assistant, usage: { inputTokens: 0, outputTokens: 0 }, errored: false };
 		try {
-			if (modelId.startsWith('cli:')) {
+			if (blocked) {
+				const isCli = blocked.provider === 'cli';
+				const alt = this.subscription();
+				const who = isCli ? blocked.label.split(':')[0] : PROVIDER_NAMES[blocked.provider] ?? blocked.provider;
+				const agentId = isCli ? blocked.id.slice(4, blocked.id.indexOf('/')) : '';
+				const message = isCli
+					? `${who} is not signed in on this Mac.` + (alt && !alt.id.startsWith(`cli:${agentId}/`) ? ` You are signed in to ${alt.label.split(':')[0]}.` : '')
+					: `${who} needs an API key, and none is added.` + (alt ? ` You are signed in to ${alt.label.split(':')[0]}, which needs no key.` : ' Add a key, or connect a subscription you already have.');
+				turn.parts.push({
+					type: 'error', message,
+					switchTo: alt && !alt.id.startsWith(`cli:${agentId}/`) ? { id: alt.id, label: alt.label } : undefined,
+					fix: isCli ? { kind: 'signIn', agentId, label: who } : { kind: 'addKey' },
+				});
+				turn.errored = true;
+				this.postChatNow(sc);
+			} else if (modelId.startsWith('cli:')) {
 				await this.runCliTurn(turn, userMsg, req);
 			} else {
 				await this.runNativeTurn(turn, userMsg, req, checkpointId);
@@ -994,7 +1144,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const signal = rt.abort!.signal;
 		const rest = sc.chat.modelId.slice(4);
 		const slash = rest.indexOf('/');
-		const agent = (slash === -1 ? rest : rest.slice(0, slash)) as 'claude-code' | 'codex' | 'gemini-cli';
+		const agent = (slash === -1 ? rest : rest.slice(0, slash)) as CliAgentInfo['id'];
 		const model = slash === -1 ? 'default' : rest.slice(slash + 1);
 		const info = this.services.cli.get(agent);
 		if (!info?.binaryPath) {

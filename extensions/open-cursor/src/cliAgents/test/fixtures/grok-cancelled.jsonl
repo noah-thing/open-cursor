@@ -1,0 +1,3 @@
+{"type": "tool_call", "toolCallId": "call-x-0", "title": "run_terminal_command", "kind": "execute", "status": "pending", "toolName": "run_terminal_command", "rawInput": {"command": "rm made.txt", "description": "Remove the file made.txt"}, "content": [], "locations": []}
+{"type": "tool_call_update", "toolCallId": "call-x-0", "status": "failed", "content": [{"type": "content", "content": {"type": "text", "text": "User cancelled the execution for tool `run_terminal_command`"}}], "rawOutput": null, "locations": []}
+{"type": "end", "stopReason": "cancelled", "sessionId": "01a1828c-8537-7561-9f93-a606faa7e3e2", "usage": {"input_tokens": 20875, "cache_read_input_tokens": 10112, "output_tokens": 213}}

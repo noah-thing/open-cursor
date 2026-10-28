@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	Chat, ChatMessage, ChatMode, ChatSummary, ContextItem, HostMessageExt, ModelOption, PendingFileEdit, SlashCommandInfo, UiSettings,
+	AgentStatus, Chat, ChatMessage, ChatMode, ChatSummary, ContextItem, HostMessageExt, ModelOption, PendingFileEdit, SlashCommandInfo, UiSettings,
 } from '../../../src/shared/protocol';
 import { loadUiState } from './host';
 
@@ -38,6 +38,9 @@ export interface State {
 	focusText: string | undefined;
 	/** Pill ids the user dismissed for the suggested active file, per chat. */
 	dismissedSuggest: Record<string, string>;
+	/** Agent CLIs on this machine, for connecting subscriptions on the start screen. */
+	agents: AgentStatus[];
+	connectHidden: boolean;
 }
 
 export type Action =
@@ -46,7 +49,8 @@ export type Action =
 	| { kind: 'draft'; chatId: string; text: string }
 	| { kind: 'contexts'; chatId: string; items: ContextItem[] }
 	| { kind: 'override'; chatId: string; o: Overrides }
-	| { kind: 'dismissSuggest'; chatId: string; id: string };
+	| { kind: 'dismissSuggest'; chatId: string; id: string }
+	| { kind: 'connectHidden'; hidden: boolean };
 
 export const DEFAULT_SETTINGS: UiSettings = { autoRun: 'ask', showThinking: true, fontSize: 13, submitWithModEnter: false };
 
@@ -72,6 +76,8 @@ export function initialState(): State {
 		focusNonce: 0,
 		focusText: undefined,
 		dismissedSuggest: {},
+		agents: [],
+		connectHidden: !!saved.connectHidden,
 	};
 }
 
@@ -128,12 +134,15 @@ function applyCarry(s: State, chatId: string): State {
 	return { ...s, carry: [], contexts: { ...s.contexts, [chatId]: [...existing, ...s.carry] } };
 }
 
-function clearOverrides(s: State, chat: Chat): State {
+function clearOverrides(s: State, chat: Chat, prev?: Chat): State {
 	const o = s.overrides[chat.id];
 	if (!o) { return s; }
 	const next: Overrides = {};
 	if (o.mode && o.mode !== chat.mode) { next.mode = o.mode; }
-	if (o.modelId && o.modelId !== chat.modelId) { next.modelId = o.modelId; }
+	// When the host moves the chat to another model (a swap to the user's subscription, a retry on a
+	// different model), its choice is newer than the one held in the composer.
+	const hostMoved = !!prev && prev.modelId !== chat.modelId;
+	if (o.modelId && o.modelId !== chat.modelId && !hostMoved) { next.modelId = o.modelId; }
 	if (next.mode === o.mode && next.modelId === o.modelId) { return s; }
 	return { ...s, overrides: { ...s.overrides, [chat.id]: next } };
 }
@@ -150,6 +159,8 @@ export function reducer(s: State, a: Action): State {
 			return { ...s, overrides: { ...s.overrides, [a.chatId]: { ...s.overrides[a.chatId], ...a.o } } };
 		case 'dismissSuggest':
 			return { ...s, dismissedSuggest: { ...s.dismissedSuggest, [a.chatId]: a.id } };
+		case 'connectHidden':
+			return { ...s, connectHidden: a.hidden };
 		case 'host':
 			return hostReducer(s, a.m);
 	}
@@ -170,7 +181,7 @@ function hostReducer(s: State, m: HostMessageExt): State {
 			const merged = mergeChat(s.chats[m.chat.id], m.chat);
 			if (merged === s.chats[m.chat.id]) { return s; }
 			let n: State = { ...s, chats: { ...s.chats, [m.chat.id]: merged } };
-			n = clearOverrides(n, merged);
+			n = clearOverrides(n, merged, s.chats[m.chat.id]);
 			if (!s.chats[m.chat.id] && s.carry.length && (n.activeId === m.chat.id || !n.activeId)) {
 				n = applyCarry(n, m.chat.id);
 			}
@@ -197,6 +208,8 @@ function hostReducer(s: State, m: HostMessageExt): State {
 			return { ...s, slash: m.commands };
 		case 'activeEditor':
 			return { ...s, activeFile: m.item };
+		case 'agents':
+			return { ...s, agents: m.agents };
 		case 'addContext': {
 			const id = s.activeId;
 			if (m.newChat || !id) { return { ...s, carry: [...s.carry, m.item], view: 'chat' }; }

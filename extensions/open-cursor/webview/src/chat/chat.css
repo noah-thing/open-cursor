@@ -549,8 +549,10 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
    the pieces around it arrive in a short cascade and leave as ghosts (see useStageMotion).
    ====================================================================================== */
 .oc-stage.is-home { overflow-y: auto; overflow-x: hidden; }
-.oc-stage.is-home::before { content: ''; flex: 1 1 0; min-height: 18px; }
-.oc-stage.is-home::after { content: ''; flex: 1.5 1 0; min-height: 18px; }
+/* The composer sits at a fixed height on the screen, so blocks that arrive below it (subscriptions,
+   recent chats) never push it around. */
+.oc-stage.is-home::before { content: ''; flex: 0 0 clamp(18px, 26vh, 280px); }
+.oc-stage.is-home::after { content: ''; flex: 1 1 0; min-height: 18px; }
 .oc-stage.is-home .oc-dock::before { display: none; }
 .oc-stage.is-home .oc-composer { box-shadow: inset 0 0 0 1px var(--oc-stroke), 0 10px 32px -14px var(--oc-shadow); transition: box-shadow 220ms ease; }
 .oc-stage.is-home .oc-composer:focus-within { box-shadow: inset 0 0 0 1px var(--oc-focus), 0 14px 40px -16px var(--oc-shadow); }
@@ -682,3 +684,52 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 }
 .oc-rail-link:hover { background: var(--oc-ink-6); color: var(--oc-fg); }
 .oc-rail-link:active { transform: scale(0.98); }
+
+/* ======================================================================================
+   Connect a subscription (start screen). A short list, each row says where it stands and
+   offers exactly one next step.
+   ====================================================================================== */
+.oc-connect {
+	margin: 12px 0 4px; padding: 12px 12px 8px; border-radius: 12px;
+	background: var(--oc-ink-4); box-shadow: inset 0 0 0 1px var(--oc-stroke-2);
+	animation: oc-enter 360ms var(--oc-ease-out) both; animation-delay: 60ms;
+}
+.oc-connect-head { display: flex; flex-direction: column; gap: 2px; padding: 0 2px 8px; }
+.oc-connect-title { font-size: 12.5px; font-weight: 600; color: var(--oc-fg); }
+.oc-connect-sub { font-size: 12px; color: var(--oc-fg-3); }
+.oc-connect-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.oc-connect-row {
+	display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px;
+	min-height: 36px; padding: 4px 4px 4px 2px; border-radius: 8px;
+	animation: oc-enter 320ms var(--oc-ease-out) both; animation-delay: calc(120ms + var(--i, 0) * 40ms);
+	transition: background-color 120ms ease;
+}
+.oc-connect-row:hover { background: var(--oc-ink-4); }
+.oc-connect-mark {
+	display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px;
+	font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--oc-fg-2);
+	background: var(--oc-ink-8); box-shadow: inset 0 0 0 1px var(--oc-stroke-2);
+}
+.oc-connect-row.is-ready .oc-connect-mark { color: var(--oc-fg); }
+.oc-connect-name { font-size: 12.5px; color: var(--oc-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oc-connect-status { font-size: 11.5px; color: var(--oc-fg-3); white-space: nowrap; }
+.oc-connect-status.is-ok { color: var(--oc-add); }
+.oc-connect-row.is-in-use .oc-connect-status { color: var(--oc-fg-2); }
+.oc-connect-check { color: var(--oc-add); margin: 0 8px 0 6px; animation: oc-check 260ms var(--oc-ease-out) both; }
+.oc-connect-row .oc-btn { min-width: 58px; justify-content: center; }
+.oc-connect-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 8px 2px 2px; margin-top: 6px; border-top: 1px solid var(--oc-stroke-2); font-size: 11.5px; color: var(--oc-fg-3); }
+.oc-connect-foot .oc-linkbtn { font-size: 11.5px; }
+.oc-connect-hide { margin-left: auto; color: var(--oc-fg-3); }
+@container stage (max-width: 380px) {
+	.oc-connect-row { grid-template-columns: 26px minmax(0, 1fr) auto; }
+	.oc-connect-status { grid-column: 2; grid-row: 2; }
+	.oc-connect-row > .oc-btn, .oc-connect-check { grid-column: 3; grid-row: 1 / span 2; }
+}
+
+/* Model menu: sections, connect rows, a chip that warns when its model cannot run. */
+.oc-model-menu { max-height: min(460px, 72vh); }
+.oc-menu-section + .oc-menu-section { margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--oc-stroke-2); }
+.oc-menu-section-title { padding: 8px 8px 2px; font-size: 11px; font-weight: 600; color: var(--oc-fg-2); }
+.oc-menu-item.is-connect .oc-menu-label { color: var(--oc-fg-2); }
+.oc-menu-cta { font-size: 11.5px; color: var(--oc-link); flex: none; }
+.oc-model-chip.is-unready { color: var(--oc-warn); }

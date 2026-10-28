@@ -157,7 +157,7 @@ export function joinUrl(base: string, path: string): string {
 }
 
 export function missingKey(provider: ProviderId, label: string): ProviderError {
-	return new ProviderError(`No API key for ${label}. Add one with "Open Cursor: Set API Key".`, provider, 401, 'auth');
+	return new ProviderError(`No API key for ${label}.`, provider, 401, 'auth');
 }
 
 export type KeyGetter = () => Promise<string | undefined> | string | undefined;

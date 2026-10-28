@@ -578,17 +578,20 @@
 					"openCursor.cli.enabled": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Offer installed agent CLIs (Claude Code, Codex, Gemini CLI) in the model picker. They run on your own subscription."
+						"markdownDescription": "Offer installed agent CLIs (Claude Code, Codex, Grok, Gemini CLI) in the model picker. They run on your own subscription."
 					},
 					"openCursor.cli.paths": {
 						"type": "object",
 						"default": {},
-						"markdownDescription": "Explicit binary paths when auto-detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\" }`.",
+						"markdownDescription": "Explicit binary paths when auto-detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"grok\": \"~/.local/bin/grok\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\" }`.",
 						"properties": {
 							"claude-code": {
 								"type": "string"
 							},
 							"codex": {
+								"type": "string"
+							},
+							"grok": {
 								"type": "string"
 							},
 							"gemini-cli": {
@@ -614,6 +617,14 @@
 						},
 						"default": [],
 						"markdownDescription": "Extra command line arguments appended to every `codex exec` run, e.g. `[\"-c\", \"model_reasoning_effort=\\\"high\\\"\"]`."
+					},
+					"openCursor.cli.grok.extraArgs": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [],
+						"markdownDescription": "Extra command line arguments appended to every `grok` run, e.g. `[\"--reasoning-effort\", \"high\"]`."
 					},
 					"openCursor.cli.gemini.extraArgs": {
 						"type": "array",

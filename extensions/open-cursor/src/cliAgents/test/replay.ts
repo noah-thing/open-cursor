@@ -14,6 +14,8 @@ import { ClaudeParser, claudeToolView } from '../claude';
 import { CodexParser, unwrapShell } from '../codex';
 import { parseStatusZ, diffStat } from '../fileTracker';
 import { GeminiParser } from '../gemini';
+import { GrokParser, grokPermissionArgs, grokToolView, stripAnsi } from '../grok';
+import { parseGrokModels } from '../detect';
 import { commandAllowed } from '../policy';
 import { TurnTracker } from '../tracking';
 import type { TurnHost } from '../types';
@@ -182,6 +184,82 @@ test('gemini: synthetic stream-json (schema from docs, CLI auth is broken on thi
 	);
 	assert.deepStrictEqual(rec.usage, [{ inputTokens: 1000, outputTokens: 200 }]);
 	assert.ok(p.sawResult && !p.failure);
+});
+
+test('grok: edit + shell fixture (real run): tools, ANSI stripped, usage, session', async () => {
+	const evs = lines('grok-edit-shell.jsonl');
+	const cwd = path.dirname(String((evs.find(e => e.toolName === 'read_file')!.rawInput as Record<string, unknown>).target_file));
+	const { host, rec } = recorder();
+	const p = new GrokParser(cwd, host, await TurnTracker.create(cwd, process.env, host));
+	for (const ev of evs) {
+		await p.feed(ev);
+	}
+	assert.strictEqual(p.sessionId, '01a1828a-f02a-7b23-b90a-4e2a173d65ae');
+	assert.ok(p.sawEnd && !p.failure && !p.blockedCommand);
+	const tools = [...rec.finalTools.values()].filter(t => !t.id.startsWith('edit-'));
+	assert.deepStrictEqual(
+		tools.map(t => `${t.status}:${t.name}:${t.title}`),
+		['done:grep:Searched `beta`', 'done:run_terminal_cmd:Ran `find . -name \'hello.txt\' -o -name \'hello.txt\' 2>/dev/null; ls -la`', 'done:read_file:Read hello.txt', 'done:edit_file:Edited hello.txt', 'done:run_terminal_cmd:Ran `ls`'],
+	);
+	const ls = tools.find(t => t.title === 'Ran `find . -name \'hello.txt\' -o -name \'hello.txt\' 2>/dev/null; ls -la`')!;
+	assert.ok(ls.output && !ls.output.includes('\u001b'), 'ANSI stripped from command output');
+	assert.ok(ls.output.includes('hello.txt'));
+	assert.match(rec.text, /^I'll read `hello.txt`/);
+	assert.match(rec.thinking, /Reading hello\.txt/);
+	assert.ok(rec.text.includes('\n\n'), 'prose after tool calls starts a new paragraph');
+	assert.strictEqual(rec.usage.length, 1);
+	assert.strictEqual(rec.usage[0].outputTokens, 454);
+	assert.strictEqual(rec.usage[0].inputTokens, 21960 + 135552);
+	// Not a git repo here, so the edit is reported through the path hint from the diff.
+	assert.deepStrictEqual(rec.changed.map(x => path.basename(x)), ['hello.txt']);
+});
+
+test('grok: refused command (headless cannot approve) ends the turn with a clear note', async () => {
+	const { host, rec } = recorder();
+	const p = new GrokParser(CWD, host, await TurnTracker.create(CWD, process.env, host));
+	for (const ev of lines('grok-cancelled.jsonl')) {
+		await p.feed(ev);
+	}
+	assert.strictEqual(p.blockedCommand, 'rm made.txt');
+	const t = rec.finalTools.get('call-x-0')!;
+	assert.strictEqual(t.status, 'error');
+	assert.match(t.output ?? '', /cancelled/);
+	assert.match(rec.text, /needs your approval/);
+	assert.ok(!p.failure);
+});
+
+test('grok: plan file write becomes the plan text, exit_plan_mode is hidden', async () => {
+	const { host, rec } = recorder();
+	const p = new GrokParser(CWD, host, await TurnTracker.create(CWD, process.env, host));
+	const plan = '/Users/x/.grok/sessions/%2Fwork/abc/plan.md';
+	await p.feed({ type: 'tool_call', toolCallId: 'a', toolName: 'search_replace', rawInput: { file_path: plan, old_string: '', new_string: '# Plan\n- step' } });
+	await p.feed({ type: 'tool_call_update', toolCallId: 'a', status: 'completed', content: [{ type: 'diff', path: plan, oldText: '', newText: '# Plan' }] });
+	await p.feed({ type: 'tool_call', toolCallId: 'b', toolName: 'exit_plan_mode', rawInput: {} });
+	await p.feed({ type: 'end', stopReason: 'end_turn', sessionId: 's1' });
+	assert.strictEqual(rec.text, '# Plan\n- step');
+	assert.deepStrictEqual([...rec.finalTools.values()].map(t => t.name), ['create_plan']);
+	assert.ok(!rec.changed.length);
+});
+
+test('grok: permission flags per mode', () => {
+	const flags = (mode: 'agent' | 'ask' | 'plan', autoRun: 'ask' | 'allowlist' | 'always', commandAllowlist: string[] = []): string => grokPermissionArgs({ mode, autoRun, commandAllowlist }).join(' ');
+	assert.strictEqual(flags('agent', 'ask'), '--permission-mode acceptEdits --sandbox workspace');
+	assert.strictEqual(flags('ask', 'always'), '--permission-mode plan --sandbox read-only');
+	assert.strictEqual(flags('plan', 'ask'), '--permission-mode plan --sandbox read-only');
+	assert.strictEqual(flags('agent', 'always'), '--permission-mode bypassPermissions');
+	assert.strictEqual(flags('agent', 'allowlist', ['npm test', 'git status && rm -rf /', '']), '--permission-mode acceptEdits --sandbox workspace --allow Bash(npm test) --allow Bash(npm test *)');
+});
+
+test('grok: model list parsing, tool titles, ANSI', () => {
+	const models = parseGrokModels('You are logged in with grok.com.\n\nDefault model: grok-4.7\n\nAvailable models:\n  * grok-4.7 (default)\n  - grok-4.7-build-fast\n  - grok-4.6\n');
+	assert.deepStrictEqual(models, [
+		{ id: 'grok-4.7', label: '4.7' },
+		{ id: 'grok-4.7-build-fast', label: '4.7 build fast' },
+		{ id: 'grok-4.6', label: '4.6' },
+	]);
+	assert.strictEqual(grokToolView('read_file', { target_file: '/work/src/a.ts' }, 'done', '/work').title, 'Read src/a.ts');
+	assert.strictEqual(grokToolView('search_replace', { file_path: '/work/a.ts' }, 'run', '/work').title, 'Editing a.ts');
+	assert.strictEqual(stripAnsi('\u001b[34m.\u001b[39;49m\u001b[0m x'), '. x');
 });
 
 test('git tracker: dirty-before snapshot, HEAD fallback, new file, second scan is quiet', async () => {

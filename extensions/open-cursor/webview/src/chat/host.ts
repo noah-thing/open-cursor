@@ -9,6 +9,8 @@ export interface ChatUiState {
 	drafts: Record<string, string>;
 	scroll: Record<string, number>;
 	mentions?: string[];
+	/** The user put away the "connect your subscriptions" block on the start screen. */
+	connectHidden?: boolean;
 }
 
 const api = getVsCode<WebviewMessageExt, ChatUiState>();
@@ -21,7 +23,7 @@ export function loadUiState(): ChatUiState {
 	try {
 		const s = api.getState();
 		if (s && typeof s === 'object') {
-			return { drafts: s.drafts ?? {}, scroll: s.scroll ?? {} };
+			return { drafts: s.drafts ?? {}, scroll: s.scroll ?? {}, connectHidden: s.connectHidden };
 		}
 	} catch { /* ignore */ }
 	return { drafts: {}, scroll: {} };

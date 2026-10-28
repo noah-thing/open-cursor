@@ -118,13 +118,13 @@ export interface IContextService {
 
 /**
  * src/cliAgents/*. "Bring your own CLI": run an installed agent CLI (Claude Code `claude`, Codex `codex`,
- * Gemini CLI `gemini`) on the user's existing subscription as the agent backend for a chat. The CLI runs
+ * Grok `grok`, Gemini CLI `gemini`) on the user's existing subscription as the agent backend for a chat. The CLI runs
  * its own tools; we translate its JSON event stream into chat parts, route its permission prompts to our
  * approval UI where the CLI allows it, and capture file originals so its edits land in the same
  * Keep/Undo review and checkpoints as native agent edits.
  */
 export interface CliAgentInfo {
-	readonly id: 'claude-code' | 'codex' | 'gemini-cli';
+	readonly id: 'claude-code' | 'codex' | 'grok' | 'gemini-cli';
 	readonly label: string; // "Claude Code"
 	readonly binaryPath?: string; // resolved path, undefined = not installed
 	readonly version?: string;
@@ -150,6 +150,8 @@ export interface CliTurnCallbacks {
 export interface ICliAgents {
 	readonly onDidChange: vscode.Event<void>;
 	detect(): Promise<CliAgentInfo[]>;
+	/** Detect again now, ignoring the cache: after the user installs or signs in to a CLI. */
+	refresh(): Promise<CliAgentInfo[]>;
 	get(id: CliAgentInfo['id']): CliAgentInfo | undefined;
 	/**
 	 * Run one user turn. `sessionId` is the CLI's own session id from the previous turn of this chat

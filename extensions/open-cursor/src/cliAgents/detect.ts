@@ -11,9 +11,9 @@ import type { CliAgentInfo } from '../services';
 import type { CliAgentId } from './types';
 import { COMMON_BIN_DIRS, exists, parseJson, rec, runQuick } from './util';
 
-export const BINARY_NAME: Record<CliAgentId, string> = { 'claude-code': 'claude', codex: 'codex', 'gemini-cli': 'gemini' };
-export const AGENT_LABEL: Record<CliAgentId, string> = { 'claude-code': 'Claude Code', codex: 'Codex', 'gemini-cli': 'Gemini CLI' };
-export const AGENT_IDS: CliAgentId[] = ['claude-code', 'codex', 'gemini-cli'];
+export const BINARY_NAME: Record<CliAgentId, string> = { 'claude-code': 'claude', codex: 'codex', grok: 'grok', 'gemini-cli': 'gemini' };
+export const AGENT_LABEL: Record<CliAgentId, string> = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI' };
+export const AGENT_IDS: CliAgentId[] = ['claude-code', 'codex', 'grok', 'gemini-cli'];
 
 export interface DetectConfig {
 	readonly enabled: boolean;
@@ -129,6 +129,8 @@ async function checkLogin(id: CliAgentId, binary: string, env: NodeJS.ProcessEnv
 			}
 			return fs.existsSync(path.join(env.CODEX_HOME ?? path.join(home, '.codex'), 'auth.json')) ? true : undefined;
 		}
+		case 'grok':
+			return (await grokStatus(binary, env)).loggedIn;
 		case 'gemini-cli':
 			if (env.GEMINI_API_KEY || env.GOOGLE_API_KEY || env.GOOGLE_GENAI_USE_VERTEXAI) {
 				return true;
@@ -155,6 +157,51 @@ export function readCodexModels(): { id: string; label: string }[] {
 	return out;
 }
 
+/** Turns `grok models` output into model choices: lines like `  * grok-4.7 (default)` and `  - grok-4.6`. */
+export function parseGrokModels(stdout: string): { id: string; label: string }[] {
+	const out: { id: string; label: string }[] = [];
+	for (const line of stdout.split('\n')) {
+		const m = /^\s*[*-]\s+(\S+)/.exec(line);
+		if (m) {
+			out.push({ id: m[1], label: m[1].replace(/^grok-/, '').replace(/-/g, ' ') });
+		}
+	}
+	return out;
+}
+
+/** Grok models from the CLI's local cache, used when `grok models` cannot run. */
+export function readGrokModels(): { id: string; label: string }[] {
+	const out: { id: string; label: string }[] = [];
+	try {
+		const j = parseJson(fs.readFileSync(path.join(os.homedir(), '.grok', 'models_cache.json'), 'utf8'));
+		for (const [id, v] of Object.entries(rec(j?.models) ?? {})) {
+			if (rec(rec(v)?.info)?.hidden !== true) {
+				out.push({ id, label: id.replace(/^grok-/, '').replace(/-/g, ' ') });
+			}
+		}
+	} catch {
+		/* no cache yet */
+	}
+	return out;
+}
+
+/** `grok models` prints the login state and the models this account can use (about 0.5s, no model turn). */
+async function grokStatus(binary: string, env: NodeJS.ProcessEnv): Promise<{ loggedIn: boolean | undefined; models: { id: string; label: string }[] }> {
+	const r = await runQuick(binary, ['models'], { env, timeoutMs: 8000 });
+	const text = r ? r.stdout + '\n' + r.stderr : '';
+	const models = parseGrokModels(r?.stdout ?? '');
+	if (/logged in/i.test(text) && !/not logged in/i.test(text)) {
+		return { loggedIn: true, models };
+	}
+	if (/not logged in|not signed in|log ?in|sign in/i.test(text)) {
+		return { loggedIn: false, models };
+	}
+	if (env.XAI_API_KEY || env.GROK_API_KEY) {
+		return { loggedIn: true, models };
+	}
+	return { loggedIn: fs.existsSync(path.join(os.homedir(), '.grok', 'auth.json')) ? true : undefined, models };
+}
+
 export function modelsFor(id: CliAgentId): { id: string; label: string }[] {
 	switch (id) {
 		case 'claude-code':
@@ -166,6 +213,10 @@ export function modelsFor(id: CliAgentId): { id: string; label: string }[] {
 			];
 		case 'codex':
 			return [{ id: 'default', label: 'Default' }, ...readCodexModels()];
+		case 'grok': {
+			const found = readGrokModels();
+			return [{ id: 'default', label: 'Default' }, ...(found.length ? found : [{ id: 'grok-4.7', label: '4.7' }])];
+		}
 		case 'gemini-cli':
 			return [
 				{ id: 'default', label: 'Default' },
@@ -185,6 +236,11 @@ export async function detectAgent(id: CliAgentId, cfg: DetectConfig): Promise<Cl
 		return base;
 	}
 	const env = await cliEnv(binary);
+	if (id === 'grok') {
+		const [st, gver] = await Promise.all([grokStatus(binary, env), runQuick(binary, ['--version'], { env, timeoutMs: 6000 })]);
+		const models = st.models.length ? [{ id: 'default', label: 'Default' }, ...st.models] : base.models;
+		return { ...base, models, binaryPath: binary, version: gver ? parseVersion(gver.stdout + ' ' + gver.stderr) : undefined, loggedIn: st.loggedIn };
+	}
 	const [ver, loggedIn] = await Promise.all([runQuick(binary, ['--version'], { env, timeoutMs: 6000 }), checkLogin(id, binary, env)]);
 	return { ...base, binaryPath: binary, version: ver ? parseVersion(ver.stdout + ' ' + ver.stderr) : undefined, loggedIn };
 }

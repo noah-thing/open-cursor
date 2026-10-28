@@ -155,7 +155,10 @@ export async function compactTranscript(registry: IProviderRegistry, model: Mode
 function describeError(e: unknown, provider: string): { message: string; action?: 'openSettings' | 'retry'; kind: string } {
 	if (e instanceof ProviderError) {
 		switch (e.kind) {
-			case 'auth': return { kind: 'auth', message: `${e.message || 'Authentication failed'}. Check the ${e.provider} API key in settings.`, action: 'openSettings' };
+			case 'auth': {
+				const said = (e.message || 'Authentication failed').replace(/[.\s]+$/, '');
+				return { kind: 'auth', message: /no api key/i.test(said) ? `${said}. Add one in Settings, or pick a subscription you are signed in to from the model menu.` : `${said}. The ${e.provider} key was refused; check it in Settings.`, action: 'openSettings' };
+			}
 			case 'rate': return { kind: 'rate', message: `Rate limited by ${e.provider}: ${e.message}`, action: 'retry' };
 			case 'context': return { kind: 'context', message: `The conversation is too long for this model: ${e.message}`, action: 'retry' };
 			case 'network': return { kind: 'network', message: `Network error talking to ${e.provider}: ${e.message}`, action: 'retry' };
