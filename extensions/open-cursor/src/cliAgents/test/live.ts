@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Manual live run of one real turn against an installed CLI (spends tokens). Not part of the
  *  replay test. Usage: node test/run.mjs live <claude-code|codex|grok|gemini-cli> <cwd> <model> <mode> <autoRun> <prompt>
  *  Set CAPTURE=<file> to save the raw event stream as a fixture.

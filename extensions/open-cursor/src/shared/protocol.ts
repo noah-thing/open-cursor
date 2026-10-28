@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Shared between the extension host and the chat webview. Plain data only (JSON safe).
  *--------------------------------------------------------------------------------------------*/
 

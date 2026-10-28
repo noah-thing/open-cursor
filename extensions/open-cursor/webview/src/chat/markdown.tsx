@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
 import { memo, useCallback, useMemo, useState, type MouseEvent, type ReactElement } from 'react';

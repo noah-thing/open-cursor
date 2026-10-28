@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Commit message pure logic: diff truncation, prompt, output cleanup.
  *--------------------------------------------------------------------------------------------*/
 

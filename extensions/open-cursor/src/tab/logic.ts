@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Tab completion, pure logic (no vscode import): prompt windows, header, overlap trimming,
  *  stop boundaries, indentation fixes, typed-through cache, next-edit prompt and parser.
  *--------------------------------------------------------------------------------------------*/

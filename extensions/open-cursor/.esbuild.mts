@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Builds the extension host bundle and the webview bundles. Picked up by Code-OSS's
  *  build (build/lib/extensions.ts looks for `.esbuild.mts`). `--watch` for development.
  *--------------------------------------------------------------------------------------------*/

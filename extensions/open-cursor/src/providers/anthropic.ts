@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Anthropic Messages API adapter (streaming, tools, images, extended thinking, prompt caching).
  *--------------------------------------------------------------------------------------------*/
 

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  How each chat mode maps onto the flags of the subscription CLIs. Pure (no vscode, no spawn)
  *  so the mapping is unit tested. Flags verified against claude 2.1.312, codex-cli 0.157.1,
  *  gemini 0.46.0, grok 1.0.70 (`<cli> --help`).
@@ -25,7 +25,7 @@ type ModeOpts = Pick<RunOptions, 'mode' | 'autoRun'>;
 export const CLAUDE_EDIT_TOOLS = ['Edit', 'Write', 'NotebookEdit'];
 
 export const CLAUDE_BASE_PROMPT =
-	'You are running inside Open Cursor, a code editor. The user sees your replies and tool calls in its chat panel and reviews every file edit there (Keep or Undo), so edit files directly with your normal tools and keep chat replies concise. Permission requests are answered in the editor. Do not use interactive terminal-only features.';
+	'You are running inside OpenCursor, a code editor. The user sees your replies and tool calls in its chat panel and reviews every file edit there (Keep or Undo), so edit files directly with your normal tools and keep chat replies concise. Permission requests are answered in the editor. Do not use interactive terminal-only features.';
 
 /** System prompt and permission flags for Claude Code. `acceptEdits` is applied by the caller when there is no approval channel. */
 export function claudeModeArgs(o: Pick<RunOptions, 'mode'>): string[] {

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  The composer: auto-growing input, @ mentions, / commands, context pills, mode and model pickers.
  *--------------------------------------------------------------------------------------------*/
 
@@ -38,7 +38,7 @@ interface MentionState {
 const BUILTIN_SLASH: (SlashCommandInfo & { builtin: true })[] = [
 	{ name: 'new', description: 'Start a new chat', source: 'built in', builtin: true },
 	{ name: 'history', description: 'Browse past chats', source: 'built in', builtin: true },
-	{ name: 'settings', description: 'Open Open Cursor settings', source: 'built in', builtin: true },
+	{ name: 'settings', description: 'Open OpenCursor settings', source: 'built in', builtin: true },
 ];
 
 let mentionSeq = 0;

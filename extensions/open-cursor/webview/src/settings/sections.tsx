@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
 import { useMemo, useState, type ReactElement } from 'react';
@@ -54,7 +54,7 @@ export function General({ state, set, send }: SectionProps): ReactElement {
 				</Row>
 			</Group>
 			<Group>
-				<Row label="All settings" desc="Every Open Cursor option, in the standard settings editor.">
+				<Row label="All settings" desc="Every OpenCursor option, in the standard settings editor.">
 					<Button onClick={() => send({ type: 'openSettingsJson' })}>Open settings editor</Button>
 				</Row>
 			</Group>
@@ -261,7 +261,7 @@ export function Models({ state, verify, set, send }: SectionProps): ReactElement
 export function Subscriptions({ state, set, send }: SectionProps): ReactElement {
 	const on = state.config['cli.enabled'];
 	return (
-		<Page title="Subscriptions" lead="Run an agent CLI you already pay for as the backend of a chat. Open Cursor keeps the editing, review and checkpoints; the CLI does the thinking and tool use.">
+		<Page title="Subscriptions" lead="Run an agent CLI you already pay for as the backend of a chat. OpenCursor keeps the editing, review and checkpoints; the CLI does the thinking and tool use.">
 			<Group>
 				<Row label="Offer agent CLIs in the model picker" desc="They appear as their own group, next to your API keys.">
 					<Toggle label="Enable CLI agents" checked={on} onChange={v => set('cli.enabled', v)} />

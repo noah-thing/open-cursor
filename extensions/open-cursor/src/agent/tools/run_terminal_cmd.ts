@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Approval happens in the agent loop before run() is called.
  *--------------------------------------------------------------------------------------------*/
 
@@ -17,7 +17,7 @@ export const runTerminalCmd: ToolDef<Args> = {
 	readOnly: false,
 	schema: {
 		name: 'run_terminal_cmd',
-		description: 'Run a shell command in the Open Cursor terminal and return its output (last ~200 lines) and exit code. The shell session persists between calls, so `cd` and exported variables carry over, and the initial directory is the workspace root. Commands time out after 120s: start servers and watchers with is_background true. Never run interactive commands that wait for input; pass non-interactive flags (e.g. --yes). Do not use it to read or edit files when a dedicated tool exists.',
+		description: 'Run a shell command in the OpenCursor terminal and return its output (last ~200 lines) and exit code. The shell session persists between calls, so `cd` and exported variables carry over, and the initial directory is the workspace root. Commands time out after 120s: start servers and watchers with is_background true. Never run interactive commands that wait for input; pass non-interactive flags (e.g. --yes). Do not use it to read or edit files when a dedicated tool exists.',
 		parameters: {
 			type: 'object',
 			properties: {

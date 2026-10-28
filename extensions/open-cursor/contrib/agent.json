@@ -3,65 +3,65 @@
 		{
 			"command": "openCursor.chat.open",
 			"title": "Focus Chat / Add Selection to Chat",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.chat.newChat",
 			"title": "New Chat",
-			"category": "Open Cursor",
+			"category": "OpenCursor",
 			"icon": "$(add)"
 		},
 		{
 			"command": "openCursor.chat.addSelectionToNewChat",
 			"title": "Add Selection to New Chat",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.chat.toggle",
 			"title": "Toggle Chat Sidebar",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.chat.history",
 			"title": "Show Chat History",
-			"category": "Open Cursor",
+			"category": "OpenCursor",
 			"icon": "$(history)"
 		},
 		{
 			"command": "openCursor.chat.stop",
 			"title": "Stop Chat Generation",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.chat.openSettings",
 			"title": "Open Chat Settings",
-			"category": "Open Cursor",
+			"category": "OpenCursor",
 			"icon": "$(gear)"
 		},
 		{
 			"command": "openCursor.chat.addFileToChat",
 			"title": "Add to Chat",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.chat.addTerminalSelection",
 			"title": "Add Terminal Selection to Chat",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.chat.fixWithAgent",
-			"title": "Fix with Open Cursor",
-			"category": "Open Cursor"
+			"title": "Fix with OpenCursor",
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.chat.explainSelection",
 			"title": "Explain Selection",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.chat.startTask",
 			"title": "Start a Task in a New Chat",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		}
 	],
 	"keybindings": [
@@ -175,7 +175,7 @@
 		]
 	},
 	"configuration": {
-		"title": "Open Cursor: Agent",
+		"title": "OpenCursor: Agent",
 		"properties": {
 			"openCursor.agent.autoRun": {
 				"type": "string",

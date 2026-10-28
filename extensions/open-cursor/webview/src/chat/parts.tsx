@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Pieces of an assistant turn: thinking, tool rows, edit rows, approval and error cards.
  *--------------------------------------------------------------------------------------------*/
 

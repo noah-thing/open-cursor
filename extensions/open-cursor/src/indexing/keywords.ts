@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Pure keyword extraction and ranking for the ripgrep fallback (no vscode import).
  *--------------------------------------------------------------------------------------------*/
 

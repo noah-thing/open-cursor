@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Checkpoints: before-contents of every file the agent touched, per user message, stored as
  *  content-addressed blobs under the extension storage dir. Restore rewinds files to the earliest
  *  captured state across the target checkpoint and every later one.

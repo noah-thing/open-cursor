@@ -29,7 +29,7 @@ test('claude: read-only modes use plan permission mode and lose the edit tools; 
 test('claude: the mode guidance is appended to the system prompt', () => {
 	for (const mode of ['agent', 'plan', 'debug', 'ask'] as const) {
 		const p = after(claudeModeArgs({ mode }), '--append-system-prompt')!;
-		assert.ok(p.includes('Open Cursor') && p.includes(cliModeGuidance(mode)), mode);
+		assert.ok(p.includes('OpenCursor') && p.includes(cliModeGuidance(mode)), mode);
 	}
 	assert.ok(after(claudeModeArgs({ mode: 'debug' }), '--append-system-prompt')!.includes(DEBUG_MARKER));
 });

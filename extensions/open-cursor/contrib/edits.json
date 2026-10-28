@@ -3,82 +3,82 @@
 		{
 			"command": "openCursor.diff.acceptHunk",
 			"title": "Keep Change",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.rejectHunk",
 			"title": "Undo Change",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.acceptFile",
 			"title": "Keep File",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.rejectFile",
 			"title": "Undo File",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.acceptAll",
 			"title": "Keep All Changes",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.rejectAll",
 			"title": "Undo All Changes",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.openDiff",
 			"title": "Open Diff for Current File",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.nextFile",
 			"title": "Next File With Changes",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.prevFile",
 			"title": "Previous File With Changes",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.nextHunk",
 			"title": "Next Change",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.diff.prevHunk",
 			"title": "Previous Change",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.mcp.reload",
 			"title": "Reload MCP Servers",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.mcp.openUserConfig",
 			"title": "Open User MCP Config",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.mcp.openWorkspaceConfig",
 			"title": "Open Workspace MCP Config",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.index.rebuild",
 			"title": "Rebuild Codebase Index",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		},
 		{
 			"command": "openCursor.index.clear",
 			"title": "Clear Codebase Index",
-			"category": "Open Cursor"
+			"category": "OpenCursor"
 		}
 	],
 	"keybindings": [
@@ -134,7 +134,7 @@
 		}
 	],
 	"configuration": {
-		"title": "Open Cursor: Indexing",
+		"title": "OpenCursor: Indexing",
 		"properties": {
 			"openCursor.index.enabled": {
 				"type": "boolean",

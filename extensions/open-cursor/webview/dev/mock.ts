@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Fake extension host for developing the chat webview in a plain browser.
  *  Defines window.acquireVsCodeApi before the chat bundle loads.
  *

@@ -1,10 +1,10 @@
 {
 	"commands": [
-		{ "command": "openCursor.providers.setKey", "title": "Set API Key", "category": "Open Cursor" },
-		{ "command": "openCursor.providers.verify", "title": "Verify Provider Connection", "category": "Open Cursor" }
+		{ "command": "openCursor.providers.setKey", "title": "Set API Key", "category": "OpenCursor" },
+		{ "command": "openCursor.providers.verify", "title": "Verify Provider Connection", "category": "OpenCursor" }
 	],
 	"configuration": {
-		"title": "Open Cursor: Models",
+		"title": "OpenCursor: Models",
 		"properties": {
 			"openCursor.models.default": {
 				"type": "string", "default": "",
@@ -51,7 +51,7 @@
 			},
 			"openCursor.providers.custom.baseUrl": {
 				"type": "string", "default": "",
-				"markdownDescription": "Base URL of any OpenAI-compatible endpoint (vLLM, llama.cpp, LiteLLM, ...), e.g. `http://localhost:8000/v1`. Set a key with **Open Cursor: Set API Key** if it needs one."
+				"markdownDescription": "Base URL of any OpenAI-compatible endpoint (vLLM, llama.cpp, LiteLLM, ...), e.g. `http://localhost:8000/v1`. Set a key with **OpenCursor: Set API Key** if it needs one."
 			},
 			"openCursor.providers.openai.baseUrl": {
 				"type": "string", "default": "",

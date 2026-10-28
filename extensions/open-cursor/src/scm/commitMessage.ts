@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Sparkle button in the SCM input box: writes a commit message from the staged diff.
  *--------------------------------------------------------------------------------------------*/
 
@@ -46,9 +46,9 @@ export function registerCommitMessage(ctx: vscode.ExtensionContext, services: Se
 		if (ext && !ext.isActive) { await ext.activate(); }
 		const api = gitApi();
 		const repo = api && pickRepo(api, arg);
-		if (!repo) { void vscode.window.showWarningMessage('Open Cursor: no git repository found.'); return; }
+		if (!repo) { void vscode.window.showWarningMessage('OpenCursor: no git repository found.'); return; }
 		const model = pickInlineModel(services);
-		if (!model) { void vscode.window.showErrorMessage('Open Cursor: no model available. Add an API key or start a local model.'); return; }
+		if (!model) { void vscode.window.showErrorMessage('OpenCursor: no model available. Add an API key or start a local model.'); return; }
 
 		const ac = new AbortController();
 		running = ac;
@@ -57,7 +57,7 @@ export function registerCommitMessage(ctx: vscode.ExtensionContext, services: Se
 				let diff = repo.state.indexChanges.length > 0 ? await repo.diff(true) : '';
 				if (!diff.trim()) { diff = await repo.diff(false); }
 				const untracked = (repo.state.untrackedChanges ?? []).map(c => vscode.workspace.asRelativePath(c.uri, false));
-				if (!diff.trim() && untracked.length === 0) { void vscode.window.showInformationMessage('Open Cursor: no changes to describe.'); return; }
+				if (!diff.trim() && untracked.length === 0) { void vscode.window.showInformationMessage('OpenCursor: no changes to describe.'); return; }
 				const recent = (await repo.log({ maxEntries: 8 }).catch(() => [])).map(c => c.message.split('\n')[0]);
 				let rules: { name: string; content: string }[] = [];
 				try { rules = (await services.context.getRules([])).map(r => ({ name: r.name, content: r.content })); } catch { /* optional */ }
@@ -70,7 +70,7 @@ export function registerCommitMessage(ctx: vscode.ExtensionContext, services: Se
 				if (msg) { repo.inputBox.value = msg; }
 			});
 		} catch (err) {
-			if (!ac.signal.aborted) { void vscode.window.showErrorMessage(`Open Cursor: ${err instanceof Error ? err.message : String(err)}`); }
+			if (!ac.signal.aborted) { void vscode.window.showErrorMessage(`OpenCursor: ${err instanceof Error ? err.message : String(err)}`); }
 		} finally {
 			if (running === ac) { running = undefined; }
 		}

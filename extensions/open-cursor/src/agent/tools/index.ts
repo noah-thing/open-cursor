@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Tool registry: built-in tools plus MCP tools, filtered by chat mode.
  *--------------------------------------------------------------------------------------------*/
 

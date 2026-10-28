@@ -1,4 +1,4 @@
-// Launches the dev build of Open Cursor under Playwright and runs a small scenario.
+// Launches the dev build of OpenCursor under Playwright and runs a small scenario.
 // Usage: node scripts/open-cursor/drive.mjs <scenario.mjs> [workspace]
 // A scenario exports `default async ({ app, page, shot, sleep, keys }) => {}`.
 import { _electron as electron } from 'playwright-core';
@@ -10,8 +10,8 @@ import { pathToFileURL } from 'node:url';
 const root = path.resolve(import.meta.dirname, '../..');
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 const appDir = fs.readdirSync(path.join(root, '.build/electron')).find(f => f.endsWith('.app'));
-const packaged = process.env.OC_APP; // path to a packaged "Open Cursor.app"
-const exe = packaged ? path.join(packaged, 'Contents/MacOS/Open Cursor') : path.join(root, '.build/electron', appDir, 'Contents/MacOS', product.nameShort === 'Open Cursor' && fs.existsSync(path.join(root, '.build/electron', appDir, 'Contents/MacOS/Open Cursor')) ? 'Open Cursor' : appDir.replace(/\.app$/, ''));
+const packaged = process.env.OC_APP; // path to a packaged "OpenCursor.app"
+const exe = packaged ? path.join(packaged, 'Contents/MacOS/OpenCursor') : path.join(root, '.build/electron', appDir, 'Contents/MacOS', product.nameShort === 'OpenCursor' && fs.existsSync(path.join(root, '.build/electron', appDir, 'Contents/MacOS/OpenCursor')) ? 'OpenCursor' : appDir.replace(/\.app$/, ''));
 const scenario = process.argv[2];
 const workspace = process.argv[3] ?? path.join(os.homedir(), 'oc-playground');
 const shotsDir = process.env.OC_SHOTS ?? path.join(os.homedir(), 'oc-shots');

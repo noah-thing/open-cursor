@@ -1,7 +1,7 @@
 {
 	"name": "open-cursor",
-	"displayName": "Open Cursor",
-	"description": "Agent, Tab, inline edit and chat for Open Cursor.",
+	"displayName": "OpenCursor",
+	"description": "Agent, Tab, inline edit and chat for OpenCursor.",
 	"version": "0.1.0",
 	"publisher": "open-cursor",
 	"license": "MIT",
@@ -32,196 +32,196 @@
 			{
 				"command": "openCursor.chat.open",
 				"title": "Focus Chat / Add Selection to Chat",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.chat.newChat",
 				"title": "New Chat",
-				"category": "Open Cursor",
+				"category": "OpenCursor",
 				"icon": "$(add)"
 			},
 			{
 				"command": "openCursor.chat.addSelectionToNewChat",
 				"title": "Add Selection to New Chat",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.chat.toggle",
 				"title": "Toggle Chat Sidebar",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.chat.history",
 				"title": "Show Chat History",
-				"category": "Open Cursor",
+				"category": "OpenCursor",
 				"icon": "$(history)"
 			},
 			{
 				"command": "openCursor.chat.stop",
 				"title": "Stop Chat Generation",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.chat.openSettings",
 				"title": "Open Chat Settings",
-				"category": "Open Cursor",
+				"category": "OpenCursor",
 				"icon": "$(gear)"
 			},
 			{
 				"command": "openCursor.chat.addFileToChat",
 				"title": "Add to Chat",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.chat.addTerminalSelection",
 				"title": "Add Terminal Selection to Chat",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.chat.fixWithAgent",
-				"title": "Fix with Open Cursor",
-				"category": "Open Cursor"
+				"title": "Fix with OpenCursor",
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.chat.explainSelection",
 				"title": "Explain Selection",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.chat.startTask",
 				"title": "Start a Task in a New Chat",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.acceptHunk",
 				"title": "Keep Change",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.rejectHunk",
 				"title": "Undo Change",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.acceptFile",
 				"title": "Keep File",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.rejectFile",
 				"title": "Undo File",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.acceptAll",
 				"title": "Keep All Changes",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.rejectAll",
 				"title": "Undo All Changes",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.openDiff",
 				"title": "Open Diff for Current File",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.nextFile",
 				"title": "Next File With Changes",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.prevFile",
 				"title": "Previous File With Changes",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.nextHunk",
 				"title": "Next Change",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.diff.prevHunk",
 				"title": "Previous Change",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.mcp.reload",
 				"title": "Reload MCP Servers",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.mcp.openUserConfig",
 				"title": "Open User MCP Config",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.mcp.openWorkspaceConfig",
 				"title": "Open Workspace MCP Config",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.index.rebuild",
 				"title": "Rebuild Codebase Index",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.index.clear",
 				"title": "Clear Codebase Index",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.import",
 				"title": "Import Settings and Extensions from Cursor or VS Code",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.providers.setKey",
 				"title": "Set API Key",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.providers.verify",
 				"title": "Verify Provider Connection",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.settings.open",
 				"title": "Open Settings",
-				"category": "Open Cursor",
+				"category": "OpenCursor",
 				"icon": "$(gear)"
 			},
 			{
 				"command": "openCursor.tab.toggle",
 				"title": "Toggle Tab Completion",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.tab.showLog",
 				"title": "Show Tab Log",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.tab.trigger",
 				"title": "Trigger Tab Suggestion",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.inline.openFallback",
 				"title": "Edit Selection with AI (Quick Input)",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.terminal.cmdK",
 				"title": "Generate Terminal Command",
-				"category": "Open Cursor"
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.scm.generateCommitMessage",
 				"title": "Generate Commit Message",
-				"category": "Open Cursor",
+				"category": "OpenCursor",
 				"icon": "$(sparkle)"
 			}
 		],
@@ -417,7 +417,7 @@
 		},
 		"configuration": [
 			{
-				"title": "Open Cursor: Agent",
+				"title": "OpenCursor: Agent",
 				"properties": {
 					"openCursor.agent.autoRun": {
 						"type": "string",
@@ -582,7 +582,7 @@
 				}
 			},
 			{
-				"title": "Open Cursor: CLI agents",
+				"title": "OpenCursor: CLI agents",
 				"properties": {
 					"openCursor.cli.enabled": {
 						"type": "boolean",
@@ -646,7 +646,7 @@
 				}
 			},
 			{
-				"title": "Open Cursor: Indexing",
+				"title": "OpenCursor: Indexing",
 				"properties": {
 					"openCursor.index.enabled": {
 						"type": "boolean",
@@ -661,7 +661,7 @@
 				}
 			},
 			{
-				"title": "Open Cursor: Models",
+				"title": "OpenCursor: Models",
 				"properties": {
 					"openCursor.models.default": {
 						"type": "string",
@@ -749,7 +749,7 @@
 					"openCursor.providers.custom.baseUrl": {
 						"type": "string",
 						"default": "",
-						"markdownDescription": "Base URL of any OpenAI-compatible endpoint (vLLM, llama.cpp, LiteLLM, ...), e.g. `http://localhost:8000/v1`. Set a key with **Open Cursor: Set API Key** if it needs one."
+						"markdownDescription": "Base URL of any OpenAI-compatible endpoint (vLLM, llama.cpp, LiteLLM, ...), e.g. `http://localhost:8000/v1`. Set a key with **OpenCursor: Set API Key** if it needs one."
 					},
 					"openCursor.providers.openai.baseUrl": {
 						"type": "string",
@@ -759,7 +759,7 @@
 				}
 			},
 			{
-				"title": "Open Cursor: Tab",
+				"title": "OpenCursor: Tab",
 				"properties": {
 					"openCursor.tab.enabled": {
 						"type": "boolean",

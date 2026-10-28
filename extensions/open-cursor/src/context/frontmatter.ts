@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Rule/command frontmatter parsing and glob matching. Pure (no vscode import) so it is unit testable.
  *--------------------------------------------------------------------------------------------*/
 

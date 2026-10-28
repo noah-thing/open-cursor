@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Incremental parser for "one fenced code block" model output. No vscode import.
  *--------------------------------------------------------------------------------------------*/
 

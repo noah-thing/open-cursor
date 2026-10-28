@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Chat persistence: one JSON file per chat plus an index, debounced writes, titles.
  *--------------------------------------------------------------------------------------------*/
 

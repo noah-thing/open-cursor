@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Shared HTTP plumbing for provider adapters: retrying fetch, error mapping, SSE and NDJSON readers.
  *  No vscode imports: adapters must run under plain node (see smoke.ts).
  *--------------------------------------------------------------------------------------------*/

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Rule discovery (.open-cursor/rules, .cursor/rules, AGENTS.md, CLAUDE.md, .cursorrules, user rules)
  *  and slash command discovery, cached and invalidated by file watchers.
  *--------------------------------------------------------------------------------------------*/

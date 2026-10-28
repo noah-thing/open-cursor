@@ -1,6 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
-	"name": "Open Cursor Light",
+	"name": "OpenCursor Light",
 	"type": "light",
 	"semanticHighlighting": true,
 	"colors": {

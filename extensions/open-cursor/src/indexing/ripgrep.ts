@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Keyword search fallback over the bundled ripgrep, used when no embedding backend exists.
  *--------------------------------------------------------------------------------------------*/
 

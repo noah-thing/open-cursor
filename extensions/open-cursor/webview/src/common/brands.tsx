@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Provider and agent marks, drawn in the theme's own colour. Generated from LobeHub Icons
  *  (@lobehub/icons-static-svg 1.101.0, MIT). The marks are trademarks of their owners and are
  *  shown only to say which service a row connects to.

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Menu bar template glyph (black on transparent; macOS tints it), traced from the app icon's
  *  pointer. 18 pt and @2x.
  *--------------------------------------------------------------------------------------------*/

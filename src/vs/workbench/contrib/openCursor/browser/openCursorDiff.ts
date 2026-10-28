@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Renders pending AI edits inside code editors: added lines get a green wash, removed lines are
  *  drawn as syntax highlighted view zones, and every hunk gets Undo / Keep buttons. The extension
  *  owns the edit state and pushes it here with `_openCursor.diff.set`; buttons call back into the

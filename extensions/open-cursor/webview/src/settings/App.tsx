@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
@@ -92,7 +92,7 @@ export function App(): ReactElement {
 	return (
 		<div className="st-app">
 			<nav className="st-nav" aria-label="Settings sections">
-				<div className="st-nav-title">Open Cursor</div>
+				<div className="st-nav-title">OpenCursor</div>
 				{SECTIONS.map(s => (
 					<button key={s.id} type="button" className={'st-nav-item' + (s.id === section ? ' is-active' : '')} aria-current={s.id === section ? 'page' : undefined} onClick={() => go(s.id)}>
 						<Icon name={ICONS[s.id]} size={15} />

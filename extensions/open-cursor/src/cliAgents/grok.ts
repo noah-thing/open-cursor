@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Grok CLI runner. `grok -p <prompt> --output-format streaming-json`. Headless mode cannot ask us
  *  for approvals: a shell command that is not read only or allow-listed is refused and the CLI
  *  ends the turn ("cancelled"). So agent mode runs with `acceptEdits` inside `--sandbox workspace`

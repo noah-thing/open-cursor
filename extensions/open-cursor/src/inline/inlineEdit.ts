@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Cmd+K inline edit: the commands the core prompt box calls, streamed into the document as a
  *  pending edit so the diff renders live. Also a quick-input fallback for stock VS Code.
  *--------------------------------------------------------------------------------------------*/
@@ -225,7 +225,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 				return;
 			}
 		} catch { /* report below */ }
-		void vscode.window.showWarningMessage('Open Cursor could not undo the inline edit because the file changed around it. Use Undo File in the review bar.');
+		void vscode.window.showWarningMessage('OpenCursor could not undo the inline edit because the file changed around it. Use Undo File in the review bar.');
 	}
 
 	async function openFallback(): Promise<void> {
@@ -242,7 +242,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		const sessionId = `fallback-${Date.now().toString(36)}`;
 		const failure: { message?: string } = {};
 		listeners.set(sessionId, (st, m) => { if (st === 'error') { failure.message = m ?? 'Edit failed'; } });
-		await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Open Cursor: editing…', cancellable: true }, async (_p, token) => {
+		await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'OpenCursor: editing…', cancellable: true }, async (_p, token) => {
 			token.onCancellationRequested(() => { void cancel(sessionId); });
 			await submit({ sessionId, uri: editor.document.uri.toString(), selection: { startLine: sel.start.line, startCol: sel.start.character, endLine: sel.end.line, endCol: sel.end.character }, prompt });
 		});

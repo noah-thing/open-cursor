@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Gitignore-style matcher for .cursorignore / .open-cursorignore (no vscode import).
  *--------------------------------------------------------------------------------------------*/
 

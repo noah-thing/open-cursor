@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  How to install and sign in to each agent CLI. Shared by the settings page and the chat's
  *  start screen, which runs these commands in a terminal for the user.
  *--------------------------------------------------------------------------------------------*/

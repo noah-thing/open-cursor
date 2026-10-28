@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  IContextService implementation: rules, slash commands, @-mentions.
  *--------------------------------------------------------------------------------------------*/
 

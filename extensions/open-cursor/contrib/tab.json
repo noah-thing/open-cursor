@@ -1,11 +1,11 @@
 {
 	"commands": [
-		{ "command": "openCursor.tab.toggle", "title": "Toggle Tab Completion", "category": "Open Cursor" },
-		{ "command": "openCursor.tab.showLog", "title": "Show Tab Log", "category": "Open Cursor" },
-		{ "command": "openCursor.tab.trigger", "title": "Trigger Tab Suggestion", "category": "Open Cursor" },
-		{ "command": "openCursor.inline.openFallback", "title": "Edit Selection with AI (Quick Input)", "category": "Open Cursor" },
-		{ "command": "openCursor.terminal.cmdK", "title": "Generate Terminal Command", "category": "Open Cursor" },
-		{ "command": "openCursor.scm.generateCommitMessage", "title": "Generate Commit Message", "category": "Open Cursor", "icon": "$(sparkle)" }
+		{ "command": "openCursor.tab.toggle", "title": "Toggle Tab Completion", "category": "OpenCursor" },
+		{ "command": "openCursor.tab.showLog", "title": "Show Tab Log", "category": "OpenCursor" },
+		{ "command": "openCursor.tab.trigger", "title": "Trigger Tab Suggestion", "category": "OpenCursor" },
+		{ "command": "openCursor.inline.openFallback", "title": "Edit Selection with AI (Quick Input)", "category": "OpenCursor" },
+		{ "command": "openCursor.terminal.cmdK", "title": "Generate Terminal Command", "category": "OpenCursor" },
+		{ "command": "openCursor.scm.generateCommitMessage", "title": "Generate Commit Message", "category": "OpenCursor", "icon": "$(sparkle)" }
 	],
 	"keybindings": [
 		{ "command": "openCursor.terminal.cmdK", "key": "ctrl+k", "mac": "cmd+k", "when": "terminalFocus" },
@@ -20,7 +20,7 @@
 		]
 	},
 	"configuration": {
-		"title": "Open Cursor: Tab",
+		"title": "OpenCursor: Tab",
 		"properties": {
 			"openCursor.tab.enabled": {
 				"type": "boolean", "default": true,

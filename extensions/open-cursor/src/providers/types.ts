@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Canonical model-facing types. Every provider adapter converts to and from these.
  *--------------------------------------------------------------------------------------------*/
 
@@ -17,7 +17,7 @@ export type ProviderId =
 	| 'custom';
 
 export interface ModelInfo {
-	/** Globally unique id used everywhere in Open Cursor: `${provider}/${model}` e.g. `anthropic/claude-sonnet-5-5`. */
+	/** Globally unique id used everywhere in OpenCursor: `${provider}/${model}` e.g. `anthropic/claude-sonnet-5-5`. */
 	readonly id: string;
 	readonly provider: ProviderId;
 	/** The id the provider's API expects. */

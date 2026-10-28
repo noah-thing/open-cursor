@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  The menu bar item: an icon next to the clock that opens a small panel. From it you can hand a
  *  task to the agent in any project (it opens or focuses that project and starts a chat with the
  *  task), jump to an open window, reopen a recent folder, or start a new window.

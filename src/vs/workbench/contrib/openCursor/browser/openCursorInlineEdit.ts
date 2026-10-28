@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Cmd+K: a prompt box that opens inside the editor above the selection. The extension does the
  *  model work (`openCursor.inline.submit`) and streams the result into the file as pending hunks,
  *  which openCursorDiff.ts draws. This file only owns the box, its states and its keys.
@@ -341,7 +341,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'openCursor.inline.open',
 			title: isMacintosh ? localize2('openCursor.inline.open', "Edit Inline (Cmd+K)") : localize2('openCursor.inline.openCtrl', "Edit Inline (Ctrl+K)"),
-			category: localize2('openCursor', "Open Cursor"),
+			category: localize2('openCursor', "OpenCursor"),
 			f1: true,
 			precondition: EditorContextKeys.writable,
 			keybinding: {

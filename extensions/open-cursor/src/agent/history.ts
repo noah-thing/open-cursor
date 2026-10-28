@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Transcript model and rebuilding model history from UI chat messages. Pure.
  *--------------------------------------------------------------------------------------------*/
 

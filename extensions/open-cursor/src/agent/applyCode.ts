@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  "Apply" for code blocks in chat: ask a cheap model to merge the snippet into the target file,
  *  then land the result as a pending edit.
  *--------------------------------------------------------------------------------------------*/

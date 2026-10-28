@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Diagnostics formatting shared by the read_lints tool and the @Lints mention.
  *--------------------------------------------------------------------------------------------*/
 

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Chat controller: owns chats, runs turns (native loop or CLI agent), talks to the webview.
  *--------------------------------------------------------------------------------------------*/
 
@@ -147,10 +147,10 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			provideCodeActions(doc, range, context) {
 				const diags = context.diagnostics.filter(x => x.severity <= vscode.DiagnosticSeverity.Warning);
 				if (!diags.length) { return []; }
-				const action = new vscode.CodeAction('Fix with Open Cursor', vscode.CodeActionKind.QuickFix);
+				const action = new vscode.CodeAction('Fix with OpenCursor', vscode.CodeActionKind.QuickFix);
 				action.diagnostics = diags;
 				action.command = {
-					command: 'openCursor.chat.fixWithAgent', title: 'Fix with Open Cursor',
+					command: 'openCursor.chat.fixWithAgent', title: 'Fix with OpenCursor',
 					arguments: [doc.uri.toString(), diags.map(x => ({ line: x.range.start.line, character: x.range.start.character, message: x.message, source: x.source }))],
 				};
 				return [action];
@@ -1154,7 +1154,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private async confirmOutside(absPath: string, action: string, signal: AbortSignal): Promise<boolean> {
 		if (signal.aborted) { return false; }
-		const choice = await vscode.window.showWarningMessage(`Open Cursor wants to access a path outside the workspace.`, { modal: true, detail: `${action}: ${absPath}` }, 'Allow');
+		const choice = await vscode.window.showWarningMessage(`OpenCursor wants to access a path outside the workspace.`, { modal: true, detail: `${action}: ${absPath}` }, 'Allow');
 		return choice === 'Allow' && !signal.aborted;
 	}
 

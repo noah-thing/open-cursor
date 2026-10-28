@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Private message protocol between the settings panel (extension host) and its webview.
  *  Types only: imported by both sides, never carries secrets back to the webview.
  *--------------------------------------------------------------------------------------------*/

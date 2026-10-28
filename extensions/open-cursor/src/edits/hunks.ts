@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Pure hunk logic for pending edits (no vscode import): line diff, stable ids, accept/reject folding.
  *--------------------------------------------------------------------------------------------*/
 

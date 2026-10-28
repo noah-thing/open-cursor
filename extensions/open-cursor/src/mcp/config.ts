@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Pure MCP config helpers (no vscode import): parsing, merging, interpolation, tool naming.
  *--------------------------------------------------------------------------------------------*/
 

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Gemini CLI runner. `gemini -p <prompt> --output-format stream-json`. Headless mode cannot ask
  *  us for approvals, so agent mode runs with `--approval-mode auto_edit` (edits auto-approved,
  *  shell commands denied by the CLI) and ask/plan with `plan` (read only). autoRun === 'always'

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Fake extension host for the settings webview. Query: ?section=models&theme=light&w=980
  *--------------------------------------------------------------------------------------------*/
 

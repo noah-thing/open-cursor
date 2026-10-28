@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Tiny stdio MCP server exposing one tool, `approve`, used as Claude Code's
  *  `--permission-prompt-tool mcp__oc__approve`. Claude Code calls it for every tool use that needs
  *  permission; we relay the request to the extension over a local socket (JSON lines) and return
@@ -51,7 +51,7 @@ function connect(): Promise<net.Socket> {
 			});
 			s.on('close', () => {
 				for (const [id, cb] of pending) {
-					cb({ id, behavior: 'deny', message: 'Open Cursor approval channel closed.' });
+					cb({ id, behavior: 'deny', message: 'OpenCursor approval channel closed.' });
 				}
 				pending.clear();
 				sock = undefined;
@@ -72,7 +72,7 @@ async function ask(args: Json): Promise<Json> {
 			s.write(JSON.stringify({ id, tool_name: args.tool_name, input: args.input ?? {}, tool_use_id: args.tool_use_id }) + '\n');
 		});
 	} catch {
-		return { behavior: 'deny', message: 'Open Cursor approval channel is unavailable.' };
+		return { behavior: 'deny', message: 'OpenCursor approval channel is unavailable.' };
 	}
 }
 
@@ -99,7 +99,7 @@ async function handle(msg: Json): Promise<void> {
 					tools: [
 						{
 							name: 'approve',
-							description: 'Ask the Open Cursor user to approve a tool use.',
+							description: 'Ask the OpenCursor user to approve a tool use.',
 							inputSchema: {
 								type: 'object',
 								properties: { tool_name: { type: 'string' }, input: { type: 'object', additionalProperties: true }, tool_use_id: { type: 'string' } },

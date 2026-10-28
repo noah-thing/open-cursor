@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  MCP client manager: Cursor-compatible mcp.json files, stdio + streamable HTTP/SSE servers,
  *  lazy start, hot reload, namespaced tools.
  *--------------------------------------------------------------------------------------------*/

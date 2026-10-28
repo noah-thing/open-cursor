@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Extension side of the permission channel: listens on a private unix socket, receives the
  *  requests that dist/permissionServer.js relays from Claude Code, and answers them.
  *--------------------------------------------------------------------------------------------*/

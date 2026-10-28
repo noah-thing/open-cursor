@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  edit_file matching: exact replace with a whitespace tolerant fallback and precise failure
  *  messages. Pure (no vscode import).
  *--------------------------------------------------------------------------------------------*/

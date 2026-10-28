@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Shared helper for single-turn text generation (terminal Cmd+K, commit messages).
  *--------------------------------------------------------------------------------------------*/
 

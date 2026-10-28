@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Process helpers shared by the CLI agent runners. No vscode import.
  *--------------------------------------------------------------------------------------------*/
 

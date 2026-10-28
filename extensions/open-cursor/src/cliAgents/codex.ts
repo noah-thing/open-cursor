@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Codex runner. `codex exec --json`, resume via `codex exec resume <thread>`. `codex exec` cannot
  *  route approvals to a client, so safety comes from the sandbox: workspace-write for agent mode,
  *  read-only for ask/plan, approval policy "never" (blocked actions fail instead of hanging). Only

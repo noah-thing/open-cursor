@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Cursor-style Tab: debounced, cancellable inline completions over registry.fim (or a tight chat
  *  prompt for models without FIM), typed-through cache, status bar toggle, latency log.
  *--------------------------------------------------------------------------------------------*/
@@ -40,7 +40,7 @@ function sleep(ms: number, token: vscode.CancellationToken): Promise<boolean> {
 }
 
 export function registerTab(ctx: vscode.ExtensionContext, services: Services): void {
-	const out = vscode.window.createOutputChannel('Open Cursor Tab');
+	const out = vscode.window.createOutputChannel('OpenCursor Tab');
 	const log = new LatencyLog(out);
 	const cache = new CompletionCache();
 	const recent: RecentEdit[] = [];
@@ -245,7 +245,7 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 
 	let registration: vscode.Disposable;
 	try {
-		registration = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**' }, provider, { displayName: 'Open Cursor Tab', debounceDelayMs: 0 });
+		registration = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**' }, provider, { displayName: 'OpenCursor Tab', debounceDelayMs: 0 });
 	} catch {
 		// Proposed API not enabled (stock VS Code): plain registration.
 		registration = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**' }, provider);
@@ -260,8 +260,8 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 		const m = tabModel();
 		item.text = on ? '$(sparkle) Tab' : '$(circle-slash) Tab';
 		item.tooltip = new vscode.MarkdownString(on
-			? `Open Cursor Tab is **on**${m ? ` (${m.label || m.id})` : ' (no model available)'}. Click to turn off.`
-			: 'Open Cursor Tab is **off**. Click to turn on.');
+			? `OpenCursor Tab is **on**${m ? ` (${m.label || m.id})` : ' (no model available)'}. Click to turn off.`
+			: 'OpenCursor Tab is **off**. Click to turn on.');
 		item.backgroundColor = on && !m ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
 		item.show();
 	}

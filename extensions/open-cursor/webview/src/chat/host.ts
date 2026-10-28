@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
 import type { HostMessageExt, WebviewMessageExt } from '../../../src/shared/protocol';

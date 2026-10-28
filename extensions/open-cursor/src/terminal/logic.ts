@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Terminal Cmd+K pure logic: ANSI stripping, output ring buffer, prompt, command cleanup.
  *--------------------------------------------------------------------------------------------*/
 

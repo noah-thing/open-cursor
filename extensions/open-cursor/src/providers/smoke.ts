@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Smoke test for one adapter under plain node (no vscode). Example:
  *    OC_SMOKE_PROVIDER=ollama OC_SMOKE_MODEL=qwen3:8b node smoke.js
  *  Env: OC_SMOKE_PROVIDER, OC_SMOKE_MODEL, OC_SMOKE_BASEURL, OC_SMOKE_KEY (else the provider's

@@ -1,4 +1,4 @@
-/* Open Cursor settings. MIT License. Same tokens and density as the chat panel. */
+/* OpenCursor settings. MIT License. Same tokens and density as the chat panel. */
 
 body { overflow: hidden; }
 .st-loading { height: 100%; display: grid; place-items: center; color: var(--oc-fg-3); font-size: 12px; }

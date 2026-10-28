@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Semantic codebase index: chunk, embed (OpenAI / Gemini / Ollama), cosine search in JS,
  *  incremental by mtime+size, ripgrep keyword fallback. Line numbers in results are 1-based inclusive.
  *--------------------------------------------------------------------------------------------*/
@@ -399,7 +399,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		}),
 		vscode.workspace.onDidChangeWorkspaceFolders(() => reconfigure()),
 		vscode.commands.registerCommand('openCursor.index.rebuild', async () => {
-			await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'Open Cursor: indexing codebase' }, () => rebuild());
+			await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'OpenCursor: indexing codebase' }, () => rebuild());
 		}),
 		vscode.commands.registerCommand('openCursor.index.clear', () => clear()),
 		{

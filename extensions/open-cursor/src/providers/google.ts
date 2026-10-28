@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Google Gemini adapter: streamGenerateContent (SSE), function calling, inline images, thinking.
  *--------------------------------------------------------------------------------------------*/
 

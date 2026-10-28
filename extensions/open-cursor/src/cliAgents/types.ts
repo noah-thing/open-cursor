@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  vscode-free types shared by the CLI agent runners and parsers, so they run in plain node tests.
  *--------------------------------------------------------------------------------------------*/
 

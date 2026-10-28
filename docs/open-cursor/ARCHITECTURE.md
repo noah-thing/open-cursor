@@ -1,13 +1,13 @@
-# Open Cursor architecture
+# OpenCursor architecture
 
-Open Cursor is a fork of Code-OSS 1.143.1 (MIT). All AI features live in one built-in extension,
+OpenCursor is a fork of Code-OSS 1.143.1 (MIT). All AI features live in one built-in extension,
 `extensions/open-cursor`, plus a small workbench contribution in core
 (`src/vs/workbench/contrib/openCursor/`) for the two things an extension cannot draw: the Cmd+K
 prompt box inside the editor and inline diff rendering (deleted lines as view zones, per-hunk Keep/Undo).
 
 Model access is bring-your-own: API keys (Anthropic, OpenAI, Google, OpenRouter, DeepSeek, xAI,
 Mistral, Groq), local servers (Ollama, LM Studio, any OpenAI-compatible URL), and installed agent CLIs
-running on the user's own subscription (Claude Code, Codex, Gemini CLI). No Open Cursor backend,
+running on the user's own subscription (Claude Code, Codex, Gemini CLI). No OpenCursor backend,
 no telemetry, no account.
 
 ## Machines
@@ -41,7 +41,7 @@ any of `commands`, `keybindings`, `configuration` (one object with `title` + `pr
 Settings namespace: `openCursor.*`. User data dir for rules/commands/mcp: `~/.open-cursor/`.
 Compatibility (a feature, so Cursor users can switch with zero setup): also read `~/.cursor/mcp.json`,
 `.cursor/mcp.json`, `.cursor/rules/*.mdc`, `.cursor/commands/*.md`, `.cursorrules`, `AGENTS.md`,
-`CLAUDE.md`. Open Cursor's own equivalents live under `.open-cursor/` and win on conflicts.
+`CLAUDE.md`. OpenCursor's own equivalents live under `.open-cursor/` and win on conflicts.
 
 ## Core bridge (workbench contribution <-> extension), all via commands
 
@@ -68,7 +68,7 @@ Extension provides (core calls these):
 
 Webview view `openCursor.chat` in a view container `openCursor` contributed to `secondarySidebar`.
 The host sends full `chat` snapshots (throttled ~30 fps while streaming). The webview is a React 19 app
-styled only with VS Code theme CSS variables plus a few Open Cursor tokens, so every theme works.
+styled only with VS Code theme CSS variables plus a few OpenCursor tokens, so every theme works.
 
 ## Agent
 

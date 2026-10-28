@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
- *  Command runner: a reusable "Open Cursor" VS Code terminal using shell integration, with a
+ *  OpenCursor. MIT License.
+ *  Command runner: a reusable "OpenCursor" VS Code terminal using shell integration, with a
  *  child_process fallback when shell integration is not available.
  *--------------------------------------------------------------------------------------------*/
 
@@ -27,7 +27,7 @@ export interface RunResult {
 	via: 'terminal' | 'process';
 }
 
-const TERMINAL_NAME = 'Open Cursor';
+const TERMINAL_NAME = 'OpenCursor';
 const SI_WAIT_MS = 3000;
 const ENV = { PAGER: 'cat', GIT_PAGER: 'cat', GIT_TERMINAL_PROMPT: '0', NO_COLOR: '1', CI: '1' };
 
@@ -186,7 +186,7 @@ export class TerminalRunner implements vscode.Disposable {
 
 	/** Start a long running command in its own visible terminal and return after a short look at its output. */
 	async startBackground(command: string, cwd: string, signal: AbortSignal): Promise<{ terminalName: string; initialOutput: string }> {
-		const name = `Open Cursor: ${command.replace(/\s+/g, ' ').slice(0, 30)}`;
+		const name = `OpenCursor: ${command.replace(/\s+/g, ' ').slice(0, 30)}`;
 		const t = vscode.window.createTerminal({ name, cwd, env: ENV, iconPath: new vscode.ThemeIcon('sparkle') });
 		t.show(true);
 		const si = await waitForShellIntegration(t, SI_WAIT_MS);

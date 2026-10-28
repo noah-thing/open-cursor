@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  The native agent loop: stream a model turn, run its tool calls, feed the results back, repeat.
  *--------------------------------------------------------------------------------------------*/
 

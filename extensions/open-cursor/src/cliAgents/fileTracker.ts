@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Detects which files a CLI changed during a turn, for CLIs that cannot route edits through us
  *  (Codex, Gemini). Snapshot strategy: before the turn remember the content of every file that
  *  is already dirty in git; the original of any other file is `git show HEAD:<path>`. After each

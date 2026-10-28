@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  One-time import from Cursor or VS Code: settings, keybindings, snippets and extensions.
  *  Nothing is read until the user picks a source.
  *--------------------------------------------------------------------------------------------*/

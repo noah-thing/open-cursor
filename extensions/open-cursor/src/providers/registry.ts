@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Provider registry: keys (SecretStorage + env fallback), settings, lazy cached model discovery,
  *  default model selection, FIM fallback and the models/providers commands.
  *--------------------------------------------------------------------------------------------*/

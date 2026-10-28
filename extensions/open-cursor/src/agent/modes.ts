@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  What each chat mode is allowed to do, and what must be true before a turn may end. Pure
  *  (no vscode), so the tool registry, the agent loop and the tests share one definition.
  *--------------------------------------------------------------------------------------------*/

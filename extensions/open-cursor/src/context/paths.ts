@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Workspace path helpers shared by the context service and the agent tools.
  *--------------------------------------------------------------------------------------------*/
 

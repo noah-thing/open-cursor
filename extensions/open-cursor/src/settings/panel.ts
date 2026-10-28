@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Settings editor panel: a webview that reads and writes `openCursor.*` configuration and drives
  *  the registry, CLI detection, MCP, index and rules services.
  *--------------------------------------------------------------------------------------------*/
@@ -150,7 +150,7 @@ class SettingsPanel implements vscode.Disposable {
 		}
 		this.pendingSection = section;
 		const distRoot = vscode.Uri.joinPath(this.ctx.extensionUri, 'dist', 'webview');
-		const panel = vscode.window.createWebviewPanel('openCursor.settings', 'Open Cursor Settings', vscode.ViewColumn.Active, {
+		const panel = vscode.window.createWebviewPanel('openCursor.settings', 'OpenCursor Settings', vscode.ViewColumn.Active, {
 			enableScripts: true,
 			localResourceRoots: [distRoot],
 			retainContextWhenHidden: false,
@@ -185,7 +185,7 @@ class SettingsPanel implements vscode.Disposable {
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="${style}">
-<title>Open Cursor Settings</title>
+<title>OpenCursor Settings</title>
 </head>
 <body>
 <div id="root"></div>

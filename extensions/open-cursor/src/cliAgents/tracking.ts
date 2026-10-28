@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Glue between GitTracker and the host callbacks for CLIs that edit files themselves (Codex,
  *  Gemini): after each tool call, report originals, changed files and an "Edited x +n -m" row.
  *--------------------------------------------------------------------------------------------*/
@@ -64,7 +64,7 @@ export class TurnTracker {
 	private warn(): void {
 		if (!this.warned) {
 			this.warned = true;
-			this.host.text('\n\n> Open Cursor cannot snapshot files here because this folder is not a git repository, so these edits are not available for Keep/Undo review or checkpoints.\n\n');
+			this.host.text('\n\n> OpenCursor cannot snapshot files here because this folder is not a git repository, so these edits are not available for Keep/Undo review or checkpoints.\n\n');
 		}
 	}
 }

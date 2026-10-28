@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Header (chat tabs + actions), history view and the empty state.
  *--------------------------------------------------------------------------------------------*/
 
@@ -63,7 +63,7 @@ export function Header({ summaries, openIds, activeId, view, onView }: {
 				<button type="button" className={'oc-iconbtn' + (view === 'history' ? ' is-on' : '')} title="Past chats" aria-label="Past chats" aria-pressed={view === 'history'} onClick={() => onView(view === 'history' ? 'chat' : 'history')}>
 					<Icon name="history" size={15} />
 				</button>
-				<button type="button" className="oc-iconbtn" title="Open Cursor settings" aria-label="Settings" onClick={() => post({ type: 'openSettings' })}>
+				<button type="button" className="oc-iconbtn" title="OpenCursor settings" aria-label="Settings" onClick={() => post({ type: 'openSettings' })}>
 					<Icon name="gear" size={15} />
 				</button>
 				<div className="oc-menu-wrap" ref={moreRef}>

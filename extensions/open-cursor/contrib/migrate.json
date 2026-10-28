@@ -1,5 +1,5 @@
 {
 	"commands": [
-		{ "command": "openCursor.import", "title": "Import Settings and Extensions from Cursor or VS Code", "category": "Open Cursor" }
+		{ "command": "openCursor.import", "title": "Import Settings and Extensions from Cursor or VS Code", "category": "OpenCursor" }
 	]
 }

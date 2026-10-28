@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  OpenAI Chat Completions adapter and the reusable OpenAI-compatible provider used by
  *  openrouter, deepseek, xai, mistral, groq, lmstudio and custom endpoints.
  *--------------------------------------------------------------------------------------------*/
@@ -392,7 +392,7 @@ export function createOpenAICompatible(id: Exclude<ProviderId, 'anthropic' | 'go
 		case 'openrouter':
 			return new OpenAICompatibleProvider({
 				id, baseUrl: d.baseUrl ?? 'https://openrouter.ai/api/v1', getKey: key, reasoning: 'openrouter', thinkTags: true,
-				headers: { 'HTTP-Referer': 'https://github.com/noah-thing/open-cursor', 'X-Title': 'Open Cursor' }, parseModel: parseOpenRouter,
+				headers: { 'HTTP-Referer': 'https://github.com/noah-thing/open-cursor', 'X-Title': 'OpenCursor' }, parseModel: parseOpenRouter,
 			});
 		case 'deepseek':
 			return new OpenAICompatibleProvider({

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  The start screen of an empty chat: where you are above the composer, ways to begin below it.
  *  App renders the three pieces around one composer so the composer node never remounts and
  *  can glide from the middle of the panel to the bottom when the first message is sent.
@@ -88,7 +88,7 @@ function Busy({ busy, children, ...rest }: { readonly busy: boolean; readonly ch
 }
 
 /**
- * Every way to give Open Cursor a model, in one place: subscriptions you already pay for (agent CLIs),
+ * Every way to give OpenCursor a model, in one place: subscriptions you already pay for (agent CLIs),
  * local models on this computer or another one on the network, and API keys typed in place.
  */
 export function ConnectBlock({ agents, local, providers, results, modelId, needed, onUse, onHide }: {

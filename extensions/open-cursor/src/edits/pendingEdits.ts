@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Pending AI edits: per-file review sessions with hunks, Keep/Undo, persistence and rendering.
  *--------------------------------------------------------------------------------------------*/
 

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Finds the agent CLIs. macOS GUI apps do not inherit the shell PATH, so we ask the user's login
  *  shell once (4s timeout) and also try the usual install locations. No vscode import.
  *--------------------------------------------------------------------------------------------*/

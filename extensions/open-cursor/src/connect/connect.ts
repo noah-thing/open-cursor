@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Everything the start screen needs to connect a model: local model servers on this computer or
  *  another one on the network, and API keys typed in place. Subscriptions (agent CLIs) live in
  *  cliAgents; this covers the rest.

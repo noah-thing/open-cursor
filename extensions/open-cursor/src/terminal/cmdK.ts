@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Cmd+K in the terminal: describe a command, get it typed at the prompt (not executed).
  *--------------------------------------------------------------------------------------------*/
 
@@ -50,24 +50,24 @@ export function registerTerminalCmdK(ctx: vscode.ExtensionContext, services: Ser
 		});
 		if (!request?.trim()) { void terminal.show(false); return; }
 		const model = pickInlineModel(services);
-		if (!model) { void vscode.window.showErrorMessage('Open Cursor: no model available. Add an API key or start a local model.'); return; }
+		if (!model) { void vscode.window.showErrorMessage('OpenCursor: no model available. Add an API key or start a local model.'); return; }
 		const user = buildTerminalPrompt(request, {
 			os: `${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'} ${os.release()} (${process.arch})`,
 			shell: shellName(terminal), cwd: cwdOf(terminal), output: bufferOf(terminal).tail(50),
 		});
 		const ac = new AbortController();
 		try {
-			const raw = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Open Cursor: writing command…', cancellable: true }, (_p, token) => {
+			const raw = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'OpenCursor: writing command…', cancellable: true }, (_p, token) => {
 				token.onCancellationRequested(() => ac.abort());
 				return collectText(services, model, TERMINAL_SYSTEM, user, ac.signal, { maxTokens: 300, temperature: 0 });
 			});
 			const cmd = cleanCommand(raw);
-			if (!cmd) { void vscode.window.showWarningMessage('Open Cursor: the model returned no command.'); return; }
+			if (!cmd) { void vscode.window.showWarningMessage('OpenCursor: the model returned no command.'); return; }
 			terminal.show(false);
 			terminal.sendText(cmd, false);
 		} catch (err) {
 			if (ac.signal.aborted) { return; }
-			void vscode.window.showErrorMessage(`Open Cursor: ${err instanceof Error ? err.message : String(err)}`);
+			void vscode.window.showErrorMessage(`OpenCursor: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  highlight.js with a curated language set to keep the bundle small.
  *--------------------------------------------------------------------------------------------*/
 

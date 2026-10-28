@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Trays stacked above the composer: to-dos, queued messages, pending edit review.
  *--------------------------------------------------------------------------------------------*/
 

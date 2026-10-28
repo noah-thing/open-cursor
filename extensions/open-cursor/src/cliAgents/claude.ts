@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Claude Code runner. `claude -p --output-format stream-json --input-format stream-json`, one
  *  process per turn, `--resume <session>` for later turns. Tool permissions are routed to us
  *  through `--permission-prompt-tool mcp__oc__approve` (see permissionServer.ts). No vscode import.
@@ -361,13 +361,13 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 			if (plan) {
 				host.text(plan);
 			}
-			return { behavior: 'deny', message: 'The plan was shown to the user in Open Cursor. Stop here and wait for their reply.', interrupt: true };
+			return { behavior: 'deny', message: 'The plan was shown to the user in OpenCursor. Stop here and wait for their reply.', interrupt: true };
 		}
 		if (toolName === 'AskUserQuestion') {
-			return { behavior: 'deny', message: 'Interactive questions are not available in Open Cursor. Ask your question as plain text in your reply and stop.' };
+			return { behavior: 'deny', message: 'Interactive questions are not available in OpenCursor. Ask your question as plain text in your reply and stop.' };
 		}
 		if (readonly && (EDIT_TOOLS.has(toolName) || (toolName === 'Bash' && !isReadOnlyCommand(str(input.command) ?? '').ok))) {
-			return { behavior: 'deny', message: `${o.mode === 'plan' ? 'Plan' : 'Ask'} mode in Open Cursor is read only: ${toolName} is not allowed. Use read-only tools and inspection commands, or tell the user to switch to Agent mode.` };
+			return { behavior: 'deny', message: `${o.mode === 'plan' ? 'Plan' : 'Ask'} mode in OpenCursor is read only: ${toolName} is not allowed. Use read-only tools and inspection commands, or tell the user to switch to Agent mode.` };
 		}
 		if (EDIT_TOOLS.has(toolName)) {
 			const p = filePathOf(input);
@@ -378,7 +378,7 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 					const v = claudeToolView(toolName, input, 'run', o.cwd);
 					const outside: ToolPart = { type: 'tool', id: req.toolUseId ?? `approval-${Date.now()}`, name: v.name, args: input, status: 'awaiting-approval', title: v.title, command: v.command };
 					if ((await host.requestApproval(outside)) === 'skip') {
-						return { behavior: 'deny', message: 'The user declined editing a file outside the workspace in Open Cursor.' };
+						return { behavior: 'deny', message: 'The user declined editing a file outside the workspace in OpenCursor.' };
 					}
 				}
 				if (!originals.has(abs)) {
@@ -406,7 +406,7 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 		const part: ToolPart = { type: 'tool', id: req.toolUseId ?? `approval-${Date.now()}`, name: v.name, args: input, status: 'awaiting-approval', title: v.title, command: v.command };
 		const answer = await host.requestApproval(part);
 		if (answer === 'skip') {
-			return { behavior: 'deny', message: 'The user declined this action in Open Cursor.' };
+			return { behavior: 'deny', message: 'The user declined this action in OpenCursor.' };
 		}
 		if (answer === 'allowAlways' && !denied) {
 			alwaysTools.add(key);

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Shipped model catalog plus heuristics for models found through discovery.
  *  Only Anthropic ships a fixed list; everything else is discovered with the user's key.
  *--------------------------------------------------------------------------------------------*/

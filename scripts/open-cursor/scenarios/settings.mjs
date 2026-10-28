@@ -1,4 +1,4 @@
-// Settings: open the Open Cursor settings page and capture a few sections.
+// Settings: open the OpenCursor settings page and capture a few sections.
 async function settingsFrame(page) {
 	for (let i = 0; i < 40; i++) {
 		for (const f of page.frames()) {

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Dependency free HTML to readable text, plus ANSI stripping. Pure.
  *--------------------------------------------------------------------------------------------*/
 

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Service contracts between modules. Each module implements its interface; extension.ts wires them.
  *--------------------------------------------------------------------------------------------*/
 

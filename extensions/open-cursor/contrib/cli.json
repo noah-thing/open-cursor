@@ -1,6 +1,6 @@
 {
 	"configuration": {
-		"title": "Open Cursor: CLI agents",
+		"title": "OpenCursor: CLI agents",
 		"properties": {
 			"openCursor.cli.enabled": {
 				"type": "boolean",

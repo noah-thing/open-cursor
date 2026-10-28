@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
 import { memo, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactElement } from 'react';
@@ -327,7 +327,7 @@ export function App(): ReactElement {
 						<button type="button" className="oc-rail-link" onClick={() => post({ type: 'workbench', action: 'showEditor' })} title="Bring back the editor and files">
 							<Icon name="code" size={14} /> Show editor
 						</button>
-						<button type="button" className="oc-iconbtn" title="Open Cursor settings" aria-label="Settings" onClick={() => post({ type: 'openSettings' })}>
+						<button type="button" className="oc-iconbtn" title="OpenCursor settings" aria-label="Settings" onClick={() => post({ type: 'openSettings' })}>
 							<Icon name="gear" size={15} />
 						</button>
 					</footer>

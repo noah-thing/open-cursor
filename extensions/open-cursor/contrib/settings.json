@@ -3,7 +3,7 @@
 		{
 			"command": "openCursor.settings.open",
 			"title": "Open Settings",
-			"category": "Open Cursor",
+			"category": "OpenCursor",
 			"icon": "$(gear)"
 		}
 	],

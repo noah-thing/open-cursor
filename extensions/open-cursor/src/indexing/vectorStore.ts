@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  In-memory vector store with binary persistence and cosine top-k (no vscode import).
  *--------------------------------------------------------------------------------------------*/
 

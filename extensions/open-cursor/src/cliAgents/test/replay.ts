@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  Replays recorded CLI event streams through the parsers in plain node. Run: node test/run.mjs
  *--------------------------------------------------------------------------------------------*/
 

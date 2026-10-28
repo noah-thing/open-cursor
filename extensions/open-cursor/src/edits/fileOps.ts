@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Open Cursor. MIT License.
+ *  OpenCursor. MIT License.
  *  File helpers shared by pending edits and checkpoints: write through the editor buffer.
  *--------------------------------------------------------------------------------------------*/
 
