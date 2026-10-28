@@ -18,9 +18,27 @@ OpenCursor is a fork of [Code - OSS](https://github.com/microsoft/vscode) with a
 
 What sets it apart is who you pay. Point it at an API key, a model running on your machine, or the Claude Code, Codex, Grok or Gemini CLI you are already signed in to. Requests go straight from your computer to that provider.
 
+## Quick setup
+
+**macOS and Linux**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/noah-thing/open-cursor/main/install.sh | sh
+```
+
+**Windows** (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/noah-thing/open-cursor/main/install.ps1 | iex
+```
+
+The script picks the build for your system and processor from the latest release and installs it: the app in Applications on macOS, the `.deb` or `.rpm` on Linux (or a portable copy in `~/.local` when neither fits), the per user setup on Windows. Set `OPENCURSOR_VERSION=v0.1.0` to install a specific release.
+
+Then open OpenCursor and pick a model on the start screen: a subscription you are signed in to, a local model, or an API key.
+
 ## Download
 
-Grab the latest build from [Releases](https://github.com/noah-thing/open-cursor/releases).
+Prefer to install by hand? Grab the latest build from [Releases](https://github.com/noah-thing/open-cursor/releases).
 
 | Platform | File |
 |---|---|
