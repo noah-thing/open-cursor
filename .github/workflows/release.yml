@@ -1,0 +1,214 @@
+name: Release build
+
+# Manual only. Builds Open Cursor natively per OS and attaches the installers to the DRAFT
+# release. Nothing here ever publishes a release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Draft release tag to attach artifacts to
+        default: v0.1.0
+      only:
+        description: 'Targets to build, comma separated, or "all" (macos-arm64, macos-x64, windows-x64, windows-arm64, linux-x64, linux-arm64)'
+        default: all
+
+permissions:
+  contents: write
+
+env:
+  NODE_OPTIONS: --max-old-space-size=8192
+  ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+  FOUNDRY_LOCAL_SKIP_INSTALL: 1
+  ONNXRUNTIME_NODE_INSTALL: skip
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      mac: ${{ steps.p.outputs.mac }}
+      win: ${{ steps.p.outputs.win }}
+      linux: ${{ steps.p.outputs.linux }}
+    steps:
+      - id: p
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          all='[{"id":"macos-arm64","arch":"arm64","runner":"macos-15"},{"id":"macos-x64","arch":"x64","runner":"macos-15-intel"},{"id":"windows-x64","arch":"x64","runner":"windows-2022"},{"id":"windows-arm64","arch":"arm64","runner":"windows-2022"},{"id":"linux-x64","arch":"x64","runner":"ubuntu-22.04"},{"id":"linux-arm64","arch":"arm64","runner":"ubuntu-22.04"}]'
+          pick() {
+            echo "$all" | jq -c --arg os "$1" --arg only "$ONLY" \
+              '[.[] | select(.id | startswith($os + "-")) | select($only == "all" or ($only | split(",") | map(gsub(" "; "")) | index(.id)))]'
+          }
+          echo "mac=$(pick macos)" >> "$GITHUB_OUTPUT"
+          echo "win=$(pick windows)" >> "$GITHUB_OUTPUT"
+          echo "linux=$(pick linux)" >> "$GITHUB_OUTPUT"
+
+  macos:
+    needs: plan
+    if: needs.plan.outputs.mac != '[]'
+    name: ${{ matrix.id }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.mac) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+        run: |
+          (cd build && npm ci)
+          node build/npm/preinstall.ts
+          npm ci
+      - name: Build extension
+        run: cd extensions/open-cursor && npm ci && npm run build
+      - name: Package DMG
+        run: scripts/open-cursor/package-mac.sh ${{ matrix.arch }}
+      - name: Name artifact
+        run: |
+          VERSION="$(node -p "require('./extensions/open-cursor/package.json').version")"
+          mkdir -p ../out && cp "../open-cursor-dist/Open-Cursor-$VERSION-${{ matrix.arch }}.dmg" "../out/Open-Cursor-$VERSION-macos-${{ matrix.arch }}.dmg"
+          ls -lh ../out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.id }}
+          path: ../out/*
+      - name: Attach to draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" ../out/*
+
+  windows:
+    needs: plan
+    if: needs.plan.outputs.win != '[]'
+    name: ${{ matrix.id }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.win) }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_foreground_scripts: "true"
+        run: |
+          Push-Location build; npm ci; if ($LASTEXITCODE) { exit 1 }; Pop-Location
+          npm ci
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Build extension
+        run: |
+          Push-Location extensions/open-cursor
+          npm ci; if ($LASTEXITCODE) { exit 1 }
+          npm run build; if ($LASTEXITCODE) { exit 1 }
+      - name: Build client
+        run: |
+          $sdk = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory | Where-Object Name -Match '^10\.' | Sort-Object Name -Descending | Select-Object -First 1).FullName + "\x64"
+          $env:PATH = "$sdk;$env:PATH"
+          npm run gulp "vscode-win32-${{ matrix.arch }}-min"
+          if ($LASTEXITCODE) { exit 1 }
+          npm run gulp "vscode-win32-${{ matrix.arch }}-inno-updater"
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Build installer and portable zip
+        run: |
+          npm run gulp "vscode-win32-${{ matrix.arch }}-user-setup"
+          if ($LASTEXITCODE) { exit 1 }
+          $v = node -p "require('./extensions/open-cursor/package.json').version"
+          New-Item -ItemType Directory -Force ../out | Out-Null
+          $setup = Get-ChildItem ".build/win32-${{ matrix.arch }}/user-setup/*.exe" | Select-Object -First 1
+          Copy-Item $setup.FullName "../out/Open-Cursor-$v-windows-${{ matrix.arch }}-setup.exe"
+          7z a -tzip -mx=5 "../out/Open-Cursor-$v-windows-${{ matrix.arch }}-portable.zip" "../VSCode-win32-${{ matrix.arch }}/*"
+          Get-ChildItem ../out | Format-Table Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.id }}
+          path: ../out/*
+      - name: Attach to draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" ../out/*
+
+  linux:
+    needs: plan
+    if: needs.plan.outputs.linux != '[]'
+    name: ${{ matrix.id }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.linux) }}
+    env:
+      VSCODE_ARCH: ${{ matrix.arch }}
+      npm_config_arch: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libkrb5-dev libxkbfile-dev libx11-dev libsecret-1-dev \
+            libgbm1 libgtk-3-0 fakeroot dpkg-dev rpm xz-utils
+      - name: Build tool dependencies
+        run: (cd build && npm_config_arch= npm ci)
+      - name: Install dependencies (cross toolchain from the upstream sysroot)
+        run: |
+          set -e
+          ln -sf "$(command -v python3)" "$RUNNER_TEMP/python" || true
+          export PATH="$RUNNER_TEMP:$PATH"
+          source ./build/azure-pipelines/linux/setup-env.sh
+          node build/npm/preinstall.ts
+          npm ci
+      - name: Build extension
+        run: cd extensions/open-cursor && npm_config_arch= npm ci && npm run build
+      - name: Build client
+        run: |
+          set -e
+          npm run gulp "vscode-linux-${{ matrix.arch }}-min"
+          npm run gulp "vscode-linux-${{ matrix.arch }}-prepare-deb"
+          npm run gulp "vscode-linux-${{ matrix.arch }}-build-deb"
+          npm run gulp "vscode-linux-${{ matrix.arch }}-prepare-rpm"
+          npm run gulp "vscode-linux-${{ matrix.arch }}-build-rpm"
+      - name: Collect packages
+        run: |
+          set -e
+          V="$(node -p "require('./extensions/open-cursor/package.json').version")"
+          A="${{ matrix.arch }}"
+          mkdir -p ../out
+          tar -C .. -czf "../out/Open-Cursor-$V-linux-$A.tar.gz" "VSCode-linux-$A"
+          cp "$(find .build/linux/deb -name '*.deb' | head -1)" "../out/Open-Cursor-$V-linux-$A.deb"
+          cp "$(find .build/linux/rpm -name '*.rpm' | head -1)" "../out/Open-Cursor-$V-linux-$A.rpm"
+          ls -lh ../out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.id }}
+          path: ../out/*
+      - name: Attach to draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" ../out/*
