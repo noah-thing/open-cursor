@@ -117,8 +117,6 @@
 .oc-menu-footer-row { display: flex; flex: none; border-top: 1px solid var(--oc-stroke-2); }
 .oc-menu-footer-row .oc-menu-footer { flex: 1 1 0; min-width: 0; border-top: 0; white-space: nowrap; }
 .oc-menu-footer-row .oc-menu-footer + .oc-menu-footer { box-shadow: inset 1px 0 0 var(--oc-stroke-2); }
-.oc-menu-footer.is-free svg { color: var(--oc-fg-3); transition: color 120ms ease; }
-.oc-menu-footer.is-free:hover svg { color: var(--oc-fg); }
 .oc-tag.is-free { color: var(--oc-fg); background: color-mix(in srgb, var(--oc-fg) 10%, transparent); font-weight: 500; letter-spacing: 0.01em; }
 .oc-more-menu { min-width: 190px; }
 
@@ -959,3 +957,41 @@ body.vscode-light .oc-app.is-help::before { opacity: 0.12; }
 .oc-connect-free:hover { background: var(--oc-ink-6); color: var(--oc-fg); }
 .oc-connect-free:hover .oc-connect-free-go svg { transform: translateX(2px); }
 .oc-connect-free:active { transform: scale(0.99); }
+
+/*
+ * Holographic text for the free route, after Discord's holographic role names: pastel pink, lavender,
+ * sky and mint drifting through the letters, a bright shine sweeping across now and then, a soft glow.
+ */
+.oc-app {
+	--oc-holo-a: #ff9fdc; --oc-holo-b: #c9a7ff; --oc-holo-c: #8fd6ff; --oc-holo-d: #a6ffe0;
+	--oc-holo-glow: rgba(201, 167, 255, 0.45);
+}
+body.vscode-light .oc-app, body.vscode-high-contrast-light .oc-app {
+	--oc-holo-a: #e0479f; --oc-holo-b: #8a5cf0; --oc-holo-c: #2f8fd8; --oc-holo-d: #1fa77b;
+	--oc-holo-glow: rgba(138, 92, 240, 0.25);
+}
+.oc-holo {
+	background-image:
+		linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.95) 48%, transparent 58%),
+		linear-gradient(90deg, var(--oc-holo-a), var(--oc-holo-b), var(--oc-holo-c), var(--oc-holo-d), var(--oc-holo-b), var(--oc-holo-a));
+	background-size: 250% 100%, 300% 100%;
+	background-repeat: no-repeat, repeat;
+	-webkit-background-clip: text; background-clip: text;
+	color: transparent; -webkit-text-fill-color: transparent;
+	filter: drop-shadow(0 0 5px var(--oc-holo-glow));
+	animation: oc-holo-move 7s linear infinite;
+	font-weight: 500;
+}
+body.vscode-light .oc-holo { background-image: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.85) 48%, transparent 58%), linear-gradient(90deg, var(--oc-holo-a), var(--oc-holo-b), var(--oc-holo-c), var(--oc-holo-d), var(--oc-holo-b), var(--oc-holo-a)); }
+/* One animation for both layers: the shine crosses in the first quarter, the colors drift the whole time. */
+@keyframes oc-holo-move {
+	0% { background-position: 160% 0, 0% 0; }
+	26% { background-position: -60% 0, 78% 0; }
+	100% { background-position: -60% 0, 300% 0; }
+}
+.oc-holo-icon { color: var(--oc-holo-b); filter: drop-shadow(0 0 4px var(--oc-holo-glow)); animation: oc-holo-hue 7s linear infinite; }
+@keyframes oc-holo-hue {
+	0%, 100% { color: var(--oc-holo-a); } 25% { color: var(--oc-holo-b); } 50% { color: var(--oc-holo-c); } 75% { color: var(--oc-holo-d); }
+}
+.oc-menu-footer.is-free:hover { background: color-mix(in srgb, var(--oc-holo-b) 8%, var(--oc-hover)); }
+@media (prefers-reduced-motion: reduce) { .oc-holo, .oc-holo-icon { animation: none; } }

@@ -1,6 +1,8 @@
 /* OpenCursor. MIT License. Free models page. */
 
 body { background: var(--vscode-editor-background, var(--oc-bg-editor)); }
+/* The shared base locks the page (the chat and settings scroll inside their own panes); this page scrolls as a whole. */
+#root { overflow-y: auto; overscroll-behavior: contain; }
 .fm { max-width: 760px; margin: 0 auto; padding: 44px 28px 120px; }
 .fm-loading { height: 100vh; display: flex; }
 

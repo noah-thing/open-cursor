@@ -180,9 +180,9 @@ export function ConnectBlock({ agents, local, providers, results, modelId, neede
 				</div>
 			</div>
 			<button type="button" className="oc-connect-free" onClick={() => post({ type: 'helpAction', href: 'opencursor:free-models' })}>
-				<Icon name="sparkle" size={13} />
+				<Icon name="sparkle" size={13} className="oc-holo-icon" />
 				<span className="oc-connect-free-text"><b>Nothing to connect?</b> Start free, no account needed.</span>
-				<span className="oc-connect-free-go">Free models <Icon name="arrowRight" size={11} /></span>
+				<span className="oc-connect-free-go"><span className="oc-holo">Free models</span> <Icon name="arrowRight" size={11} className="oc-holo-icon" /></span>
 			</button>
 		</section>
 	);

@@ -262,9 +262,9 @@ export function ModelMenu({ models, modelId, onSelect, onConnect }: {
 											if (r.kind === 'get-free') {
 												return (
 													<div key={r.key} role="option" aria-selected={false} data-active={hot} className={'oc-menu-item is-connect' + (hot ? ' is-hot' : '')} onMouseEnter={() => setIndex(idx)} onClick={() => choose(r)}>
-														<Icon name="sparkle" size={13} className="oc-menu-icon" />
+														<Icon name="sparkle" size={13} className="oc-menu-icon oc-holo-icon" />
 														<span className="oc-menu-main"><span className="oc-menu-label">{r.label}</span><span className="oc-menu-hint">{r.detail}</span></span>
-														<span className="oc-menu-cta">Get</span>
+														<span className="oc-menu-cta oc-holo">Get</span>
 													</div>
 												);
 											}
@@ -290,8 +290,8 @@ export function ModelMenu({ models, modelId, onSelect, onConnect }: {
 							<span>Connect models</span>
 						</button>
 						<button type="button" className="oc-menu-footer is-free" onClick={() => { post({ type: 'helpAction', href: 'opencursor:free-models' }); close(); }}>
-							<Icon name="sparkle" size={13} />
-							<span>Get free models</span>
+							<Icon name="sparkle" size={13} className="oc-holo-icon" />
+							<span className="oc-holo">Get free models</span>
 						</button>
 					</div>
 				</Popover>
