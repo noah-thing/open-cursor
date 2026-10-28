@@ -65,6 +65,9 @@ const INLINE_PREFS: Pref[] = [
 	/^mistral\/(codestral|mistral-small)/, /^groq\//, /^xai\/.*(fast|mini)/, /^ollama\/.*coder/,
 ];
 
+/** How long Free (auto) waits for a model's first token before trying the next one. */
+const FIRST_EVENT_MS = 25_000;
+
 class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 	private readonly emitter = new vscode.EventEmitter<void>();
 	readonly onDidChangeModels = this.emitter.event;
@@ -258,7 +261,7 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 		const all = this.allModels();
 		if (!enabled.length) { return all; }
 		const set = new Set(enabled);
-		return all.filter(m => m.custom || set.has(m.id));
+		return all.filter(m => m.custom || set.has(m.id) || m.id === FREE_AUTO_ID);
 	}
 
 	getModel(id: string): ModelInfo | undefined {
@@ -282,7 +285,9 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 		const inline = () => pick(tools, INLINE_PREFS) ?? chat();
 		if (purpose === 'inline') { return inline(); }
 		const fim = avail.filter(m => m.supportsFim);
-		return pick(fim, [/^mistral\/codestral/, 'deepseek/deepseek-chat']) ?? fim.find(m => m.provider === 'ollama' && /coder/i.test(m.model)) ?? fim.find(m => m.provider === 'ollama') ?? fim[0] ?? inline();
+		// Tab fires on every pause in typing; on Free (auto) it would burn the small shared daily quotas.
+		const fallback = inline();
+		return pick(fim, [/^mistral\/codestral/, 'deepseek/deepseek-chat']) ?? fim.find(m => m.provider === 'ollama' && /coder/i.test(m.model)) ?? fim.find(m => m.provider === 'ollama') ?? fim[0] ?? (fallback?.provider === 'free' ? undefined : fallback);
 	}
 
 	async listOptions(): Promise<ModelOption[]> {
@@ -314,25 +319,42 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 		const key = (m: (typeof ready)[number]) => modelId(m.provider, m.model);
 		const order = [...ready.filter(m => (this.resting.get(key(m)) ?? 0) <= now), ...ready.filter(m => (this.resting.get(key(m)) ?? 0) > now)];
 		let last: unknown;
+		const kinds = new Set<string>();
 		for (const fm of order) {
 			const model = this.getModel(key(fm)) ?? guessModelInfo(fm.provider, fm.model);
+			// A model that has not started answering within the window counts as down, so a queued or hung
+			// provider never holds the chat; the user's own Stop still aborts everything.
+			const attempt = new AbortController();
+			const onAbort = (): void => attempt.abort();
+			req.signal?.addEventListener('abort', onAbort, { once: true });
+			const timer = setTimeout(() => attempt.abort(), FIRST_EVENT_MS);
 			let started = false;
 			try {
-				for await (const ev of this.getProvider(fm.provider).stream({ ...req, model })) {
-					started = true;
+				for await (const ev of this.getProvider(fm.provider).stream({ ...req, model, signal: attempt.signal, retries: 0 })) {
+					if (!started) { started = true; clearTimeout(timer); }
 					yield ev;
 				}
 				this.resting.delete(key(fm));
 				return;
 			} catch (e) {
 				if (started || req.signal?.aborted) { throw e; }
-				last = e;
-				const kind = e instanceof ProviderError ? e.kind : 'other';
-				if (kind === 'context') { throw e; }
-				this.resting.set(key(fm), now + (kind === 'rate' ? 60_000 : kind === 'auth' ? 3_600_000 : 20_000));
+				const timedOut = attempt.signal.aborted;
+				last = timedOut ? new ProviderError(`${model.label} did not answer in time.`, fm.provider, undefined, 'network') : e;
+				const kind = timedOut ? 'network' : e instanceof ProviderError ? e.kind : 'other';
+				kinds.add(kind);
+				const status = e instanceof ProviderError ? e.status : undefined;
+				// A prompt too big for this model's free tier (Groq caps tokens per minute) may still fit the next one.
+				this.resting.set(key(fm), now + (kind === 'rate' ? 60_000 : kind === 'auth' ? 3_600_000 : kind === 'context' ? 30_000 : status && status >= 400 && status < 500 ? 600_000 : 20_000));
+			} finally {
+				clearTimeout(timer);
+				req.signal?.removeEventListener('abort', onAbort);
 			}
 		}
-		throw last instanceof ProviderError ? new ProviderError(`Every connected free model is busy or out of quota right now. ${last.message}`, 'free', last.status, last.kind) : last;
+		if (!(last instanceof ProviderError)) { throw last; }
+		const why = kinds.size === 1 && kinds.has('auth') ? 'None of your free keys were accepted. Check them on the Free models page.'
+			: kinds.size === 1 && kinds.has('context') ? 'This conversation is too long for the connected free models. Start a new chat, or shorten this one with /summarize.'
+			: 'Every connected free model is busy or out of quota right now.';
+		throw new ProviderError(`${why} ${last.message}`, 'free', last.status, last.kind);
 	}
 
 	async* fim(req: FimRequest): AsyncGenerator<string> {

@@ -159,7 +159,7 @@ export class GoogleProvider implements LLMProvider {
 
 	private async* run(req: ChatRequest): AsyncGenerator<StreamEvent> {
 		const url = joinUrl(this.base(req.model.id), `/v1beta/models/${encodeURIComponent(req.model.model)}:streamGenerateContent?alt=sse`);
-		const res = await request('google', url, { method: 'POST', headers: await this.headers(), body: JSON.stringify(buildGeminiBody(req)) }, req.signal);
+		const res = await request('google', url, { method: 'POST', headers: await this.headers(), body: JSON.stringify(buildGeminiBody(req)) }, req.signal, req.retries);
 		yield* parseGeminiStream(sseFromBody(res));
 	}
 

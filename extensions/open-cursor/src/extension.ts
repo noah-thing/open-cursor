@@ -11,6 +11,7 @@ import { createMcpManager } from './mcp/manager';
 import { createCodebaseIndex } from './indexing/index';
 import { createContextService } from './context/service';
 import { createCliAgents } from './cliAgents/index';
+import { killAllClis } from './cliAgents/util';
 import { createChatController } from './agent/chatController';
 import { registerTab } from './tab/provider';
 import { registerInlineEdit } from './inline/inlineEdit';
@@ -43,7 +44,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	registerImporter(ctx);
 
 	const free = new FreeModelsPanel(ctx, services, { activeModel: () => chat.activeModelId(), useModel: id => chat.useModel(id) });
-	ctx.subscriptions.push(free, vscode.commands.registerCommand('openCursor.freeModels.open', () => free.open()));
+	ctx.subscriptions.push(free, vscode.commands.registerCommand('openCursor.freeModels.open', (o?: { install?: boolean }) => free.open(o)));
 }
 
-export function deactivate(): void { }
+export function deactivate(): void {
+	killAllClis();
+}

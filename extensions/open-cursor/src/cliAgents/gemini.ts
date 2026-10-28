@@ -201,7 +201,8 @@ export async function runGemini(o: RunOptions): Promise<RunResult> {
 		prompt = refs.join(' ') + '\n' + prompt;
 	}
 	// Long prompts go through stdin (the CLI appends -p to stdin input).
-	const viaStdin = prompt.length > 100_000;
+	// Always on Windows: a short command line limit and cmd.exe quoting would cut or break the prompt.
+	const viaStdin = process.platform === 'win32' || Buffer.byteLength(prompt) > 100_000;
 	args.push('-p', viaStdin ? 'Follow the request above.' : prompt);
 
 	const tracker = await TurnTracker.create(o.cwd, o.env, o.host);

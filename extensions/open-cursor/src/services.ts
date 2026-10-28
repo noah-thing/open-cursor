@@ -121,8 +121,8 @@ export interface CliAgentInfo {
 	readonly version?: string;
 	readonly loggedIn?: boolean; // best effort
 	/** Shown in the picker as `cli:<id>/<model>`, e.g. `cli:claude-code/sonnet`. `default` is the CLI's own default. */
-	readonly models: { id: string; label: string }[];
-	// OpenCode models are `provider/model` ids. Those that are free without an account also carry `free: true` at runtime.
+	/** OpenCode models are `provider/model` ids; the ones that are free without an account carry `free`. */
+	readonly models: { id: string; label: string; free?: boolean }[];
 }
 
 export interface CliTurnCallbacks {

@@ -189,7 +189,7 @@ function installedBinary(home: string): string | undefined {
  */
 async function installViaRegistry(home: string, target: string, env: NodeJS.ProcessEnv): Promise<OpenCodeInstallResult> {
 	const get = async (url: string): Promise<Response> => {
-		const r = await fetch(url);
+		const r = await fetch(url, { signal: AbortSignal.timeout(120_000) });
 		if (!r.ok) {
 			throw new Error(`${url} answered ${r.status}`);
 		}
@@ -215,7 +215,8 @@ async function installViaRegistry(home: string, target: string, env: NodeJS.Proc
 				lastError = e instanceof Error ? e.message : String(e);
 				continue;
 			}
-			const x = await runQuick('tar', ['-xzf', file, '-C', tmp], { env, timeoutMs: 120_000 });
+			// Relative names: a GNU tar earlier on PATH (Git for Windows) would read `C:` as a remote host.
+			const x = await runQuick('tar', ['-xzf', path.basename(file)], { env, cwd: tmp, timeoutMs: 120_000 });
 			if (!x || x.code !== 0) {
 				lastError = `tar failed: ${tail(x?.stderr ?? 'not available', 200)}`;
 				continue;

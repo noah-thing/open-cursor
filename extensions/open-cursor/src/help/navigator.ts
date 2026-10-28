@@ -35,7 +35,7 @@ export class HelpNavigator {
 		const cmd = (id: string, ...args: unknown[]): Thenable<unknown> => vscode.commands.executeCommand(id, ...args);
 		const label = actionLabel(a);
 		switch (a.target) {
-			case 'free-models': await cmd('openCursor.freeModels.open'); break;
+			case 'free-models': await cmd('openCursor.freeModels.open', a.arg === 'install' ? { install: true } : undefined); break;
 			case 'settings': await cmd('openCursor.settings.open', a.arg); break;
 			case 'editor-settings': await cmd('workbench.action.openSettings', a.arg ?? ''); break;
 			case 'shortcuts': await cmd('workbench.action.openGlobalKeybindings', a.arg ?? ''); break;
@@ -57,7 +57,8 @@ export class HelpNavigator {
 	}
 
 	/** The one tool a Help chat has. It only opens places that sit beside the chat. */
-	tool(): ToolDef<{ target?: string; argument?: string }> {
+	/** `stillHere` is false once the user has left the Help chat that asked, so nothing opens over their work. */
+	tool(stillHere: () => boolean = () => true): ToolDef<{ target?: string; argument?: string }> {
 		const inPlace = HELP_TARGETS.filter(t => t.inPlace);
 		return {
 			readOnly: true,
@@ -76,6 +77,7 @@ export class HelpNavigator {
 			run: async args => {
 				const a = validateAction(args.target, args.argument);
 				if (!a) { return { content: `Unknown target "${String(args.target)}". Use one of: ${inPlace.map(t => t.id).join(', ')}.`, isError: true }; }
+				if (!stillHere()) { return { content: 'The user has left Help, so nothing was opened. Answer in text.', isError: true }; }
 				if (!helpTarget(a.target)?.inPlace) { return { content: `${a.target} moves the chat away, so offer it as a link instead.`, isError: true }; }
 				try {
 					const label = await this.run(a);

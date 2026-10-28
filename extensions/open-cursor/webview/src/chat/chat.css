@@ -104,7 +104,7 @@
 .oc-mode-menu .oc-menu-item.is-plan .oc-menu-icon { color: var(--oc-mode-plan); }
 .oc-mode-menu .oc-menu-item.is-debug .oc-menu-icon { color: var(--oc-mode-debug); }
 .oc-mode-menu .oc-menu-item.is-ask .oc-menu-icon { color: var(--oc-mode-ask); }
-.oc-model-menu { width: 270px; padding: 0; overflow: hidden; display: flex; flex-direction: column; max-height: min(420px, 70vh); }
+.oc-model-menu { width: min(270px, calc(100vw - 16px)); padding: 0; overflow: hidden; display: flex; flex-direction: column; max-height: min(420px, 70vh); }
 .oc-menu-search { display: flex; align-items: center; gap: 7px; padding: 0 10px; height: 34px; border-bottom: 1px solid var(--oc-stroke-2); color: var(--oc-fg-3); flex: none; }
 .oc-menu-search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; font-size: 12.5px; color: var(--oc-fg); }
 .oc-menu-search input::placeholder { color: var(--oc-fg-3); }
@@ -114,6 +114,12 @@
 .oc-menu-empty { padding: 14px; text-align: center; color: var(--oc-fg-3); font-size: 12px; }
 .oc-menu-footer { display: flex; align-items: center; gap: 7px; padding: 0 10px; height: 30px; flex: none; border-top: 1px solid var(--oc-stroke-2); color: var(--oc-fg-2); font-size: 12px; }
 .oc-menu-footer:hover { background: var(--oc-hover); color: var(--oc-fg); }
+.oc-menu-footer-row { display: flex; flex: none; border-top: 1px solid var(--oc-stroke-2); }
+.oc-menu-footer-row .oc-menu-footer { flex: 1 1 0; min-width: 0; border-top: 0; white-space: nowrap; }
+.oc-menu-footer-row .oc-menu-footer + .oc-menu-footer { box-shadow: inset 1px 0 0 var(--oc-stroke-2); }
+.oc-menu-footer.is-free svg { color: var(--oc-fg-3); transition: color 120ms ease; }
+.oc-menu-footer.is-free:hover svg { color: var(--oc-fg); }
+.oc-tag.is-free { color: var(--oc-fg); background: color-mix(in srgb, var(--oc-fg) 10%, transparent); font-weight: 500; letter-spacing: 0.01em; }
 .oc-more-menu { min-width: 190px; }
 
 .oc-chip {
@@ -938,3 +944,18 @@ body.vscode-light .oc-app.is-help::before { opacity: 0.12; }
 /* In a conversation the bar takes its own row, so it never sits on a message. */
 .oc-stage:not(.is-home) > .oc-help-bar { position: static; padding-bottom: 2px; }
 @media (prefers-reduced-motion: reduce) { .oc-help-back { animation: none; } }
+
+/* Under the connect panel: the free route for people with no subscription or key */
+.oc-connect-free {
+	display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; padding: 9px 10px; border: 0; border-radius: 9px;
+	font: inherit; font-size: 12px; text-align: left; color: var(--oc-fg-2); background: var(--oc-ink-4); cursor: pointer;
+	transition: background-color 120ms ease, color 120ms ease, transform 120ms var(--oc-ease-out);
+}
+.oc-connect-free b { font-weight: 500; color: var(--oc-fg); }
+.oc-connect-free > svg { flex: none; color: var(--oc-fg-3); }
+.oc-connect-free-text { flex: 1 1 auto; min-width: 0; }
+.oc-connect-free-go { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--oc-link); }
+.oc-connect-free-go svg { transition: transform 200ms var(--oc-ease-out); }
+.oc-connect-free:hover { background: var(--oc-ink-6); color: var(--oc-fg); }
+.oc-connect-free:hover .oc-connect-free-go svg { transform: translateX(2px); }
+.oc-connect-free:active { transform: scale(0.99); }

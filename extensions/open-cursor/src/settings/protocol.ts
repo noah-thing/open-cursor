@@ -57,7 +57,7 @@ export interface ConfigValues {
 export type ConfigKey = keyof ConfigValues;
 
 export const CONFIG_DEFAULTS: ConfigValues = {
-	'agent.autoRun': 'ask',
+	'agent.autoRun': 'allowlist',
 	'agent.commandAllowlist': [],
 	'agent.commandDenylist': [],
 	'chat.defaultMode': 'agent',
@@ -76,7 +76,7 @@ export const CONFIG_DEFAULTS: ConfigValues = {
 	'providers.openai.baseUrl': '',
 	'cli.enabled': true,
 	'tab.enabled': true,
-	'tab.debounceMs': 120,
+	'tab.debounceMs': 75,
 	'rules.user': '',
 	'index.enabled': true,
 	'index.embeddingModel': 'auto',

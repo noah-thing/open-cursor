@@ -67,6 +67,8 @@ export interface ChatRequest {
 	/** Ask for extended thinking / reasoning when the model supports it. */
 	readonly thinking?: boolean;
 	readonly signal: AbortSignal;
+	/** Waits on 429 before giving up; Free (auto) sets 0 to move on to the next model at once. */
+	readonly retries?: number;
 }
 
 export type StreamEvent =

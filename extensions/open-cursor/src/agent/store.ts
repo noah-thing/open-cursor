@@ -17,6 +17,9 @@ export interface StoredChat {
 	transcript: TranscriptEntry[];
 	/** The CLI agent's own session id, for resume. */
 	cliSessionId?: string;
+	/** Which agent and folder that session belongs to; another CLI, or another folder, cannot resume it. */
+	cliSessionAgent?: string;
+	cliSessionCwd?: string;
 	titleSource: 'default' | 'auto' | 'user';
 }
 
@@ -215,7 +218,7 @@ export class ChatStore {
 		const run = async (): Promise<void> => {
 			try { await fs.promises.mkdir(this.dir, { recursive: true }); } catch { /* ignore */ }
 			for (const { id, sc } of snapshot) {
-				await atomicWrite(nodePath.join(this.dir, `${id}.json`), JSON.stringify({ chat: { ...sc.chat, status: 'idle' }, transcript: sc.transcript, cliSessionId: sc.cliSessionId, titleSource: sc.titleSource }));
+				await atomicWrite(nodePath.join(this.dir, `${id}.json`), JSON.stringify({ chat: { ...sc.chat, status: 'idle' }, transcript: sc.transcript, cliSessionId: sc.cliSessionId, cliSessionAgent: sc.cliSessionAgent, cliSessionCwd: sc.cliSessionCwd, titleSource: sc.titleSource }));
 			}
 			if (writeIndex) { await atomicWrite(nodePath.join(this.dir, 'index.json'), JSON.stringify(this.index)); }
 		};

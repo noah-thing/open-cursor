@@ -2,7 +2,7 @@
  *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { memo, useCallback, useMemo, useState, type MouseEvent, type ReactElement } from 'react';
+import { createContext, memo, useCallback, useContext, useMemo, useState, type MouseEvent, type ReactElement } from 'react';
 import { Marked, type Token, type Tokens } from 'marked';
 import { escapeHtml, highlight } from '../common/highlight';
 import { Icon } from '../common/icons';
@@ -112,6 +112,9 @@ function CopyIcon({ code }: { readonly code: string }): ReactElement {
 
 const COLLAPSE_LINES = 22;
 
+/** False in Help: its answers only explain, so code in them gets Copy and nothing that runs or writes. */
+export const CodeActions = createContext(true);
+
 export const CodeBlock = memo(function CodeBlock({ code, info }: { readonly code: string; readonly info?: string }): ReactElement {
 	const { lang, path } = useMemo(() => parseFence(info), [info]);
 	const html = useMemo(() => highlight(code, lang), [code, lang]);
@@ -120,6 +123,7 @@ export const CodeBlock = memo(function CodeBlock({ code, info }: { readonly code
 	const collapsible = lineCount > COLLAPSE_LINES;
 	const isShell = !!lang && SHELL_LANGS.has(lang.toLowerCase());
 	const label = path ?? (lang && lang !== 'text' ? lang : '');
+	const actions = useContext(CodeActions);
 	return (
 		<div className="oc-code">
 			<div className="oc-code-head">
@@ -129,7 +133,7 @@ export const CodeBlock = memo(function CodeBlock({ code, info }: { readonly code
 				</span>
 				<span className="oc-code-actions">
 					<CopyIcon code={code} />
-					{isShell ? (
+					{!actions ? null : isShell ? (
 						<button type="button" className="oc-iconbtn" title="Run in terminal" aria-label="Run in terminal" onClick={() => post({ type: 'runInTerminal', command: code.trim() })}>
 							<Icon name="terminal" size={14} />
 						</button>

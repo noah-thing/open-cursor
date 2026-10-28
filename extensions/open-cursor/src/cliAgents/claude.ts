@@ -391,7 +391,8 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 			}
 			return { behavior: 'allow', updatedInput: input };
 		}
-		if (SAFE_TOOLS.has(toolName) || o.autoRun === 'always') {
+		// "Always run" never covers read-only modes: anything beyond the safe read tools still asks.
+		if (SAFE_TOOLS.has(toolName) || (o.autoRun === 'always' && !readonly)) {
 			return { behavior: 'allow', updatedInput: input };
 		}
 		const isBash = toolName === 'Bash';

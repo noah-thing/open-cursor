@@ -119,5 +119,7 @@ export async function verifyFreeKey(spec: FreeProviderSpec, key: string): Promis
 	if (res.status === 429) { return { ok: true, message: 'Connected. It is busy right now, so the first request may wait.' }; }
 	// Google answers an unknown key with 400 API_KEY_INVALID rather than 401.
 	if (res.status === 401 || res.status === 403 || (res.status === 400 && spec.id === 'google')) { return { ok: false, message: `${spec.name} did not accept that key. Copy it again from the key page.` }; }
+	// The test request names one model; if that model moved (404, 422, 400) the key itself still got past auth.
+	if (v.method === 'POST' && (res.status === 400 || res.status === 404 || res.status === 422)) { return { ok: true, message: 'Connected' }; }
 	return { ok: false, message: `${spec.name} answered with an error (${res.status}). Try again in a moment.` };
 }

@@ -235,6 +235,8 @@ export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fi
 						) : null}
 						{fix?.kind === 'signIn' ? (
 							<button type="button" className="oc-btn" onClick={() => post({ type: 'agentAction', id: fix.agentId, action: 'signIn' })}>Sign in to {fix.label}</button>
+						) : fix?.kind === 'freeModels' ? (
+							<button type="button" className="oc-btn" onClick={() => post({ type: 'helpAction', href: 'opencursor:free-models' })}>Get free models</button>
 						) : fix?.kind === 'addKey' ? (
 							<button type="button" className="oc-btn" onClick={() => post({ type: 'openSettings', section: 'models' })}>Add an API key</button>
 						) : action === 'retry' ? (

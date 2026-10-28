@@ -43,6 +43,16 @@ export function Popover({ children, className, direction = 'up', align = 'start'
 }): ReactElement {
 	const ref = useRef<HTMLDivElement>(null);
 	const [placed, setPlaced] = useState<{ dir: 'up' | 'down'; max: number } | undefined>(undefined);
+	const [shift, setShift] = useState(0);
+	// Keep the menu inside the panel sideways too: a narrow chat would otherwise cut its right edge off.
+	useLayoutEffect(() => {
+		const el = ref.current;
+		if (!el) { return; }
+		const r = el.getBoundingClientRect();
+		const over = r.right - (window.innerWidth - 8);
+		const under = 8 - r.left;
+		setShift(over > 0 ? -Math.min(over, Math.max(0, r.left - 8)) : under > 0 ? under : 0);
+	}, []);
 	useLayoutEffect(() => {
 		const el = ref.current;
 		const anchor = el?.parentElement;
@@ -61,7 +71,7 @@ export function Popover({ children, className, direction = 'up', align = 'start'
 		<div
 			ref={ref}
 			className={'oc-popover is-' + dir + ' is-' + align + (className ? ' ' + className : '')}
-			style={placed ? { maxHeight: placed.max } : undefined}
+			style={placed || shift ? { maxHeight: placed?.max, translate: shift ? `${shift}px 0` : undefined } : undefined}
 			role="menu"
 		>
 			{children}
@@ -119,7 +129,9 @@ function agentOf(m: ModelOption): string | undefined {
 
 type Row =
 	| { readonly kind: 'model'; readonly m: ModelOption }
-	| { readonly kind: 'connect'; readonly key: string; readonly label: string; readonly subscription: boolean };
+	| { readonly kind: 'connect'; readonly key: string; readonly label: string; readonly subscription: boolean }
+	/** OpenCode is not installed yet: one row that leads to the Free models page, where it installs in one click. */
+	| { readonly kind: 'get-free'; readonly key: string; readonly label: string; readonly detail: string };
 
 interface Section { readonly title: string; readonly groups: { readonly key: string; readonly name?: string; readonly rows: Row[] }[] }
 
@@ -137,15 +149,27 @@ function buildSections(models: readonly ModelOption[], query: string): Section[]
 		return [...map.entries()].map(([key, rows]) => ({ key, name: nameOf(key), rows }));
 	};
 	const ready = hits.filter(m => m.hasKey);
-	const subs = ready.filter(m => agentOf(m));
-	const local = ready.filter(m => !agentOf(m) && LOCAL.has(m.provider));
-	const api = ready.filter(m => !agentOf(m) && !LOCAL.has(m.provider));
+	const free = ready.filter(m => m.free);
+	const paid = ready.filter(m => !m.free);
+	const subs = paid.filter(m => agentOf(m));
+	const local = paid.filter(m => !agentOf(m) && LOCAL.has(m.provider));
+	const api = paid.filter(m => !agentOf(m) && !LOCAL.has(m.provider));
 	const out: Section[] = [];
+	// Free first: Free (auto), then OpenCode's no-account models, then free models on keys the user added.
+	const freeKey = (m: ModelOption): string => m.provider === 'free' ? 'auto' : agentOf(m) ?? m.provider;
+	const freeOrder = (k: string): number => k === 'auto' ? 0 : k === 'opencode' ? 1 : 2;
+	const freeGroups = byGroup([...free].sort((a, b) => freeOrder(freeKey(a)) - freeOrder(freeKey(b))), freeKey, k => k === 'auto' ? '' : AGENT_NAMES[k] ?? providerLabel(k));
+	const hasOpenCode = models.some(m => agentOf(m) === 'opencode');
+	if (!hasOpenCode && (!q || fuzzyScore(q, 'opencode free') >= 0)) {
+		freeGroups.push({ key: 'get-opencode', rows: [{ kind: 'get-free', key: 'get-opencode', label: 'OpenCode', detail: 'Free models, no account' }] });
+	}
+	if (freeGroups.length) { out.push({ title: 'Free', groups: freeGroups }); }
 	if (subs.length) { out.push({ title: 'Your subscriptions', groups: byGroup(subs, m => agentOf(m)!, k => AGENT_NAMES[k] ?? k) }); }
 	if (local.length) { out.push({ title: 'Local models', groups: byGroup(local, m => m.provider, providerLabel) }); }
 	if (api.length) { out.push({ title: 'API keys', groups: byGroup(api, m => m.provider, providerLabel) }); }
 	const missing = new Map<string, Row>();
-	for (const m of hits.filter(x => !x.hasKey)) {
+	// Free (auto) is not a provider to sign up for; the Free section and its Get row cover it.
+	for (const m of hits.filter(x => !x.hasKey && x.provider !== 'free')) {
 		const agent = agentOf(m);
 		const key = agent ? 'cli:' + agent : m.provider;
 		if (!missing.has(key)) {
@@ -185,6 +209,8 @@ export function ModelMenu({ models, modelId, onSelect, onConnect }: {
 	const choose = (r: Row): void => {
 		if (r.kind === 'connect') {
 			post({ type: 'openSettings', section: r.subscription ? 'subscriptions' : 'models' });
+		} else if (r.kind === 'get-free') {
+			post({ type: 'helpAction', href: 'opencursor:free-models/install' });
 		} else {
 			onSelect(r.m.id);
 		}
@@ -233,10 +259,20 @@ export function ModelMenu({ models, modelId, onSelect, onConnect }: {
 													</div>
 												);
 											}
+											if (r.kind === 'get-free') {
+												return (
+													<div key={r.key} role="option" aria-selected={false} data-active={hot} className={'oc-menu-item is-connect' + (hot ? ' is-hot' : '')} onMouseEnter={() => setIndex(idx)} onClick={() => choose(r)}>
+														<Icon name="sparkle" size={13} className="oc-menu-icon" />
+														<span className="oc-menu-main"><span className="oc-menu-label">{r.label}</span><span className="oc-menu-hint">{r.detail}</span></span>
+														<span className="oc-menu-cta">Get</span>
+													</div>
+												);
+											}
 											const m = r.m;
 											return (
 												<div key={m.id} role="option" aria-selected={m.id === modelId} data-active={hot} className={'oc-menu-item' + (m.id === modelId ? ' is-active' : '') + (hot ? ' is-hot' : '')} onMouseEnter={() => setIndex(idx)} onClick={() => choose(r)}>
 													<span className="oc-menu-main"><span className="oc-menu-label">{agentOf(m) ? m.label.slice(m.label.indexOf(':') + 1).trim() : m.label}</span></span>
+													{m.free ? <span className="oc-tag is-free" title="Costs nothing">Free</span> : null}
 													{m.supportsThinking ? <span className="oc-tag" title="Supports extended thinking">think</span> : null}
 													{m.supportsImages ? <Icon name="image" size={12} className="oc-menu-sub" /> : null}
 													{m.id === modelId ? <Icon name="check" size={13} className="oc-menu-check" /> : null}
@@ -248,10 +284,16 @@ export function ModelMenu({ models, modelId, onSelect, onConnect }: {
 							</section>
 						))}
 					</div>
-					<button type="button" className="oc-menu-footer" onClick={() => { onConnect(); close(); }}>
-						<Icon name="gear" size={13} />
-						<span>Connect models and subscriptions</span>
-					</button>
+					<div className="oc-menu-footer-row">
+						<button type="button" className="oc-menu-footer" onClick={() => { onConnect(); close(); }}>
+							<Icon name="gear" size={13} />
+							<span>Connect models</span>
+						</button>
+						<button type="button" className="oc-menu-footer is-free" onClick={() => { post({ type: 'helpAction', href: 'opencursor:free-models' }); close(); }}>
+							<Icon name="sparkle" size={13} />
+							<span>Get free models</span>
+						</button>
+					</div>
 				</Popover>
 			) : null}
 		</div>

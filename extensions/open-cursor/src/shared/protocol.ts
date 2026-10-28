@@ -63,7 +63,7 @@ export type MessagePart =
 		/** A model the user can run right now, offered as a one-click retry. */
 		readonly switchTo?: { readonly id: string; readonly label: string };
 		/** What would make the chosen model work: signing in to its CLI, or adding an API key. */
-		readonly fix?: { readonly kind: 'signIn'; readonly agentId: string; readonly label: string } | { readonly kind: 'addKey' };
+		readonly fix?: { readonly kind: 'signIn'; readonly agentId: string; readonly label: string } | { readonly kind: 'addKey' } | { readonly kind: 'freeModels' };
 	};
 
 export interface UserMessage {

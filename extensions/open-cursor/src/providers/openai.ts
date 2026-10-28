@@ -230,7 +230,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
 	private async* run(req: ChatRequest): AsyncGenerator<StreamEvent> {
 		const res = await request(this.id, joinUrl(this.base(req.model.id), '/chat/completions'), {
 			method: 'POST', headers: { ...await this.headers(), accept: 'text/event-stream' }, body: JSON.stringify(buildOpenAIBody(req, this.o)),
-		}, req.signal);
+		}, req.signal, req.retries);
 		yield* parseOpenAIStream(sseFromBody(res), { provider: this.id, thinkTags: this.o.thinkTags });
 	}
 

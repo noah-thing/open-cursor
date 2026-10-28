@@ -100,6 +100,7 @@ export const KIND_LABEL: Record<ContextKind, string> = {
 export const PROVIDER_LABEL: Record<string, string> = {
 	anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', openrouter: 'OpenRouter', deepseek: 'DeepSeek', xai: 'xAI',
 	mistral: 'Mistral', groq: 'Groq', ollama: 'Ollama', lmstudio: 'LM Studio', custom: 'Custom', cli: 'Your subscriptions',
+	nvidia: 'NVIDIA', zai: 'Z.ai', sambanova: 'SambaNova', free: 'Free',
 };
 
 export function providerLabel(p: string): string {

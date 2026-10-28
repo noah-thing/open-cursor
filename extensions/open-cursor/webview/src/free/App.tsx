@@ -110,7 +110,7 @@ function KeyCard({ card, index, open, onToggle, busy, result, act }: {
 									<button type="button" className="fm-btn is-primary" disabled={busy} onClick={() => act({ type: 'oauth', id: card.id })}>
 										{busy ? <><Spinner size={12} /> Waiting for the browser</> : `Connect with ${card.name}`}
 									</button>
-									<span className="fm-or">Sign in, approve, done. No key to copy.</span>
+									{busy ? <button type="button" className="fm-link" onClick={() => act({ type: 'cancelOauth' })}>Cancel</button> : <span className="fm-or">Sign in, approve, done. No key to copy.</span>}
 								</div>
 							) : null}
 							<ol className="fm-steps">

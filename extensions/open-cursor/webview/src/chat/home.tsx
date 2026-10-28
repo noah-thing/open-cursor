@@ -159,7 +159,7 @@ export function ConnectBlock({ agents, local, providers, results, modelId, neede
 										<li key={a.id} className={'oc-conn-row' + (ready ? ' is-ready' : '')} style={{ ['--i' as string]: i }}>
 											<Logo id={a.id} fallback="terminal" />
 											<span className="oc-conn-name">{a.label}</span>
-											<span className={'oc-conn-status' + (ready ? ' is-ok' : '')}>{!a.installed ? 'Not installed' : a.loggedIn === false ? 'Not signed in' : using ? 'In use' : 'Signed in'}</span>
+											<span className={'oc-conn-status' + (ready ? ' is-ok' : '')}>{!a.installed ? (a.id === 'opencode' ? 'Free, no account' : 'Not installed') : a.loggedIn === false ? 'Not signed in' : using ? 'In use' : a.id === 'opencode' ? 'Ready, free' : 'Signed in'}</span>
 											{using ? <Icon name="check" size={13} className="oc-conn-check" />
 												: ready && a.modelId ? <button type="button" className="oc-btn is-sm" onClick={() => onUse(a.modelId!)}>Use</button>
 													: a.installed ? <button type="button" className="oc-btn is-sm" onClick={() => post({ type: 'agentAction', id: a.id, action: 'signIn' })}>Sign in</button>
@@ -179,6 +179,11 @@ export function ConnectBlock({ agents, local, providers, results, modelId, neede
 					</div>
 				</div>
 			</div>
+			<button type="button" className="oc-connect-free" onClick={() => post({ type: 'helpAction', href: 'opencursor:free-models' })}>
+				<Icon name="sparkle" size={13} />
+				<span className="oc-connect-free-text"><b>Nothing to connect?</b> Start free, no account needed.</span>
+				<span className="oc-connect-free-go">Free models <Icon name="arrowRight" size={11} /></span>
+			</button>
 		</section>
 	);
 }

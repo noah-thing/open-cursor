@@ -281,7 +281,9 @@ class SettingsPanel implements vscode.Disposable {
 
 	private async setConfig(key: ConfigKey, value: unknown): Promise<void> {
 		if (!(key in CONFIG_DEFAULTS) || !isValid(key, value)) { return; }
-		const same = JSON.stringify(value) === JSON.stringify(CONFIG_DEFAULTS[key]);
+		// Compare with the default the editor really uses (package.json), so choosing a value always sticks.
+		const def = cfg().inspect(key)?.defaultValue ?? CONFIG_DEFAULTS[key];
+		const same = JSON.stringify(value) === JSON.stringify(def);
 		await cfg().update(key, same ? undefined : value, vscode.ConfigurationTarget.Global);
 	}
 
@@ -340,7 +342,11 @@ class SettingsPanel implements vscode.Disposable {
 				this.schedulePush();
 				return;
 			case 'clearKey':
-				await registry.setKey(m.provider, undefined);
+				try {
+					await registry.setKey(m.provider, undefined);
+				} catch (e) {
+					this.toast('error', 'Could not remove the key: ' + (e as Error).message);
+				}
 				await registry.refreshModels().catch(() => undefined);
 				this.schedulePush();
 				return;
@@ -372,7 +378,7 @@ class SettingsPanel implements vscode.Disposable {
 				this.schedulePush();
 				return;
 			case 'refreshCli':
-				await cli.detect().catch(() => []);
+				await cli.refresh().catch(() => []);
 				this.schedulePush();
 				return;
 			case 'mcpSetEnabled':

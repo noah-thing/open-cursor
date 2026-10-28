@@ -33,6 +33,7 @@ export type FreeWebviewMessage =
 	| { readonly type: 'paste'; readonly id: string }
 	| { readonly type: 'key'; readonly id: string; readonly key: string }
 	| { readonly type: 'oauth'; readonly id: string }
+	| { readonly type: 'cancelOauth' }
 	| { readonly type: 'disconnect'; readonly id: string }
 	| { readonly type: 'installOpenCode' }
 	/** Make this model the default and open a chat with it. */

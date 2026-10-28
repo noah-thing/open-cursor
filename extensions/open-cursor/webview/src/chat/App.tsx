@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memo, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactElement } from 'react';
-import type { Chat, ChatMode, ContextItem } from '../../../src/shared/protocol';
+import type { Chat, ChatMode, ContextItem, HostMessageExt } from '../../../src/shared/protocol';
 import { flushSync } from 'react-dom';
 import { Icon } from '../common/icons';
 import { Loader } from '../common/loader';
@@ -12,6 +12,7 @@ import { Header, History } from './header';
 import { HelpBar, HelpBottom, HelpTop } from './help';
 import { ConnectBlock, HomeBottom, HomeTop, buildStarters } from './home';
 import { onHostMessage, post, saveUiState } from './host';
+import { CodeActions } from './markdown';
 import { AssistantBlock, UserBubble } from './messages';
 import { QueueTray, ReviewBar, TodoTray } from './trays';
 import { initialState, lastAssistant, reducer, type State } from './store';
@@ -108,6 +109,7 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 	const showBuild = chat.mode === 'plan' && chat.status === 'idle' && !!last && last.done && chat.messages[chat.messages.length - 1] === last && last.parts.some(p => p.type === 'text' && p.text.trim().length > 0);
 
 	return (
+		<CodeActions.Provider value={chat.mode !== 'help'}>
 		<div className="oc-scroll-wrap">
 			<div className="oc-scroll" ref={scroller} onScroll={onScroll}>
 				<div className="oc-messages" ref={content}>
@@ -143,6 +145,7 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 				</button>
 			) : null}
 		</div>
+		</CodeActions.Provider>
 	);
 });
 
@@ -242,16 +245,27 @@ export function App(): ReactElement {
 
 	useEffect(() => {
 		persistState = () => saveUiState({ drafts: stateRef.current.drafts, scroll: scrollPositions, connectHidden: stateRef.current.connectHidden });
-		const off = onHostMessage(m => {
+		// While a transition is swapping chats, later messages wait their turn, so a draft or a pill meant
+		// for the new chat never lands on the old one.
+		let pending: Promise<void> | undefined;
+		const apply = (m: HostMessageExt): void => {
 			// Into and out of Help the whole panel dissolves into the other look instead of cutting.
 			if (m.type === 'activeChat' && crossesHelp(stateRef.current, m.chatId)) {
-				const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+				const doc = document as Document & { startViewTransition?: (cb: () => void) => { updateCallbackDone: Promise<void> } };
 				if (doc.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-					doc.startViewTransition(() => flushSync(() => dispatch({ kind: 'host', m })));
-					return;
+					try {
+						const vt = doc.startViewTransition(() => flushSync(() => dispatch({ kind: 'host', m })));
+						const done = vt.updateCallbackDone.catch(() => dispatch({ kind: 'host', m }));
+						pending = done.then(() => { if (pending === done) { pending = undefined; } });
+						return;
+					} catch { /* no transition: plain switch below */ }
 				}
 			}
 			dispatch({ kind: 'host', m });
+		};
+		const off = onHostMessage(m => {
+			if (pending) { const p = pending.then(() => apply(m)); pending = p; return; }
+			apply(m);
 		});
 		post({ type: 'ready' });
 		post({ type: 'requestSlashCommands' });
@@ -268,8 +282,10 @@ export function App(): ReactElement {
 			const s = stateRef.current;
 			const chat = s.activeId ? s.chats[s.activeId] : undefined;
 			if (chat && (chat.status === 'running' || chat.status === 'awaiting-approval') && s.view === 'chat') { post({ type: 'stop', chatId: chat.id }); return; }
-			// Esc is also the way out of Help, once nothing else (a menu, a running answer) wanted it.
-			if (chat?.mode === 'help' && s.view === 'chat') { e.preventDefault(); post({ type: 'leaveHelp' }); }
+			// Esc is also the way out of Help, once nothing else (a menu, a running answer, a rename) wanted it.
+			const t = e.target as HTMLElement | null;
+			const otherField = !!t && (t.tagName === 'INPUT' || (t.tagName === 'TEXTAREA' && !t.closest('.oc-composer')));
+			if (chat?.mode === 'help' && s.view === 'chat' && !e.isComposing && !otherField) { e.preventDefault(); post({ type: 'leaveHelp' }); }
 		};
 		window.addEventListener('keydown', h);
 		return () => window.removeEventListener('keydown', h);

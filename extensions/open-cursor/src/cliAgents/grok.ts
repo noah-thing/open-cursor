@@ -256,7 +256,9 @@ export async function runGrok(o: RunOptions): Promise<RunResult> {
 		});
 		prompt = `The user attached image files; look at them with read_file:\n${files.join('\n')}\n\n${prompt}`;
 	}
-	if (prompt.length > 100_000) {
+	// Windows caps a command line near 32k characters (8k through cmd.exe) and cmd.exe mangles quotes,
+	// so there the prompt always travels in a file; elsewhere only very long ones do.
+	if (process.platform === 'win32' || Buffer.byteLength(prompt) > 100_000) {
 		tmpDir ??= fs.mkdtempSync(path.join(os.tmpdir(), 'oc-grok-'));
 		const pf = path.join(tmpDir, 'prompt.txt');
 		fs.writeFileSync(pf, prompt);

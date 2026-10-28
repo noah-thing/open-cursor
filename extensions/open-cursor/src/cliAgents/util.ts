@@ -199,6 +199,14 @@ export interface SpawnedCli {
  * Spawns detached (own process group) so abort can take down the CLI together with every
  * shell and tool it started. stdout is delivered line by line.
  */
+/** Every CLI turn still running, so a window reload or quit can end them instead of leaving them behind. */
+const live = new Set<() => void>();
+
+export function killAllClis(): void {
+	for (const k of [...live]) { k(); }
+	live.clear();
+}
+
 export function spawnCli(
 	binary: string,
 	args: string[],
@@ -249,6 +257,9 @@ export function spawnCli(
 		killTimer.unref();
 	};
 	const onAbort = (): void => kill();
+	live.add(kill);
+	child.once('exit', () => live.delete(kill));
+	child.once('error', () => live.delete(kill));
 	if (opts.signal.aborted) {
 		kill();
 	} else {

@@ -32,7 +32,7 @@ export function claudeModeArgs(o: Pick<RunOptions, 'mode'>): string[] {
 	if (o.mode === 'help') {
 		// Help answers from the manual alone: no tools at all, not even reading.
 		// A lookup with the manual in hand: the fast model at low effort answers it as well, in a fraction of the time.
-		return ['--append-system-prompt', cliModeGuidance('help'), '--permission-mode', 'plan', '--tools', '', '--model', 'haiku', '--effort', 'low'];
+		return ['--append-system-prompt', cliModeGuidance('help'), '--permission-mode', 'plan', '--tools', '', '--strict-mcp-config', '--model', 'haiku', '--effort', 'low'];
 	}
 	const readonly = MODE_READONLY(o.mode);
 	// Always pass a mode: a defaultMode set at user level (e.g. bypassPermissions) would otherwise skip our prompts.

@@ -20,6 +20,7 @@ export interface FreeModelsHooks {
 export class FreeModelsPanel implements vscode.Disposable {
 	private panel: vscode.WebviewPanel | undefined;
 	private installing = false;
+	private signIn: vscode.CancellationTokenSource | undefined;
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(private readonly ctx: vscode.ExtensionContext, private readonly services: Services, private readonly hooks: FreeModelsHooks) {
@@ -29,7 +30,9 @@ export class FreeModelsPanel implements vscode.Disposable {
 		);
 	}
 
-	open(): void {
+	/** With `install`, OpenCode starts installing right away (the model menu's one click Get). */
+	open(opts?: { install?: boolean }): void {
+		if (opts?.install) { void this.installIfMissing(); }
 		if (this.panel) { this.panel.reveal(undefined, false); return; }
 		const dist = vscode.Uri.joinPath(this.ctx.extensionUri, 'dist', 'webview');
 		const panel = this.panel = vscode.window.createWebviewPanel('openCursor.freeModels', 'Free models', vscode.ViewColumn.Active, {
@@ -38,7 +41,12 @@ export class FreeModelsPanel implements vscode.Disposable {
 		panel.iconPath = vscode.Uri.joinPath(this.ctx.extensionUri, 'media', 'chat.svg');
 		panel.webview.html = this.html(panel.webview, dist);
 		panel.webview.onDidReceiveMessage((m: FreeWebviewMessage) => { void this.onMessage(m); }, undefined, this.disposables);
-		panel.onDidDispose(() => { this.panel = undefined; }, undefined, this.disposables);
+		panel.onDidDispose(() => { this.panel = undefined; this.signIn?.cancel(); }, undefined, this.disposables);
+	}
+
+	private async installIfMissing(): Promise<void> {
+		const agent = (await this.services.cli.detect().catch(() => [])).find(a => a.id === 'opencode');
+		if (!agent?.binaryPath) { await this.onMessage({ type: 'installOpenCode' }); }
 	}
 
 	dispose(): void {
@@ -96,21 +104,30 @@ export class FreeModelsPanel implements vscode.Disposable {
 			}
 			case 'key': {
 				const spec = this.spec(m.id);
-				if (spec && m.key.trim()) { await this.connect(spec, m.key); }
-				return;
+				if (!spec || !m.key.trim()) { return; }
+				if (!looksLikeKey(spec, m.key.trim())) { this.post({ type: 'result', id: spec.id, ok: false, message: `That does not look like a ${spec.name} key. Copy the key itself.` }); return; }
+				return this.connect(spec, m.key);
 			}
 			case 'oauth': {
 				const spec = this.spec(m.id);
 				if (!spec?.oauth) { return; }
+				this.signIn?.cancel();
+				const cts = this.signIn = new vscode.CancellationTokenSource();
 				try {
-					const key = await signInWithOpenRouter();
+					const key = await signInWithOpenRouter(cts.token);
 					await this.services.registry.setKey(spec.id as ProviderId, key);
 					this.post({ type: 'result', id: spec.id, ok: true, message: 'Connected' });
 				} catch (e) {
 					this.post({ type: 'result', id: spec.id, ok: false, message: e instanceof Error ? e.message : String(e) });
+				} finally {
+					if (this.signIn === cts) { this.signIn = undefined; }
+					cts.dispose();
 				}
 				return this.pushState();
 			}
+			case 'cancelOauth':
+				this.signIn?.cancel();
+				return;
 			case 'disconnect': {
 				const spec = this.spec(m.id);
 				if (spec) { await this.services.registry.setKey(spec.id as ProviderId, undefined); }

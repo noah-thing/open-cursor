@@ -117,7 +117,7 @@ function HistoryItem({ chat, active, onPick }: { readonly chat: ChatSummary; rea
 	};
 	const onKey = (e: KeyboardEvent<HTMLInputElement>): void => {
 		if (e.key === 'Enter') { commit(); }
-		else if (e.key === 'Escape') { setTitle(chat.title); setRenaming(false); }
+		else if (e.key === 'Escape') { e.preventDefault(); setTitle(chat.title); setRenaming(false); }
 	};
 	const busy = chat.status === 'running' || chat.status === 'awaiting-approval';
 	return (
