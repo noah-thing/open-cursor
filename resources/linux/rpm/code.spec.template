@@ -3,8 +3,8 @@ Version:  @@VERSION@@
 Release:  @@RELEASE@@.el8
 Summary:  An AI code editor built on Code - OSS
 Group:    Development/Tools
-Vendor:   Open Cursor
-Packager: Open Cursor <noreply@users.noreply.github.com>
+Vendor:   OpenCursor
+Packager: OpenCursor <noreply@users.noreply.github.com>
 License:  @@LICENSE@@
 URL:      https://github.com/noah-thing/open-cursor
 Icon:     @@NAME@@.xpm
@@ -18,7 +18,7 @@ AutoReq:  0
 %global __brp_strip_comment_note %{nil}
 
 %description
-Open Cursor is a code editor with an AI agent, inline edits and tab completion, built on the open source Code - OSS.
+OpenCursor is a code editor with an AI agent, inline edits and tab completion, built on the open source Code - OSS.
 
 # Don't generate build_id links to prevent conflicts when installing multiple
 # versions of VS Code alongside each other (e.g. `code` and `code-insiders`)

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Open Cursor. MIT License.
+# OpenCursor. MIT License.
 
 rm -f /usr/bin/@@NAME@@
 

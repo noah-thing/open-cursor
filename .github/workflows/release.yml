@@ -75,7 +75,7 @@ jobs:
       - name: Name artifact
         run: |
           VERSION="$(node -p "require('./extensions/open-cursor/package.json').version")"
-          mkdir -p dist-out && cp "../open-cursor-dist/Open-Cursor-$VERSION-${{ matrix.arch }}.dmg" "dist-out/Open-Cursor-$VERSION-macos-${{ matrix.arch }}.dmg"
+          mkdir -p dist-out && cp "$(ls ../open-cursor-dist/*-${{ matrix.arch }}.dmg | head -1)" "dist-out/OpenCursor-$VERSION-macos-${{ matrix.arch }}.dmg"
           ls -lh dist-out
       - uses: actions/upload-artifact@v4
         with:
@@ -135,8 +135,8 @@ jobs:
           $v = node -p "require('./extensions/open-cursor/package.json').version"
           New-Item -ItemType Directory -Force dist-out | Out-Null
           $setup = Get-ChildItem ".build/win32-${{ matrix.arch }}/user-setup/*.exe" | Select-Object -First 1
-          Copy-Item $setup.FullName "dist-out/Open-Cursor-$v-windows-${{ matrix.arch }}-setup.exe"
-          7z a -tzip -mx=5 "dist-out/Open-Cursor-$v-windows-${{ matrix.arch }}-portable.zip" "../VSCode-win32-${{ matrix.arch }}/*"
+          Copy-Item $setup.FullName "dist-out/OpenCursor-$v-windows-${{ matrix.arch }}-setup.exe"
+          7z a -tzip -mx=5 "dist-out/OpenCursor-$v-windows-${{ matrix.arch }}-portable.zip" "../VSCode-win32-${{ matrix.arch }}/*"
           Get-ChildItem dist-out | Format-Table Name, Length
       - uses: actions/upload-artifact@v4
         with:
@@ -210,9 +210,9 @@ jobs:
           V="$(node -p "require('./extensions/open-cursor/package.json').version")"
           A="${{ matrix.arch }}"
           mkdir -p dist-out
-          tar -C .. -czf "dist-out/Open-Cursor-$V-linux-$A.tar.gz" "VSCode-linux-$A"
-          cp "$(find .build/linux/deb -name '*.deb' | head -1)" "dist-out/Open-Cursor-$V-linux-$A.deb"
-          cp "$(find .build/linux/rpm -name '*.rpm' | head -1)" "dist-out/Open-Cursor-$V-linux-$A.rpm"
+          tar -C .. -czf "dist-out/OpenCursor-$V-linux-$A.tar.gz" "VSCode-linux-$A"
+          cp "$(find .build/linux/deb -name '*.deb' | head -1)" "dist-out/OpenCursor-$V-linux-$A.deb"
+          cp "$(find .build/linux/rpm -name '*.rpm' | head -1)" "dist-out/OpenCursor-$V-linux-$A.rpm"
           ls -lh dist-out
       - uses: actions/upload-artifact@v4
         with:

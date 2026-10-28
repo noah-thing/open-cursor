@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Open Cursor. MIT License.
+# OpenCursor. MIT License.
 
 # Deregister code from the alternatives system
 update-alternatives --remove editor /usr/bin/@@NAME@@

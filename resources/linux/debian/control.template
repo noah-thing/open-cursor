@@ -5,9 +5,9 @@ Depends: @@DEPENDS@@
 Recommends: @@RECOMMENDS@@
 Priority: optional
 Architecture: @@ARCHITECTURE@@
-Maintainer: Open Cursor <noreply@users.noreply.github.com>
+Maintainer: OpenCursor <noreply@users.noreply.github.com>
 Homepage: https://github.com/noah-thing/open-cursor
 Installed-Size: @@INSTALLEDSIZE@@
 Description: An AI code editor built on Code - OSS
- Open Cursor is a code editor with an AI agent, inline edits and tab completion,
+ OpenCursor is a code editor with an AI agent, inline edits and tab completion,
  built on the open source Code - OSS. It uses your own model subscriptions and keys.

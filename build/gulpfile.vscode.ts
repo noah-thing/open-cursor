@@ -529,7 +529,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			await rcedit(fullPath, {
 				'file-version': baseVersion,
 				'version-string': {
-					'CompanyName': 'Open Cursor',
+					'CompanyName': 'OpenCursor',
 					'FileDescription': product.nameLong,
 					'FileVersion': packageJson.version,
 					'InternalName': basename,
@@ -627,7 +627,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 			copyCodiconsTask,
 			cleanExtensionsBuildTask,
 			compileNonNativeExtensionsBuildTask,
-			// Open Cursor ships no Copilot extension.
+			// OpenCursor ships no Copilot extension.
 			compileExtensionMediaBuildTask,
 			writeISODate('out-build'),
 			esbuildBundleTask,

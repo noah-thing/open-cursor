@@ -143,7 +143,7 @@ const electronAssetResolver = electronFeed
 export const config = {
 	version: electronVersion,
 	productAppName: product.nameLong,
-	companyName: 'Open Cursor',
+	companyName: 'OpenCursor',
 	copyright: 'MIT License. Based on Code - OSS, Copyright (C) Microsoft Corporation',
 	darwinExecutable: product.nameShort,
 	darwinIcon: 'resources/darwin/code.icns',

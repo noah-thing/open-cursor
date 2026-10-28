@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Open Cursor. MIT License.
+# OpenCursor. MIT License.
 
 # Symlink bin command to /usr/bin
 rm -f /usr/bin/@@NAME@@
