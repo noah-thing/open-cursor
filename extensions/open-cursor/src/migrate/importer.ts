@@ -112,7 +112,7 @@ function parseJsonc(text: string): Record<string, unknown> {
 async function runImport(ctx: vscode.ExtensionContext, src: Source): Promise<void> {
 	// globalStorageUri = <user data>/User/globalStorage/<extension id>
 	const userDir = path.dirname(path.dirname(ctx.globalStorageUri.fsPath));
-	await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Importing from ${src.label}`, cancellable: true }, async (progress, token) => {
+	const summary = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Importing from ${src.label}`, cancellable: true }, async (progress, token) => {
 		progress.report({ message: 'Settings' });
 		const settings = await copySettings(src, userDir);
 		const keybindings = await copyIfMissing(path.join(src.userDir, 'keybindings.json'), path.join(userDir, 'keybindings.json'));
@@ -140,11 +140,13 @@ async function runImport(ctx: vscode.ExtensionContext, src: Source): Promise<voi
 		if (snippets) { parts.push('snippets'); }
 		parts.push(`${done - failed.length} extensions`);
 		const tail = failed.length ? ` ${failed.length} extensions are not on Open VSX: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}.` : '';
-		const reload = await vscode.window.showInformationMessage(`Imported ${parts.join(', ')} from ${src.label}.${tail}`, 'Reload Window');
-		if (reload) {
-			await vscode.commands.executeCommand('workbench.action.reloadWindow');
-		}
+		return `Imported ${parts.join(', ')} from ${src.label}.${tail}`;
 	});
+	// Asked after the progress closes, so the spinner does not hang around until the user answers.
+	const reload = await vscode.window.showInformationMessage(summary, 'Reload Window');
+	if (reload) {
+		await vscode.commands.executeCommand('workbench.action.reloadWindow');
+	}
 }
 
 export function registerImporter(ctx: vscode.ExtensionContext): void {

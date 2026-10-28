@@ -74,6 +74,8 @@ const BUILTIN_COMMANDS: { name: string; description: string }[] = [
 	{ name: 'rules', description: 'Open the rules folder' },
 ];
 
+const CHAT_VISIBLE_KEY = 'openCursor.chat.visible';
+
 export function createChatController(ctx: vscode.ExtensionContext, services: Services): IChatController {
 	const controller = new ChatController(ctx, services);
 	controller.register();
@@ -124,6 +126,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			resolveChat: id => this.chatSummaryText(id),
 		});
 		this.registerCommands();
+		void this.showOnStartup();
 		d.push(vscode.languages.registerCodeActionsProvider({ scheme: 'file' }, {
 			provideCodeActions(doc, range, context) {
 				const diags = context.diagnostics.filter(x => x.severity <= vscode.DiagnosticSeverity.Warning);
@@ -163,6 +166,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		sub.push(view.webview.onDidReceiveMessage((m: WebviewMessage) => { void this.onMessage(m).catch(err => console.error('[open-cursor] message failed', m?.type, err)); }));
 		sub.push(view.onDidChangeVisibility(() => {
 			this.setChatFocused(view.visible);
+			void this.ctx.globalState.update(CHAT_VISIBLE_KEY, view.visible);
 			if (view.visible) { this.post({ type: 'pendingEdits', files: this.services.pendingEdits.getFiles() }); }
 		}));
 		sub.push(view.onDidDispose(() => {
@@ -221,6 +225,23 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (this.chatFocused === v) { return; }
 		this.chatFocused = v;
 		void vscode.commands.executeCommand('setContext', 'openCursor.chatFocused', v);
+	}
+
+	/**
+	 * The secondary sidebar is restored before this extension registers its provider, and the workbench then leaves
+	 * the chat pane empty until the container is opened again. Open it once on launch (unless the user hid the chat
+	 * last session) and hand focus back to the editor.
+	 */
+	private async showOnStartup(): Promise<void> {
+		await new Promise(r => setTimeout(r, 1500));
+		if (this.view || this.disposed || this.ctx.globalState.get<boolean>(CHAT_VISIBLE_KEY) === false) {
+			return;
+		}
+		const hadEditor = !!vscode.window.activeTextEditor;
+		await vscode.commands.executeCommand('workbench.view.extension.openCursor');
+		if (hadEditor) {
+			await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		}
 	}
 
 	/** Reveal the chat view and wait until its webview exists. */
