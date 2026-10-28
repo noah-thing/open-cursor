@@ -242,7 +242,7 @@ jobs:
   # that answer the GitHub API call from a mock release and serve downloads from the artifact folder.
   smoke-linux:
     needs: [linux]
-    if: ${{ !cancelled() && inputs.smoke && needs.linux.result == 'success' }}
+    if: ${{ !cancelled() && inputs.smoke && needs.linux.result != 'skipped' }}
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -303,7 +303,7 @@ jobs:
 
   smoke-windows:
     needs: [windows]
-    if: ${{ !cancelled() && inputs.smoke && needs.windows.result == 'success' }}
+    if: ${{ !cancelled() && inputs.smoke && needs.windows.result != 'skipped' }}
     runs-on: windows-2022
     timeout-minutes: 30
     defaults:
@@ -347,7 +347,7 @@ jobs:
 
   smoke-macos:
     needs: [macos]
-    if: ${{ !cancelled() && inputs.smoke && needs.macos.result == 'success' }}
+    if: ${{ !cancelled() && inputs.smoke && needs.macos.result != 'skipped' }}
     strategy:
       fail-fast: false
       matrix:
