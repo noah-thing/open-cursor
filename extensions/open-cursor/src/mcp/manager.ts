@@ -60,7 +60,7 @@ let loginPath: Promise<string | undefined> | undefined;
 function resolveLoginPath(): Promise<string | undefined> {
 	loginPath ??= new Promise(resolve => {
 		if (process.platform === 'win32') { return resolve(undefined); }
-		const shell = process.env.SHELL || '/bin/zsh';
+		const shell = process.env.SHELL || ['/bin/zsh', '/bin/bash', '/bin/sh'].find(f => fs.existsSync(f)) || '/bin/sh';
 		try {
 			execFile(shell, ['-ilc', 'echo __OC_PATH__${PATH}__OC_PATH__'], { timeout: 3000, env: process.env }, (err, stdout) => {
 				const m = /__OC_PATH__(.*?)__OC_PATH__/s.exec(String(stdout ?? ''));

@@ -9,7 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import type { CliAgentInfo } from '../services';
 import type { CliAgentId } from './types';
-import { COMMON_BIN_DIRS, exists, parseJson, rec, runQuick } from './util';
+import { COMMON_BIN_DIRS, defaultShell, executableNames, exists, parseJson, rec, runQuick, withPath } from './util';
 
 export const BINARY_NAME: Record<CliAgentId, string> = { 'claude-code': 'claude', codex: 'codex', grok: 'grok', 'gemini-cli': 'gemini' };
 export const AGENT_LABEL: Record<CliAgentId, string> = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI' };
@@ -34,7 +34,7 @@ export function loginShellInfo(): Promise<ShellInfo> {
 		if (process.platform === 'win32') {
 			return info;
 		}
-		const shell = process.env.SHELL || '/bin/zsh';
+		const shell = defaultShell();
 		const script = `printf '__OC_PATH__%s\\n' "$PATH"; command -v ${AGENT_IDS.map(id => BINARY_NAME[id]).join(' ')}`;
 		const r = await runQuick(shell, ['-ilc', script], { timeoutMs: 4000, env: { ...process.env, TERM: process.env.TERM ?? 'dumb' } });
 		if (!r) {
@@ -67,8 +67,10 @@ export async function resolveBinary(id: CliAgentId, cfg: DetectConfig): Promise<
 	const override = cfg.paths[id]?.trim();
 	if (override) {
 		const p = override.startsWith('~') ? path.join(os.homedir(), override.slice(1)) : override;
-		if (exists(p)) {
-			return p;
+		for (const cand of [p, ...(process.platform === 'win32' && !path.extname(p) ? executableNames(p) : [])]) {
+			if (exists(cand)) {
+				return cand;
+			}
 		}
 	}
 	const sh = await loginShellInfo();
@@ -81,9 +83,11 @@ export async function resolveBinary(id: CliAgentId, cfg: DetectConfig): Promise<
 		if (!d) {
 			continue;
 		}
-		const p = path.join(d, BINARY_NAME[id]);
-		if (exists(p)) {
-			return p;
+		for (const name of executableNames(BINARY_NAME[id])) {
+			const p = path.join(d, name);
+			if (exists(p)) {
+				return p;
+			}
 		}
 	}
 	return undefined;
@@ -95,7 +99,7 @@ export async function cliEnv(binary: string | undefined): Promise<NodeJS.Process
 	const dirs = [binary ? path.dirname(binary) : '', ...sh.path, ...COMMON_BIN_DIRS(), ...(process.env.PATH ?? '').split(path.delimiter)];
 	const seen = new Set<string>();
 	const merged = dirs.filter(d => d && !seen.has(d) && !!seen.add(d));
-	const env: NodeJS.ProcessEnv = { ...process.env, PATH: merged.join(path.delimiter) };
+	const env = withPath(process.env, merged.join(path.delimiter));
 	delete env.ELECTRON_RUN_AS_NODE;
 	return env;
 }

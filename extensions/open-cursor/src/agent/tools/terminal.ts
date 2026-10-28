@@ -144,16 +144,22 @@ export class TerminalRunner implements vscode.Disposable {
 			const win = process.platform === 'win32';
 			const shell = process.env.SHELL || '/bin/sh';
 			const child = win
-				? spawn(opts.command, { cwd: opts.cwd, shell: true, env: { ...process.env, ...ENV }, stdio: ['ignore', 'pipe', 'pipe'] })
+				? spawn(opts.command, { cwd: opts.cwd, shell: true, windowsHide: true, env: { ...process.env, ...ENV }, stdio: ['ignore', 'pipe', 'pipe'] })
 				: spawn(shell, ['-l', '-c', opts.command], { cwd: opts.cwd, env: { ...process.env, ...ENV }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
 			let output = '';
 			let timedOut = false;
 			let aborted = false;
 			let settled = false;
 			const kill = () => {
+				const stop = (sig: NodeJS.Signals) => {
+					if (win) {
+						// child.kill() only ends cmd.exe; /T takes down what it started.
+						if (child.pid) { spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }).on('error', () => child.kill(sig)); }
+					} else if (child.pid) { process.kill(-child.pid, sig); } else { child.kill(sig); }
+				};
 				try {
-					if (!win && child.pid) { process.kill(-child.pid, 'SIGTERM'); } else { child.kill('SIGTERM'); }
-					setTimeout(() => { try { if (!win && child.pid) { process.kill(-child.pid, 'SIGKILL'); } else { child.kill('SIGKILL'); } } catch { /* gone */ } }, 2000).unref();
+					stop('SIGTERM');
+					setTimeout(() => { try { stop('SIGKILL'); } catch { /* gone */ } }, 2000).unref();
 				} catch { /* already exited */ }
 			};
 			const timer = setTimeout(() => { timedOut = true; kill(); }, opts.timeoutMs);

@@ -10,15 +10,111 @@ import * as path from 'path';
 
 export const COMMON_BIN_DIRS = (): string[] => {
 	const h = os.homedir();
+	if (process.platform === 'win32') {
+		const appData = process.env.APPDATA ?? path.join(h, 'AppData', 'Roaming');
+		const local = process.env.LOCALAPPDATA ?? path.join(h, 'AppData', 'Local');
+		return [
+			path.join(h, '.local', 'bin'),
+			path.join(h, '.claude', 'local'),
+			path.join(appData, 'npm'),
+			path.join(local, 'Programs', 'claude'),
+			path.join(local, 'Microsoft', 'WinGet', 'Links'),
+			path.join(h, 'scoop', 'shims'),
+			path.join(h, '.bun', 'bin'),
+		];
+	}
 	return [
 		path.join(h, '.local', 'bin'),
 		path.join(h, '.claude', 'local'),
 		'/opt/homebrew/bin',
 		'/usr/local/bin',
+		'/usr/bin',
+		'/snap/bin',
+		'/home/linuxbrew/.linuxbrew/bin',
 		path.join(h, '.npm-global', 'bin'),
 		path.join(h, '.bun', 'bin'),
 	];
 };
+
+/** The user's login shell, with a fallback that exists on this OS (zsh is not installed on most Linux distros). */
+export function defaultShell(): string {
+	if (process.env.SHELL) {
+		return process.env.SHELL;
+	}
+	for (const s of ['/bin/zsh', '/bin/bash', '/bin/sh']) {
+		if (fs.existsSync(s)) {
+			return s;
+		}
+	}
+	return '/bin/sh';
+}
+
+/** Executable names to try in a directory: on Windows the bare name never exists, `claude.exe` or `codex.cmd` does. */
+export function executableNames(name: string): string[] {
+	return process.platform === 'win32' ? [name + '.exe', name + '.cmd', name + '.bat', name] : [name];
+}
+
+/** The PATH-like variable in an env object. Windows calls it `Path`, and a second `PATH` key would be ambiguous. */
+export function withPath(env: NodeJS.ProcessEnv, value: string): NodeJS.ProcessEnv {
+	const out: NodeJS.ProcessEnv = { ...env };
+	for (const k of Object.keys(out)) {
+		if (k.toUpperCase() === 'PATH') {
+			delete out[k];
+		}
+	}
+	out[process.platform === 'win32' ? 'Path' : 'PATH'] = value;
+	return out;
+}
+
+interface SpawnPlan { file: string; args: string[]; shell: boolean }
+
+/**
+ * Node refuses to spawn .cmd/.bat files directly on Windows (CVE-2024-27980), and most npm-installed
+ * CLIs are .cmd shims. A shim from npm just runs `node <script>`, so run that directly; anything else
+ * goes through cmd.exe with every argument quoted.
+ */
+export function planSpawn(binary: string, args: string[]): SpawnPlan {
+	if (process.platform !== 'win32' || !/\.(cmd|bat)$/i.test(binary)) {
+		return { file: binary, args, shell: false };
+	}
+	try {
+		const text = fs.readFileSync(binary, 'utf8');
+		const m = /"%dp0%\\([^"]+\.(?:c|m)?js)"/i.exec(text) ?? /"%~dp0\\([^"]+\.(?:c|m)?js)"/i.exec(text);
+		if (m) {
+			const dir = path.dirname(binary);
+			const script = path.join(dir, m[1]);
+			const localNode = path.join(dir, 'node.exe');
+			if (fs.existsSync(script)) {
+				return { file: fs.existsSync(localNode) ? localNode : 'node', args: [script, ...args], shell: false };
+			}
+		}
+	} catch {
+		/* fall through to cmd.exe */
+	}
+	const quote = (a: string): string => '"' + a.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1') + '"';
+	return { file: '"' + binary + '"', args: args.map(quote), shell: true };
+}
+
+/** Kills a process and everything it started. POSIX uses the process group; Windows needs taskkill /T. */
+export function killTree(child: ChildProcess, signal: NodeJS.Signals): void {
+	const pid = child.pid;
+	if (!pid) {
+		return;
+	}
+	if (process.platform === 'win32') {
+		try {
+			spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }).on('error', () => child.kill(signal));
+		} catch {
+			child.kill(signal);
+		}
+		return;
+	}
+	try {
+		process.kill(-pid, signal);
+	} catch {
+		child.kill(signal);
+	}
+}
 
 export function exists(p: string): boolean {
 	try {
@@ -105,10 +201,13 @@ export function spawnCli(
 	args: string[],
 	opts: { cwd: string; env: NodeJS.ProcessEnv; stdin?: string | 'keep-open' | 'none'; signal: AbortSignal; onLine: (line: string) => void },
 ): SpawnedCli {
-	const child = spawn(binary, args, {
+	const plan = planSpawn(binary, args);
+	const child = spawn(plan.file, plan.args, {
 		cwd: opts.cwd,
 		env: opts.env,
 		detached: process.platform !== 'win32',
+		shell: plan.shell,
+		windowsHide: true,
 		stdio: ['pipe', 'pipe', 'pipe'],
 	});
 	let err = '';
@@ -137,17 +236,9 @@ export function spawnCli(
 		}
 		const send = (sig: NodeJS.Signals): void => {
 			try {
-				if (process.platform === 'win32') {
-					child.kill(sig);
-				} else {
-					process.kill(-pid, sig);
-				}
+				killTree(child, sig);
 			} catch {
-				try {
-					child.kill(sig);
-				} catch {
-					/* already gone */
-				}
+				/* already gone */
 			}
 		};
 		send('SIGTERM');
@@ -187,7 +278,8 @@ export function runQuick(binary: string, args: string[], opts: { cwd?: string; e
 		let done = false;
 		let child: ChildProcess;
 		try {
-			child = spawn(binary, args, { cwd: opts.cwd, env: opts.env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+			const plan = planSpawn(binary, args);
+			child = spawn(plan.file, plan.args, { cwd: opts.cwd, env: opts.env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32', shell: plan.shell, windowsHide: true });
 		} catch {
 			resolve(undefined);
 			return;
@@ -202,11 +294,7 @@ export function runQuick(binary: string, args: string[], opts: { cwd?: string; e
 		};
 		const timer = setTimeout(() => {
 			try {
-				if (child.pid && process.platform !== 'win32') {
-					process.kill(-child.pid, 'SIGKILL');
-				} else {
-					child.kill('SIGKILL');
-				}
+				killTree(child, 'SIGKILL');
 			} catch {
 				/* gone */
 			}

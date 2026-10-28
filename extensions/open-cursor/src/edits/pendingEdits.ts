@@ -10,6 +10,8 @@ import { computeHunks, countChanges, foldAccept, applyReject, norm, type Hunk } 
 import { readCurrent, writeDocument, deleteOnDisk } from './fileOps';
 
 const ORIGINAL_SCHEME = 'open-cursor-original';
+/** CodeLens text mirrors the real shortcut: Cmd on macOS, Ctrl elsewhere. */
+const MOD = process.platform === 'darwin' ? '⌘' : 'Ctrl+';
 const STATE_KEY = 'openCursor.pendingEdits.v1';
 
 export interface IPendingEditsInternal extends IPendingEdits {
@@ -517,8 +519,8 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 				const line = Math.min(h.curStart, last);
 				const r = new vscode.Range(line, 0, line, 0);
 				lenses.push(
-					new vscode.CodeLens(r, { title: 'Keep ⌘Y', command: 'openCursor.diff.acceptHunk', arguments: [uri, h.id] }),
-					new vscode.CodeLens(r, { title: 'Undo ⌘N', command: 'openCursor.diff.rejectHunk', arguments: [uri, h.id] }),
+					new vscode.CodeLens(r, { title: `Keep ${MOD}Y`, command: 'openCursor.diff.acceptHunk', arguments: [uri, h.id] }),
+					new vscode.CodeLens(r, { title: `Undo ${MOD}N`, command: 'openCursor.diff.rejectHunk', arguments: [uri, h.id] }),
 				);
 			}
 			return lenses;
