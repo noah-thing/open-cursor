@@ -172,9 +172,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Swap and disk (the bundler needs more than the 7 GB a standard runner has)
+      - name: Free disk, add swap (the bundler needs more than the 7 GB a standard runner has)
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
+          df -h / /mnt
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/julia* /usr/share/swift || true
+          sudo docker system prune -af >/dev/null 2>&1 || true
           sudo swapoff -a || true
           sudo fallocate -l 20G /mnt/swapfile
           sudo chmod 600 /mnt/swapfile
@@ -204,20 +206,26 @@ jobs:
         run: |
           set -e
           npm run gulp "vscode-linux-${{ matrix.arch }}-min"
-          npm run gulp "vscode-linux-${{ matrix.arch }}-prepare-deb"
-          npm run gulp "vscode-linux-${{ matrix.arch }}-build-deb"
-          npm run gulp "vscode-linux-${{ matrix.arch }}-prepare-rpm"
-          npm run gulp "vscode-linux-${{ matrix.arch }}-build-rpm"
-      - name: Collect packages
+          # The bundles are inside VSCode-linux-<arch> now; free the intermediates.
+          rm -rf out-build out-vscode-min out-vscode-reh-min out-vscode-reh-web-min .build/extensions .build/electron
+          df -h /
+      - name: Package tar.gz, deb and rpm
         run: |
           set -e
           V="$(node -p "require('./extensions/open-cursor/package.json').version")"
           A="${{ matrix.arch }}"
           mkdir -p dist-out
           tar -C .. -czf "dist-out/OpenCursor-$V-linux-$A.tar.gz" "VSCode-linux-$A"
+          npm run gulp "vscode-linux-$A-prepare-deb"
+          npm run gulp "vscode-linux-$A-build-deb"
           cp "$(find .build/linux/deb -name '*.deb' | head -1)" "dist-out/OpenCursor-$V-linux-$A.deb"
+          rm -rf .build/linux/deb
+          df -h /
+          npm run gulp "vscode-linux-$A-prepare-rpm"
+          npm run gulp "vscode-linux-$A-build-rpm"
           cp "$(find .build/linux/rpm -name '*.rpm' | head -1)" "dist-out/OpenCursor-$V-linux-$A.rpm"
-          ls -lh dist-out
+          rm -rf .build/linux/rpm
+          ls -lh dist-out; df -h /
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.id }}
