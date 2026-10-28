@@ -22,7 +22,7 @@ import { promisify } from 'util';
 const exec = promisify(cp.exec);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
-const linuxDesktopName = product.linuxDesktopName;
+const linuxDesktopName = product.linuxDesktopName.replace(/\.desktop$/, '');
 const copilotLinkHelper = readFileSync(path.join(root, 'resources/linux/copilot-link.sh'), 'utf8');
 const rpmCopilotLinkHelper = copilotLinkHelper.replace(/%/g, '%%');
 
