@@ -75,16 +75,16 @@ jobs:
       - name: Name artifact
         run: |
           VERSION="$(node -p "require('./extensions/open-cursor/package.json').version")"
-          mkdir -p ../out && cp "../open-cursor-dist/Open-Cursor-$VERSION-${{ matrix.arch }}.dmg" "../out/Open-Cursor-$VERSION-macos-${{ matrix.arch }}.dmg"
-          ls -lh ../out
+          mkdir -p dist-out && cp "../open-cursor-dist/Open-Cursor-$VERSION-${{ matrix.arch }}.dmg" "dist-out/Open-Cursor-$VERSION-macos-${{ matrix.arch }}.dmg"
+          ls -lh dist-out
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.id }}
-          path: ../out/*
+          path: dist-out/*
       - name: Attach to draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" ../out/*
+        run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" dist-out/*
 
   windows:
     needs: plan
@@ -133,20 +133,20 @@ jobs:
           npm run gulp "vscode-win32-${{ matrix.arch }}-user-setup"
           if ($LASTEXITCODE) { exit 1 }
           $v = node -p "require('./extensions/open-cursor/package.json').version"
-          New-Item -ItemType Directory -Force ../out | Out-Null
+          New-Item -ItemType Directory -Force dist-out | Out-Null
           $setup = Get-ChildItem ".build/win32-${{ matrix.arch }}/user-setup/*.exe" | Select-Object -First 1
-          Copy-Item $setup.FullName "../out/Open-Cursor-$v-windows-${{ matrix.arch }}-setup.exe"
-          7z a -tzip -mx=5 "../out/Open-Cursor-$v-windows-${{ matrix.arch }}-portable.zip" "../VSCode-win32-${{ matrix.arch }}/*"
-          Get-ChildItem ../out | Format-Table Name, Length
+          Copy-Item $setup.FullName "dist-out/Open-Cursor-$v-windows-${{ matrix.arch }}-setup.exe"
+          7z a -tzip -mx=5 "dist-out/Open-Cursor-$v-windows-${{ matrix.arch }}-portable.zip" "../VSCode-win32-${{ matrix.arch }}/*"
+          Get-ChildItem dist-out | Format-Table Name, Length
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.id }}
-          path: ../out/*
+          path: dist-out/*
       - name: Attach to draft release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" ../out/*
+        run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" dist-out/*
 
   linux:
     needs: plan
@@ -209,16 +209,16 @@ jobs:
           set -e
           V="$(node -p "require('./extensions/open-cursor/package.json').version")"
           A="${{ matrix.arch }}"
-          mkdir -p ../out
-          tar -C .. -czf "../out/Open-Cursor-$V-linux-$A.tar.gz" "VSCode-linux-$A"
-          cp "$(find .build/linux/deb -name '*.deb' | head -1)" "../out/Open-Cursor-$V-linux-$A.deb"
-          cp "$(find .build/linux/rpm -name '*.rpm' | head -1)" "../out/Open-Cursor-$V-linux-$A.rpm"
-          ls -lh ../out
+          mkdir -p dist-out
+          tar -C .. -czf "dist-out/Open-Cursor-$V-linux-$A.tar.gz" "VSCode-linux-$A"
+          cp "$(find .build/linux/deb -name '*.deb' | head -1)" "dist-out/Open-Cursor-$V-linux-$A.deb"
+          cp "$(find .build/linux/rpm -name '*.rpm' | head -1)" "dist-out/Open-Cursor-$V-linux-$A.rpm"
+          ls -lh dist-out
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.id }}
-          path: ../out/*
+          path: dist-out/*
       - name: Attach to draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" ../out/*
+        run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" dist-out/*
