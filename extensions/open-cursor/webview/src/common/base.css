@@ -187,8 +187,8 @@ kbd {
 @keyframes oc-rise { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 @keyframes oc-pop { from { opacity: 0; transform: translateY(4px) scale(0.97); } to { opacity: 1; transform: none; } }
 /* Arrivals: things that appear because work happened. A little travel and a little blur, then still. */
-@keyframes oc-enter { from { opacity: 0; transform: translateY(6px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
-@keyframes oc-swap { from { opacity: 0; transform: translateY(5px); filter: blur(1.5px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes oc-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes oc-swap { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 @keyframes oc-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes oc-send { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes oc-tick { from { opacity: 0.25; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
@@ -218,3 +218,38 @@ kbd {
 .hljs-meta { color: var(--oc-fg-3); }
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: 600; }
+
+/* Loader: Pearl floats, a pearl sheen passes over it, a line of light runs underneath. */
+.oc-loader {
+	flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+	animation: oc-fade 260ms 140ms ease-out both;
+}
+.oc-loader-mark { position: relative; width: var(--oc-pearl-w); height: var(--oc-pearl-h); animation: oc-pearl-float 2.4s ease-in-out infinite; will-change: transform; }
+.oc-loader-mark img { display: block; width: 100%; height: 100%; user-select: none; }
+/* On light themes the cream body needs an edge, as the dark tile gives it in the icon. */
+body.vscode-light .oc-loader-mark img, body.vscode-high-contrast-light .oc-loader-mark img {
+	filter: drop-shadow(0 0 0.6px rgba(0, 0, 0, 0.55)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
+}
+.oc-loader-sheen {
+	position: absolute; inset: 0; mix-blend-mode: soft-light; opacity: 0.9;
+	-webkit-mask: var(--oc-pearl-mask) center / 100% 100% no-repeat; mask: var(--oc-pearl-mask) center / 100% 100% no-repeat;
+	background: linear-gradient(115deg, transparent 30%, #bff0dc 42%, #ffffff 50%, #d9c8ff 58%, #ffd6c2 64%, transparent 76%) 0 0 / 300% 100% no-repeat;
+	animation: oc-pearl-sheen 2.4s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+.oc-loader-shadow {
+	width: calc(var(--oc-pearl-w) * 0.62); height: 6px; margin-top: 10px; border-radius: 50%;
+	background: radial-gradient(closest-side, color-mix(in srgb, var(--oc-fg) 16%, transparent), transparent);
+	animation: oc-pearl-shadow 2.4s ease-in-out infinite;
+}
+.oc-loader-line { position: relative; width: 72px; height: 1px; margin-top: 14px; overflow: hidden; border-radius: 1px; background: var(--oc-ink-8); }
+.oc-loader-line::after {
+	content: ''; position: absolute; top: 0; bottom: 0; width: 45%;
+	background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--oc-fg) 55%, transparent), transparent);
+	animation: oc-scan 1.4s var(--oc-glide) infinite;
+}
+@keyframes oc-pearl-float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-5px) rotate(-2deg); } }
+@keyframes oc-pearl-shadow { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.82); opacity: 0.6; } }
+@keyframes oc-pearl-sheen { 0% { background-position: 100% 0; } 55%, 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+	.oc-loader-mark, .oc-loader-shadow, .oc-loader-sheen { animation: none; }
+}

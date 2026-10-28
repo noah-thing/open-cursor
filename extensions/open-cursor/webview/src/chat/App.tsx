@@ -5,6 +5,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactElement } from 'react';
 import type { Chat, ChatMode, ContextItem } from '../../../src/shared/protocol';
 import { Icon } from '../common/icons';
+import { Loader } from '../common/loader';
 import { Composer } from './composer';
 import { Header, History } from './header';
 import { ConnectBlock, HomeBottom, HomeTop, buildStarters } from './home';
@@ -27,6 +28,10 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 	const scroller = useRef<HTMLDivElement>(null);
 	const content = useRef<HTMLDivElement>(null);
 	const stick = useRef(true);
+	const seen = useRef<{ chatId: string; ids: Set<string> } | undefined>(undefined);
+	if (seen.current?.chatId !== chat.id) {
+		seen.current = { chatId: chat.id, ids: new Set(chat.messages.filter(m => m.role === 'user' || (m as { done?: boolean }).done).map(m => m.id)) };
+	}
 	const [showJump, setShowJump] = useState(false);
 	const running = chat.status === 'running' || chat.status === 'awaiting-approval';
 	const messageCount = chat.messages.length;
@@ -107,7 +112,7 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 			<div className="oc-scroll" ref={scroller} onScroll={onScroll}>
 				<div className="oc-messages" ref={content}>
 					{chat.messages.map(m => (
-						<div key={m.id} className={'oc-msg is-' + m.role} data-mid={m.id}>
+						<div key={m.id} className={'oc-msg is-' + m.role + (seen.current!.ids.has(m.id) ? ' is-history' : '')} data-mid={m.id}>
 							{m.role === 'user' ? (
 								<UserBubble message={m} chatId={chat.id} running={running} editing={editingId === m.id} onEditChange={e => setEditingId(e ? m.id : undefined)} />
 							) : (
@@ -258,7 +263,20 @@ export function App(): ReactElement {
 	const chat = (state.activeId ? state.chats[state.activeId] : undefined) ?? (state.ready ? shown.current : undefined);
 	shown.current = chat;
 	const wide = useWide();
-	const { stageRef, dockRef } = useStageMotion(!!chat && chat.messages.length === 0);
+	const isHome = !!chat && chat.messages.length === 0;
+	const { stageRef, dockRef } = useStageMotion(isHome);
+	// Coming back to the start screen, the connect panel waits until the composer has glided into
+	// place; building it mid-glide is what made the first New chat stutter.
+	const [connectReady, setConnectReady] = useState(true);
+	const wasHome = useRef(isHome);
+	useLayoutEffect(() => {
+		const entering = isHome && !wasHome.current;
+		wasHome.current = isHome;
+		if (!entering) { return; }
+		setConnectReady(false);
+		const t = setTimeout(() => setConnectReady(true), 360);
+		return () => clearTimeout(t);
+	}, [isHome]);
 
 	const onEditLast = useCallback((): boolean => {
 		const s = stateRef.current;
@@ -275,7 +293,7 @@ export function App(): ReactElement {
 		return (
 			<div className="oc-app">
 				<Header summaries={state.summaries} openIds={state.openIds} activeId={state.activeId} view={state.view} onView={v => dispatch({ kind: 'view', view: v })} />
-				<div className="oc-loading"><span className="is-shimmer">Loading</span></div>
+				<Loader />
 			</div>
 		);
 	}
@@ -378,7 +396,7 @@ export function App(): ReactElement {
 							starters={starters}
 							recent={recent.slice(1)}
 							onPick={pickChat}
-							connect={!hasModel || !state.connectHidden ? (
+							connect={connectReady && (!hasModel || !state.connectHidden) ? (
 								<ConnectBlock
 									agents={state.agents}
 									local={state.local}

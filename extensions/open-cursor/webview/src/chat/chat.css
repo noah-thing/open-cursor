@@ -776,3 +776,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-menu-item.is-connect .oc-menu-label { color: var(--oc-fg-2); }
 .oc-menu-cta { font-size: 11.5px; color: var(--oc-link); flex: none; }
 .oc-model-chip.is-unready { color: var(--oc-warn); }
+
+/* Opening a chat shows its history at once; only messages that arrive now animate in. */
+.oc-msg.is-history, .oc-msg.is-history * { animation: none !important; }

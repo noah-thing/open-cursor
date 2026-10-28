@@ -72,6 +72,8 @@ export function buildStarters({ hasFolder, hasModel, recent, onMode, onPick }: {
 const ORDER = ['claude-code', 'codex', 'grok', 'gemini-cli'];
 
 type Tab = 'subs' | 'local' | 'keys';
+
+let lastConnectRequest = 0;
 const TABS: { id: Tab; label: string }[] = [{ id: 'subs', label: 'Subscriptions' }, { id: 'local', label: 'Local' }, { id: 'keys', label: 'API keys' }];
 
 function Logo({ id, fallback }: { readonly id: string; readonly fallback: IconName }): ReactElement {
@@ -104,7 +106,12 @@ export function ConnectBlock({ agents, local, providers, results, modelId, neede
 }): ReactElement {
 	const [tab, setTab] = useState<Tab>(() => agents.some(a => a.installed) ? 'subs' : 'local');
 	const [busy, setBusy] = useState<Record<string, boolean>>({});
-	useEffect(() => { post({ type: 'requestConnect' }); }, []);
+	// Probing servers takes a moment and re-lays out the panel; do it once in a while, not on every visit.
+	useEffect(() => {
+		if (local && Date.now() - lastConnectRequest < 30_000) { return; }
+		lastConnectRequest = Date.now();
+		post({ type: 'requestConnect' });
+	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 	// A result arriving ends the wait for that target.
 	useEffect(() => { setBusy(b => { const n = { ...b }; for (const k of Object.keys(results)) { delete n[k]; } return n; }); }, [results]);
 

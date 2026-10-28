@@ -9,6 +9,7 @@ import {
 	SECTIONS, type ConfigKey, type ConfigValues, type SettingsHostMessage, type SettingsSection, type SettingsState, type SettingsWebviewMessage,
 } from '../../../src/settings/protocol';
 import { Commands, General, Indexing, Mcp, Models, Rules, Subscriptions, TabSection, type VerifyMap } from './sections';
+import { Loader } from '../common/loader';
 
 const api = getVsCode<SettingsWebviewMessage, { section?: SettingsSection }>();
 
@@ -73,7 +74,7 @@ export function App(): ReactElement {
 	}, []);
 
 	if (!state) {
-		return <div className="st-loading">Loading settings</div>;
+		return <div className="st-loading"><Loader size={64} /></div>;
 	}
 
 	const props = { state, verify, set, send };
