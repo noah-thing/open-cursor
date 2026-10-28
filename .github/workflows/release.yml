@@ -20,6 +20,8 @@ permissions:
   contents: write
 
 env:
+  # Authenticated GitHub API calls: the build downloads prebuilt binaries (ripgrep, sysroots) from releases.
+  GITHUB_TOKEN: ${{ github.token }}
   NODE_OPTIONS: --max-old-space-size=8192
   ELECTRON_SKIP_BINARY_DOWNLOAD: 1
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
