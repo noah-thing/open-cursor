@@ -513,3 +513,7 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 	.oc-chip-text { max-width: 90px; }
 	.oc-empty { padding: 14px; }
 }
+
+/* Keep the review summary on one line; the title truncates before the actions wrap. */
+.oc-tray-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.oc-review-actions { white-space: nowrap; }
