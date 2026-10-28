@@ -333,6 +333,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.webviewReady = true;
 		await this.refreshModels(false);
 		const sc = await this.ensureActive();
+		this.repairChat(sc);
 		const openIds = this.store.openChatIds;
 		this.post({
 			type: 'init', chats: this.store.summaries(), openChatIds: openIds, activeChat: sc.chat, models: this.modelOptions,
@@ -467,15 +468,18 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	/** Empty chats still pointing at a model that cannot run move to one that can, so the first message just works. */
 	private repairEmptyChats(): void {
-		const next = this.defaultModelId();
-		if (!this.usable(next)) { return; }
 		for (const sc of this.store.loaded()) {
-			if (sc.chat.messages.length === 0 && !this.usable(sc.chat.modelId) && sc.chat.modelId !== next) {
-				sc.chat.modelId = next;
-				this.store.markDirty(sc.chat.id);
-				this.postChatNow(sc);
-			}
+			if (this.repairChat(sc)) { this.postChatNow(sc); }
 		}
+	}
+
+	private repairChat(sc: StoredChat): boolean {
+		if (sc.chat.messages.length > 0 || !this.modelOptions.length || this.usable(sc.chat.modelId)) { return false; }
+		const next = this.defaultModelId();
+		if (!this.usable(next) || next === sc.chat.modelId) { return false; }
+		sc.chat.modelId = next;
+		this.store.markDirty(sc.chat.id);
+		return true;
 	}
 
 	// ---------------------------------------------------------------- chat lifecycle
@@ -516,6 +520,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	}
 
 	private async activate(sc: StoredChat): Promise<void> {
+		this.repairChat(sc);
 		const open = this.store.openChatIds.includes(sc.chat.id) ? this.store.openChatIds : [...this.store.openChatIds, sc.chat.id];
 		this.store.setOpen(open, sc.chat.id);
 		this.post({ type: 'chat', chat: sc.chat });
