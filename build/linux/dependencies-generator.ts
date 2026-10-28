@@ -57,8 +57,11 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 	const appPath = path.join(buildDir, applicationName);
 	// Add the native modules
 	const files = findResult.stdout.toString().trimEnd().split('\n');
-	// Add the tunnel binary.
-	files.push(path.join(buildDir, 'bin', product.tunnelApplicationName));
+	// Add the tunnel binary. Open Cursor does not build the Rust CLI, so it may not exist.
+	const tunnelPath = path.join(buildDir, 'bin', product.tunnelApplicationName);
+	if (fs.existsSync(tunnelPath)) {
+		files.push(tunnelPath);
+	}
 	// Add the main executable.
 	files.push(appPath);
 	// Add chrome sandbox and crashpad handler.
