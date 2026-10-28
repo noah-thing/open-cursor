@@ -46,7 +46,19 @@ export function matchesPrefix(segment: string, entry: string): boolean {
 	return segment === e || segment.startsWith(e + ' ');
 }
 
-/** Env assignments (`FOO=1 cmd`) and `cd dir &&` do not change what the segment runs. */
+const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+/** Flags that make an otherwise harmless allowlisted command run programs or write files. */
+const RISKY_FLAGS = ['--pre', '--output', '--ext-diff', '--exec', '-exec'];
+
+/** True when the segment carries a flag that can execute a program or write a file (`rg --pre sh`, `git diff --output=x`, `find -exec`). */
+export function hasRiskyFlag(segment: string): boolean {
+	const tokens = segment.split(' ');
+	const tool = tokens[0];
+	return tokens.slice(1).some(t => RISKY_FLAGS.some(f => t === f || t.startsWith(f + '=')) || ((tool === 'git' || tool === 'rg') && t === '-o'));
+}
+
+/** Drops leading `NAME=value` assignments. Only used to suggest an allow prefix, never for allowlist matching. */
 function stripLeading(segment: string): string {
 	let s = segment;
 	while (/^[A-Za-z_][A-Za-z0-9_]*=\S*\s+/.test(s)) { s = s.replace(/^[A-Za-z_][A-Za-z0-9_]*=\S*\s+/, ''); }
@@ -69,8 +81,11 @@ export function needsApproval(cmd: string, policy: ApprovalPolicy): boolean {
 	const segments = splitSegments(cmd);
 	if (!segments || segments.length === 0) { return true; }
 	return !segments.every(raw => {
-		const seg = stripLeading(raw);
+		const seg = raw;
+		// `FOO=1 cmd` can change what cmd does (LD_PRELOAD, GIT_EXTERNAL_DIFF, PATH): always ask
+		if (ENV_ASSIGN.test(seg)) { return false; }
 		if (/^cd(\s|$)/.test(seg)) { return true; }
+		if (hasRiskyFlag(seg)) { return false; }
 		return policy.allowlist.some(a => matchesPrefix(seg, a)) || [...(policy.sessionAllow ?? [])].some(a => matchesPrefix(seg, a));
 	});
 }

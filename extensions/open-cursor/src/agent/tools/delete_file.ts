@@ -30,6 +30,9 @@ export const deleteFile: ToolDef<Args> = {
 			if (type === undefined) { return { content: `File not found: ${p}`, isError: true }; }
 			if (type & vscode.FileType.Directory) { return { content: `${p} is a directory; delete_file only deletes files.`, isError: true }; }
 			const before = await readDocumentText(uri);
+			if (before === undefined || before.slice(0, 8000).includes('\u0000')) {
+				return { content: `${p} cannot be read as text (binary or too large); refusing to delete it.`, isError: true };
+			}
 			capture(ctx, uri, before);
 			await ctx.services.pendingEdits.deleteFile(uri, ctx.chatId);
 			const where = toDisplayPath(uri);

@@ -6,9 +6,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as path from 'path';
 import type { ToolPart } from '../shared/protocol';
 import { ApprovalBroker, type ApprovalDecision, type ApprovalRequest } from './approvalBroker';
 import { GitTracker } from './fileTracker';
+import { isDenied, DEFAULT_DENYLIST } from '../agent/approval';
 import { commandAllowed } from './policy';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
 import { arr, countLines, displayPath, friendlyError, num, oneLine, parseJson, readTextFile, rec, resolveInCwd, spawnCli, str, truncate } from './util';
@@ -356,6 +358,14 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 			const p = filePathOf(input);
 			if (p) {
 				const abs = resolveInCwd(o.cwd, p);
+				const rel = path.relative(o.cwd, abs);
+				if (o.autoRun !== 'always' && (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel))) {
+					const v = claudeToolView(toolName, input, 'run', o.cwd);
+					const outside: ToolPart = { type: 'tool', id: req.toolUseId ?? `approval-${Date.now()}`, name: v.name, args: input, status: 'awaiting-approval', title: v.title, command: v.command };
+					if ((await host.requestApproval(outside)) === 'skip') {
+						return { behavior: 'deny', message: 'The user declined editing a file outside the workspace in Open Cursor.' };
+					}
+				}
 				if (!originals.has(abs)) {
 					const text = readTextFile(abs);
 					if (text !== 'skip') {
@@ -371,8 +381,10 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 		}
 		const isBash = toolName === 'Bash';
 		const command = isBash ? str(input.command) ?? '' : undefined;
-		const key = isBash ? 'Bash:' + (command ?? '').trim().split(/\s+/).slice(0, 2).join(' ') : toolName;
-		if (alwaysTools.has(key) || (isBash && o.autoRun === 'allowlist' && commandAllowed(command ?? '', o.commandAllowlist))) {
+		// "allow always" remembers the exact normalised command, never a prefix; the denylist always wins
+		const denied = isBash && isDenied(command ?? '', DEFAULT_DENYLIST);
+		const key = isBash ? 'Bash:' + (command ?? '').replace(/\s+/g, ' ').trim() : toolName;
+		if (!denied && (alwaysTools.has(key) || (isBash && o.autoRun === 'allowlist' && commandAllowed(command ?? '', o.commandAllowlist)))) {
 			return { behavior: 'allow', updatedInput: input };
 		}
 		const v = claudeToolView(toolName, input, 'run', o.cwd);
@@ -381,7 +393,7 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 		if (answer === 'skip') {
 			return { behavior: 'deny', message: 'The user declined this action in Open Cursor.' };
 		}
-		if (answer === 'allowAlways') {
+		if (answer === 'allowAlways' && !denied) {
 			alwaysTools.add(key);
 		}
 		return { behavior: 'allow', updatedInput: input };

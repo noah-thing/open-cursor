@@ -412,7 +412,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private async deleteChat(chatId: string): Promise<void> {
 		const rt = this.runtimes.get(chatId);
-		if (rt?.running) { rt.abort?.abort(); await rt.idle; }
+		if (rt?.running) {
+			const dying = await this.store.get(chatId);
+			if (dying) { dying.chat.queued = []; }
+			rt.abort?.abort();
+			await rt.idle;
+		}
 		this.runtimes.delete(chatId);
 		try { this.services.checkpoints.dispose(chatId); } catch { /* ignore */ }
 		const wasActive = this.store.activeChatId === chatId;
@@ -602,12 +607,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const sc = await this.store.get(chatId);
 		if (!sc) { return; }
 		const rt = this.runtime(chatId);
-		if (rt.running) { await this.stop(chatId); await rt.idle; }
+		if (rt.running) { sc.chat.queued = []; await this.stop(chatId); await rt.idle; }
 		const idx = sc.chat.messages.findIndex(m => m.id === messageId && m.role === 'user');
 		if (idx === -1) { return; }
 		const target = sc.chat.messages[idx] as UserMessage;
 		if (revert && target.checkpointId) {
-			try { await this.services.checkpoints.restore(chatId, target.checkpointId); } catch (e) { void vscode.window.showWarningMessage(`Could not restore files: ${e instanceof Error ? e.message : String(e)}`); }
+			try { await this.services.checkpoints.restore(chatId, target.checkpointId); } catch (e) { void vscode.window.showWarningMessage(`Could not restore files: ${e instanceof Error ? e.message : String(e)}`); return; }
 		}
 		this.truncateFrom(sc, idx);
 		sc.chat.queued = [];
@@ -618,7 +623,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const sc = await this.store.get(chatId);
 		if (!sc) { return; }
 		const rt = this.runtime(chatId);
-		if (rt.running) { await this.stop(chatId); await rt.idle; }
+		if (rt.running) { sc.chat.queued = []; await this.stop(chatId); await rt.idle; }
 		const idx = sc.chat.messages.findIndex(m => m.id === messageId && m.role === 'user');
 		if (idx === -1) { return; }
 		const target = sc.chat.messages[idx] as UserMessage;
@@ -722,7 +727,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			void this.generateChatTitle(sc, userText).catch(() => undefined);
 		}
 		// queued messages go out in order
-		const next = sc.chat.queued[0];
+		const next = rt.stopped ? undefined : sc.chat.queued[0];
 		if (next && !this.disposed) {
 			sc.chat.queued = sc.chat.queued.slice(1);
 			this.touch(sc);
@@ -906,7 +911,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private async confirmOutside(absPath: string, action: string, signal: AbortSignal): Promise<boolean> {
 		if (signal.aborted) { return false; }
-		const choice = await vscode.window.showWarningMessage(`Open Cursor wants to change a file outside the workspace.`, { modal: true, detail: `${action}: ${absPath}` }, 'Allow');
+		const choice = await vscode.window.showWarningMessage(`Open Cursor wants to access a path outside the workspace.`, { modal: true, detail: `${action}: ${absPath}` }, 'Allow');
 		return choice === 'Allow' && !signal.aborted;
 	}
 
@@ -971,9 +976,9 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		void resolvedTexts;
 		const images = content.filter((c): c is Extract<LLMContent, { type: 'image' }> => c.type === 'image').map(c => ({ mediaType: c.mediaType, data: c.data }));
 
-		// Edit capture. IPendingEdits.applyContent snapshots the CURRENT content as the original on first touch, and a CLI
-		// writes to disk itself. So: remember the original (onFileOriginal), and on the first change read the new content,
-		// silently write the original back to disk, then call applyContent(new content). The review then diffs original -> new.
+		// Edit capture. A CLI writes to disk itself. We remember the original (onFileOriginal) and on the first change hand
+		// the captured original to applyContent as the session's original, so the review diffs original -> new without
+		// ever writing the original back to disk while the agent is running.
 		const originals = new Map<string, string | undefined>();
 		const reviewed = new Set<string>();
 		let chain: Promise<void> = Promise.resolve();
@@ -986,7 +991,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			const hasOriginal = originals.has(key);
 			const before = originals.get(key);
 			if (after === undefined) {
-				// deleted by the CLI: put the file back, then delete through the review
+				// deleted by the CLI: deleteFile needs the file to exist, so this one case restores it first (the review then owns the deletion)
 				if (hasOriginal && before !== undefined && !reviewed.has(key)) {
 					reviewed.add(key);
 					await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(before));
@@ -994,15 +999,15 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 				}
 				return;
 			}
+			let override: string | null | undefined;
 			if (!reviewed.has(key)) {
 				reviewed.add(key);
 				if (hasOriginal) {
 					if (before === after) { reviewed.delete(key); return; }
-					if (before === undefined) { try { await vscode.workspace.fs.delete(uri); } catch { /* ignore */ } }
-					else { await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(before)); }
+					override = before ?? null;
 				}
 			}
-			await edits.applyContent(uri, after, 'agent', sc.chat.id);
+			await edits.applyContent(uri, after, 'agent', sc.chat.id, override);
 		};
 
 		const result = await this.services.cli.runTurn({

@@ -43,8 +43,12 @@ export interface IPendingEdits {
 	 * review session its original content is snapshotted, so later Undo restores it exactly.
 	 * Writes through a WorkspaceEdit so the editor buffer, undo stack and dirty state are right,
 	 * then saves the file. `source` is 'agent' or 'inline' (Cmd+K).
+	 * `originalOverride`: when no session exists yet and the file was already changed on disk by someone else (a CLI agent),
+	 * the text the review should diff against (null = the file did not exist). Ignored if a session exists.
+	 * `expectedBefore`: if given (null = file must not exist), the write is refused with an Error when the live text differs,
+	 * making read-modify-write atomic.
 	 */
-	applyContent(uri: vscode.Uri, newContent: string, source: 'agent' | 'inline', chatId?: string): Promise<{ added: number; removed: number; isNew: boolean }>;
+	applyContent(uri: vscode.Uri, newContent: string, source: 'agent' | 'inline', chatId?: string, originalOverride?: string | null, expectedBefore?: string | null): Promise<{ added: number; removed: number; isNew: boolean }>;
 	deleteFile(uri: vscode.Uri, chatId?: string): Promise<void>;
 	getFiles(): PendingFileEdit[];
 	getHunks(uri: vscode.Uri): PendingHunk[];

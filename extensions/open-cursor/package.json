@@ -168,6 +168,11 @@
 				"category": "Open Cursor"
 			},
 			{
+				"command": "openCursor.import",
+				"title": "Import Settings and Extensions from Cursor or VS Code",
+				"category": "Open Cursor"
+			},
+			{
 				"command": "openCursor.providers.setKey",
 				"title": "Set API Key",
 				"category": "Open Cursor"
@@ -292,6 +297,22 @@
 				"command": "openCursor.diff.prevHunk",
 				"key": "alt+k",
 				"when": "openCursor.diff.hasPending && editorTextFocus"
+			},
+			{
+				"command": "openCursor.diff.nextFile",
+				"key": "alt+l",
+				"when": "openCursor.diff.hasPending && editorTextFocus"
+			},
+			{
+				"command": "openCursor.diff.prevFile",
+				"key": "alt+h",
+				"when": "openCursor.diff.hasPending && editorTextFocus"
+			},
+			{
+				"command": "openCursor.diff.rejectAll",
+				"key": "ctrl+shift+backspace",
+				"mac": "cmd+shift+backspace",
+				"when": "openCursor.diff.hasPending && editorTextFocus && !openCursor.inline.active"
 			},
 			{
 				"command": "openCursor.settings.open",

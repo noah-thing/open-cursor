@@ -5,9 +5,8 @@
 import * as vscode from 'vscode';
 import * as nodePath from 'path';
 import { MAX_FILE_LINES, numberLines } from '../../context/mentions';
-import { resolvePath } from '../../context/paths';
 import { baseName, num, str, type ToolDef } from './types';
-import { exists, msg, readDocumentText, toDisplayPath } from './fsutil';
+import { exists, msg, readDocumentText, resolveForRead, toDisplayPath } from './fsutil';
 
 const IMAGES: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' };
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -29,10 +28,12 @@ export const readFile: ToolDef<Args> = {
 			required: ['path'],
 		},
 	},
-	async run(args) {
+	async run(args, ctx) {
 		const p = str(args.path);
 		if (!p) { return { content: 'Missing required argument: path', isError: true }; }
-		const { uri } = resolvePath(p);
+		const target = await resolveForRead(p, ctx, 'reading a file');
+		if ('error' in target) { return { content: target.error, isError: true }; }
+		const { uri } = target;
 		const type = await exists(uri);
 		if (type === undefined) { return { content: `File not found: ${p}`, isError: true }; }
 		if (type & vscode.FileType.Directory) { return { content: `${p} is a directory. Use list_dir.`, isError: true }; }

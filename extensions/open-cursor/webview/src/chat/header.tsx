@@ -188,7 +188,8 @@ export function History({ summaries, activeId, onPick }: {
 	);
 }
 
-export function EmptyState({ chat, recent, workspaceName, onPick, submitWithModEnter }: {
+export function EmptyState({ chat, recent, workspaceName, onPick, submitWithModEnter, hasUsableModel }: {
+	readonly hasUsableModel: boolean;
 	readonly chat: Chat;
 	readonly recent: readonly ChatSummary[];
 	readonly workspaceName: string | undefined;
@@ -214,6 +215,23 @@ export function EmptyState({ chat, recent, workspaceName, onPick, submitWithModE
 				<div className="oc-empty-title">{workspaceName ? workspaceName : 'New chat'}</div>
 				<div className="oc-empty-sub">{MODE_META[chat.mode].hint}</div>
 			</div>
+			{!hasUsableModel ? (
+				<div className="oc-setup">
+					<div className="oc-empty-label">Connect a model</div>
+					<button type="button" className="oc-setup-item" onClick={() => post({ type: 'openSettings', section: 'subscriptions' })}>
+						<span className="oc-setup-title">Use a subscription you already have</span>
+						<span className="oc-setup-sub">Claude Code, Codex or Gemini CLI, signed in on this machine</span>
+					</button>
+					<button type="button" className="oc-setup-item" onClick={() => post({ type: 'openSettings', section: 'models' })}>
+						<span className="oc-setup-title">Add an API key</span>
+						<span className="oc-setup-sub">Anthropic, OpenAI, Gemini, OpenRouter, DeepSeek and more</span>
+					</button>
+					<button type="button" className="oc-setup-item" onClick={() => post({ type: 'openSettings', section: 'models' })}>
+						<span className="oc-setup-title">Run a model locally</span>
+						<span className="oc-setup-sub">Start Ollama or LM Studio and it shows up here, free and offline</span>
+					</button>
+				</div>
+			) : null}
 			<ul className="oc-hints">
 				{hints.map(h => (
 					<li key={h.label}>

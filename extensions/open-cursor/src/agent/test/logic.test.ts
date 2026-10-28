@@ -24,6 +24,19 @@ test('approval: allowlist', () => {
 	assert.strictEqual(needsApproval('ls 2>&1', p), false);
 	assert.strictEqual(needsApproval('echo $(rm x)', p), true);
 	assert.strictEqual(needsApproval('lsof -i', p), true, 'prefix must end at a word boundary');
+	assert.strictEqual(needsApproval('FOO=1 ls', p), true, 'env assignment requires approval');
+	assert.strictEqual(needsApproval('GIT_EXTERNAL_DIFF=./x git diff', p), true);
+	assert.strictEqual(needsApproval('cd src && FOO=1 ls', p), true);
+	assert.strictEqual(needsApproval('rg --pre ./evil.sh foo', p), true);
+	assert.strictEqual(needsApproval('rg --pre=./evil.sh foo', p), true);
+	assert.strictEqual(needsApproval('rg -o foo', p), true);
+	assert.strictEqual(needsApproval('git log -o out.txt', p), true);
+	assert.strictEqual(needsApproval('git diff --output=out.patch', p), true);
+	assert.strictEqual(needsApproval('git diff --ext-diff', p), true);
+	assert.strictEqual(needsApproval('tree --output x', p), true);
+	assert.strictEqual(needsApproval('tail -exec x', p), true);
+	assert.strictEqual(needsApproval('grep -o foo file', p), false, '-o is only blocked for git and rg');
+	assert.strictEqual(needsApproval('rg foo src', p), false);
 });
 test('approval: modes and denylist', () => {
 	assert.strictEqual(needsApproval('npm install', policy('always')), false);

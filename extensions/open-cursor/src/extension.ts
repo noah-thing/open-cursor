@@ -18,6 +18,7 @@ import { registerInlineEdit } from './inline/inlineEdit';
 import { registerTerminalCmdK } from './terminal/cmdK';
 import { registerCommitMessage } from './scm/commitMessage';
 import { registerSettings } from './settings/panel';
+import { registerImporter } from './migrate/importer';
 
 export function activate(ctx: vscode.ExtensionContext): void {
 	const registry = createProviderRegistry(ctx);
@@ -39,6 +40,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	registerTerminalCmdK(ctx, services);
 	registerCommitMessage(ctx, services);
 	registerSettings(ctx, services);
+	registerImporter(ctx);
 }
 
 export function deactivate(): void { }

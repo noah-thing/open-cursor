@@ -145,13 +145,37 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 	}
 
 	// ---- IPendingEdits ---------------------------------------------------------------------
-	async function applyContent(uri: vscode.Uri, newContent: string, source: 'agent' | 'inline', chatId?: string) {
+	async function statType(uri: vscode.Uri): Promise<vscode.FileType | undefined> {
+		try {
+			return (await vscode.workspace.fs.stat(uri)).type;
+		} catch {
+			return undefined;
+		}
+	}
+
+	async function applyContent(uri: vscode.Uri, newContent: string, source: 'agent' | 'inline', chatId?: string, originalOverride?: string | null, expectedBefore?: string | null) {
 		return excl(async () => {
 			const key = keyOf(uri);
 			let s = sessions.get(key);
+			if (expectedBefore !== undefined) {
+				// Atomic read-modify-write: the caller computed newContent from expectedBefore (null = file must not exist).
+				const live = await readCurrent(uri);
+				const same = expectedBefore === null ? live === undefined : live === norm(expectedBefore);
+				if (!same) {
+					throw new Error('The file changed since it was read. Read it again and retry.');
+				}
+			}
 			if (!s) {
 				const cur = await readCurrent(uri);
-				s = { uri, key, original: cur ?? '', existed: cur !== undefined, deleted: false, current: cur ?? '', source, chatId, hunks: [] };
+				if (cur === undefined && originalOverride === undefined && (await statType(uri)) !== undefined) {
+					throw new Error('The existing file cannot be read as text, so it was not overwritten.');
+				}
+				if (originalOverride !== undefined) {
+					// The caller already changed the file on disk (CLI agents): the review starts from the caller's original.
+					s = { uri, key, original: originalOverride === null ? '' : norm(originalOverride), existed: originalOverride !== null, deleted: false, current: cur ?? '', source, chatId, hunks: [] };
+				} else {
+					s = { uri, key, original: cur ?? '', existed: cur !== undefined, deleted: false, current: cur ?? '', source, chatId, hunks: [] };
+				}
 			} else {
 				s.source = source;
 				s.chatId = chatId ?? s.chatId;
@@ -178,7 +202,7 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 			if (!s) {
 				const cur = await readCurrent(uri);
 				if (cur === undefined) {
-					return;
+					throw new Error((await statType(uri)) === undefined ? 'File not found.' : 'The file cannot be read as text, so it was not deleted.');
 				}
 				s = { uri, key, original: cur, existed: true, deleted: false, current: cur, source: 'agent', chatId, hunks: [] };
 			}
@@ -360,6 +384,15 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		for (const uri of e.files) {
 			const s = sessions.get(keyOf(uri));
 			if (s && !s.deleted) {
+				endSession(s);
+			}
+		}
+	}));
+
+	disposables.push(vscode.workspace.onDidRenameFiles(e => {
+		for (const { oldUri } of e.files) {
+			const s = sessions.get(keyOf(oldUri));
+			if (s) {
 				endSession(s);
 			}
 		}

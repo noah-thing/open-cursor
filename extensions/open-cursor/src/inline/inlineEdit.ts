@@ -21,8 +21,8 @@ export interface InlineSubmitArgs {
 interface Session {
 	uri: vscode.Uri;
 	instructions: string[];
-	/** Full document text before this session's first apply (for reject / cancel of the first run). */
-	baseText: string;
+	/** The text the user originally selected (what Undo puts back into the replaced range). */
+	original: string;
 	/** Text before / after the edited region and the replacement currently in the document. */
 	before: string;
 	after: string;
@@ -46,6 +46,32 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 	async function status(sessionId: string, state: 'generating' | 'done' | 'error', message?: string): Promise<void> {
 		listeners.get(sessionId)?.(state, message);
 		try { await vscode.commands.executeCommand('_openCursor.inline.status', sessionId, state, message); } catch { /* stock VS Code: no core box */ }
+	}
+
+	/**
+	 * Re-anchor `s.before` / `s.after` on the current replacement when the user edited elsewhere in the file.
+	 * Returns false when the replacement can no longer be found (the user edited inside it or removed it).
+	 */
+	async function relocate(s: Session): Promise<boolean> {
+		let text: string;
+		try { text = (await vscode.workspace.openTextDocument(s.uri)).getText(); } catch { return false; }
+		if (text === s.before + s.replacement + s.after) { return true; }
+		let idx = -1;
+		if (s.replacement) {
+			let best = Infinity;
+			for (let i = text.indexOf(s.replacement); i >= 0; i = text.indexOf(s.replacement, i + 1)) {
+				const d = Math.abs(i - s.before.length);
+				if (d < best) { best = d; idx = i; }
+			}
+		} else if (text.startsWith(s.before)) {
+			idx = s.before.length;
+		} else if (text.endsWith(s.after)) {
+			idx = text.length - s.after.length;
+		}
+		if (idx < 0) { return false; }
+		s.before = text.slice(0, idx);
+		s.after = text.slice(idx + s.replacement.length);
+		return true;
 	}
 
 	function eolOf(doc: vscode.TextDocument): string { return doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n'; }
@@ -76,7 +102,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 			s.instructions.push(args.prompt);
 		} else {
 			region = computeRegion(text, args.selection);
-			s = { uri, instructions: [args.prompt], baseText: text, before: region.before, after: region.after, replacement: region.selected, startLine: region.startLine, kind: region.kind, applied: false };
+			s = { uri, instructions: [args.prompt], original: region.selected, before: region.before, after: region.after, replacement: region.selected, startLine: region.startLine, kind: region.kind, applied: false };
 			sessions.set(args.sessionId, s);
 		}
 		const session = s;
@@ -99,11 +125,13 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		const toDoc = (code: string) => (eol === '\r\n' ? code.replace(/\r?\n/g, '\r\n') : code);
 		let lastApplied: string | undefined = followUp ? previousReplacement : undefined;
 		let applying: Promise<void> = Promise.resolve();
+		let lost = false;
 		const applyNow = (code: string): Promise<void> => {
 			if (code === lastApplied) { return applying; }
 			lastApplied = code;
 			applying = applying.then(async () => {
 				if (ac.signal.aborted) { return; }
+				if (!(await relocate(session))) { lost = true; ac.abort(); return; }
 				const repl = toDoc(code);
 				await services.pendingEdits.applyContent(uri, session.before + repl + session.after, 'inline');
 				session.replacement = repl;
@@ -123,7 +151,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 				if (ev.type === 'done' && ev.stopReason === 'error') { throw new Error('The model stopped with an error.'); }
 			}
 			clearInterval(timer);
-			if (ac.signal.aborted) { await applying; return; }
+			if (ac.signal.aborted) { await applying; if (lost) { await status(args.sessionId, 'error', 'File changed during edit'); } return; }
 			const finalCode = parser.finish();
 			if (!finalCode.trim() && region.selected.trim() === '') { throw new Error('The model returned no code.'); }
 			if (!finalCode.trim() && !parser.text.trim()) { throw new Error('The model returned no code.'); }
@@ -132,17 +160,18 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 			await status(args.sessionId, 'done');
 		} catch (err) {
 			clearInterval(timer);
-			if (ac.signal.aborted) { await applying; return; }
+			if (ac.signal.aborted) { await applying; if (lost) { await status(args.sessionId, 'error', 'File changed during edit'); } return; }
 			await applying;
 			// Put the document back to the last good state so a failed run leaves no half edit.
 			try {
-				if (session.applied) {
+				if (session.applied && await relocate(session)) {
 					const good = followUp ? previousReplacement : undefined;
 					if (good !== undefined) {
 						await services.pendingEdits.applyContent(uri, session.before + good + session.after, 'inline');
 						session.replacement = good;
 					} else {
-						await services.pendingEdits.applyContent(uri, session.baseText, 'inline');
+						await services.pendingEdits.applyContent(uri, session.before + session.original + session.after, 'inline');
+						session.replacement = session.original;
 						session.applied = false;
 					}
 				}
@@ -161,9 +190,9 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		s.abort = undefined;
 		// Aborting mid stream leaves a partial edit: restore the last complete state.
 		try {
-			if (s.applied) {
+			if (s.applied && await relocate(s)) {
 				if (s.prior === undefined) {
-					await services.pendingEdits.applyContent(s.uri, s.baseText, 'inline');
+					await services.pendingEdits.applyContent(s.uri, s.before + s.original + s.after, 'inline');
 					s.applied = false;
 					s.replacement = '';
 				} else {
@@ -189,12 +218,14 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		s.abort?.abort();
 		sessions.delete(sessionId);
 		if (!s.applied) { return; }
-		// Precise undo of this session's change; fall back to the whole-file restore.
+		// Undo only the replaced range; edits the user made elsewhere in the file stay.
 		try {
-			await services.pendingEdits.applyContent(s.uri, s.baseText, 'inline');
-			if (services.pendingEdits.getHunks(s.uri).length === 0) { return; }
-		} catch { /* fall through */ }
-		await services.pendingEdits.rejectFile(s.uri);
+			if (await relocate(s)) {
+				await services.pendingEdits.applyContent(s.uri, s.before + s.original + s.after, 'inline');
+				return;
+			}
+		} catch { /* report below */ }
+		void vscode.window.showWarningMessage('Open Cursor could not undo the inline edit because the file changed around it. Use Undo File in the review bar.');
 	}
 
 	async function openFallback(): Promise<void> {

@@ -54,10 +54,10 @@ export function createCheckpoints(ctx: vscode.ExtensionContext, options: Checkpo
 
 	function saveBlob(hash: string, content: string): void {
 		if (writtenBlobs.has(hash)) { return; }
-		writtenBlobs.add(hash);
 		queue(async () => {
 			await vscode.workspace.fs.createDirectory(blobsDir);
 			await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(blobsDir, hash), Buffer.from(content, 'utf8'));
+			writtenBlobs.add(hash);
 		});
 	}
 
@@ -113,6 +113,7 @@ export function createCheckpoints(ctx: vscode.ExtensionContext, options: Checkpo
 		const uris = [...plan.keys()].map(k => vscode.Uri.parse(k));
 		options.onRestore?.(uris);
 		let count = 0;
+		const failed: string[] = [];
 		for (const [key, hash] of plan) {
 			const uri = vscode.Uri.parse(key);
 			try {
@@ -125,7 +126,12 @@ export function createCheckpoints(ctx: vscode.ExtensionContext, options: Checkpo
 				count++;
 			} catch (e) {
 				console.error('[open-cursor] checkpoint restore failed for', key, e);
+				failed.push(`${key} (${e instanceof Error ? e.message : String(e)})`);
 			}
+		}
+		if (failed.length) {
+			// keep the records so the restore can be retried
+			throw new Error(`${failed.length} file${failed.length === 1 ? '' : 's'} could not be restored: ${failed.slice(0, 3).join('; ')}${failed.length > 3 ? '; ...' : ''}`);
 		}
 		// Later checkpoints have been undone; the target stays so it can be restored again.
 		const idx = recs.findIndex(r => r.id === checkpointId);

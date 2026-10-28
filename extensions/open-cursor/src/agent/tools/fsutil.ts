@@ -30,6 +30,18 @@ export async function resolveForWrite(p: string, ctx: ToolContext, action: strin
 	return { uri: r.uri };
 }
 
+/** Resolve a path for a read-only tool; asks the user when it lies outside the workspace. */
+export async function resolveForRead(p: string, ctx: ToolContext, action: string): Promise<{ uri: vscode.Uri } | { error: string }> {
+	const r = resolvePath(p);
+	if (!r.inWorkspace) {
+		const ok = await ctx.confirmOutsideWorkspace(r.uri.scheme === 'file' ? r.uri.fsPath : r.uri.toString(), action);
+		if (!ok) {
+			return { error: `The user did not allow ${action} outside the workspace (${r.uri.fsPath}).` };
+		}
+	}
+	return { uri: r.uri };
+}
+
 /** Run a mutating step with checkpoint capture. `before` is the content on disk/buffer before the write. */
 export function capture(ctx: ToolContext, uri: vscode.Uri, before: string | undefined): void {
 	if (ctx.checkpointId) {

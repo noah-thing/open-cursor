@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { primaryRoot, resolvePath, toDisplayPath } from '../../context/paths';
+import { primaryRoot, toDisplayPath } from '../../context/paths';
 import { baseName, num, str, type ToolDef } from './types';
-import { msg } from './fsutil';
+import { msg, resolveForRead } from './fsutil';
 
 interface Args { path?: string; depth?: number }
 
@@ -25,9 +25,16 @@ export const listDir: ToolDef<Args> = {
 			},
 		},
 	},
-	async run(args) {
+	async run(args, ctx) {
 		const p = str(args.path) || '.';
-		const uri = p === '.' || p === '' ? primaryRoot() : resolvePath(p).uri;
+		let uri: vscode.Uri | undefined;
+		if (p === '.' || p === '') {
+			uri = primaryRoot();
+		} else {
+			const target = await resolveForRead(p, ctx, 'listing a directory');
+			if ('error' in target) { return { content: target.error, isError: true }; }
+			uri = target.uri;
+		}
 		if (!uri) { return { content: 'No workspace folder is open.', isError: true }; }
 		const maxDepth = Math.min(4, Math.max(1, Math.floor(num(args.depth) ?? 1)));
 		const lines: string[] = [];

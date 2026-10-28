@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { resolvePath, toDisplayPath } from '../../context/paths';
+import { toDisplayPath } from '../../context/paths';
 import { clip, str, type ToolDef } from './types';
-import { msg } from './fsutil';
+import { msg, resolveForRead } from './fsutil';
 
 interface Args { glob_pattern?: string; target_directory?: string }
 
@@ -33,10 +33,16 @@ export const globFileSearch: ToolDef<Args> = {
 			const cts = new vscode.CancellationTokenSource();
 			ctx.signal.addEventListener('abort', () => cts.cancel(), { once: true });
 			let found: vscode.Uri[];
+			let searchDir: vscode.Uri | undefined;
+			if (args.target_directory) {
+				const target = await resolveForRead(args.target_directory, ctx, 'searching files');
+				if ('error' in target) { return { content: target.error, isError: true }; }
+				searchDir = target.uri;
+			}
 			const exclude = '{**/node_modules/**,**/.git/**,**/dist/**,**/__pycache__/**}';
 			try {
-				if (args.target_directory) {
-					found = await vscode.workspace.findFiles(new vscode.RelativePattern(resolvePath(args.target_directory).uri, pattern), exclude, 1000, cts.token);
+				if (searchDir) {
+					found = await vscode.workspace.findFiles(new vscode.RelativePattern(searchDir, pattern), exclude, 1000, cts.token);
 				} else {
 					found = await vscode.workspace.findFiles(pattern, exclude, 1000, cts.token);
 				}

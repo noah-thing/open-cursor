@@ -6,9 +6,9 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as nodePath from 'path';
 import { spawn } from 'child_process';
-import { primaryRoot, resolvePath } from '../../context/paths';
+import { primaryRoot } from '../../context/paths';
 import { bool, clip, num, str, type ToolDef } from './types';
-import { msg } from './fsutil';
+import { msg, resolveForRead } from './fsutil';
 
 interface Args {
 	pattern?: string; path?: string; glob?: string; case_insensitive?: boolean;
@@ -102,7 +102,13 @@ export const grep: ToolDef<Args> = {
 			if (c && c > 0) { rgArgs.push('-C', String(Math.min(10, Math.floor(c)))); }
 		}
 		if (args.glob) { rgArgs.push('-g', args.glob); }
-		rgArgs.push('-e', pattern, '--', args.path ? resolvePath(args.path).uri.fsPath : '.');
+		let searchPath = '.';
+		if (args.path) {
+			const target = await resolveForRead(args.path, ctx, 'searching files');
+			if ('error' in target) { return { content: target.error, isError: true }; }
+			searchPath = target.uri.fsPath;
+		}
+		rgArgs.push('-e', pattern, '--', searchPath);
 		try {
 			const r = await runRipgrep(rgArgs, root.fsPath, ctx.signal, limit);
 			if (r.code !== 0 && r.code !== 1 && !r.truncated) {

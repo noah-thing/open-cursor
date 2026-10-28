@@ -224,7 +224,7 @@ export function App(): ReactElement {
 			) : (
 				<>
 					{incomplete ? (
-						<EmptyState chat={effectiveChat} recent={recent} workspaceName={state.workspaceName} onPick={pickChat} submitWithModEnter={state.settings.submitWithModEnter} />
+						<EmptyState chat={effectiveChat} recent={recent} workspaceName={state.workspaceName} onPick={pickChat} submitWithModEnter={state.settings.submitWithModEnter} hasUsableModel={state.models.some(m => m.hasKey)} />
 					) : (
 						<MessageList chat={chat} showThinking={state.settings.showThinking} editingId={editingId} setEditingId={setEditingId} scrollTo={editingId} />
 					)}
