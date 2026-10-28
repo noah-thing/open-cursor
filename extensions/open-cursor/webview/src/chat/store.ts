@@ -235,6 +235,8 @@ function hostReducer(s: State, m: HostMessageExt): State {
 		}
 		case 'showHistory':
 			return { ...s, view: 'history' };
+		case 'showConnect':
+			return { ...s, view: 'chat', connectHidden: false };
 		case 'mentionResults':
 			return s; // consumed by the composer through a subscription
 	}

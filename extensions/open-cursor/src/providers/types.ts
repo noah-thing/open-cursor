@@ -11,9 +11,14 @@ export type ProviderId =
 	| 'xai'
 	| 'mistral'
 	| 'groq'
+	| 'nvidia'
+	| 'zai'
+	| 'sambanova'
 	| 'ollama'
 	| 'lmstudio'
-	| 'custom';
+	| 'custom'
+	/** The Free (auto) router: whichever connected free model still has quota. */
+	| 'free';
 
 export interface ModelInfo {
 	/** Globally unique id used everywhere in OpenCursor: `${provider}/${model}` e.g. `anthropic/claude-sonnet-5-5`. */

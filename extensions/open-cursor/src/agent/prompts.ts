@@ -5,6 +5,7 @@
 
 import type { ChatMode } from '../shared/protocol';
 import { DEBUG_MARKER } from './modes';
+import { buildHelpSystemPrompt, helpCliGuidance } from '../help/prompt';
 
 export interface PromptRule {
 	readonly name: string;
@@ -25,6 +26,8 @@ export interface PromptEnv {
 	readonly agentRules: { name: string; description: string }[];
 	/** True when the model should be told the tool list is limited. */
 	readonly hasMcp?: boolean;
+	/** Help chats: one line per connected model source, so answers start from the real setup. */
+	readonly helpSetup?: string;
 }
 
 const CORE = `You are OpenCursor, an AI coding agent working inside the user's editor (a VS Code based IDE). You help with software engineering tasks by reading and changing the user's workspace with tools.
@@ -108,9 +111,10 @@ You find the root cause of a problem with evidence, fix it, and leave the code c
 ## Finish
 Report briefly: the root cause (with \`path:line\` references), the fix, and the evidence that it works (what you ran, before and after). If you added a regression test, name it. Do not commit or push unless asked.`;
 
-const MODE_TEXT: Record<ChatMode, string> = { agent: AGENT_MODE, ask: ASK_MODE, plan: PLAN_MODE, debug: DEBUG_MODE };
+const MODE_TEXT: Record<Exclude<ChatMode, 'help'>, string> = { agent: AGENT_MODE, ask: ASK_MODE, plan: PLAN_MODE, debug: DEBUG_MODE };
 
 export function buildSystemPrompt(mode: ChatMode, env: PromptEnv): string {
+	if (mode === 'help') { return buildHelpSystemPrompt({ os: env.os, date: env.date, setup: env.helpSetup ?? '' }, true); }
 	const parts: string[] = [CORE, MODE_TEXT[mode]];
 
 	const e: string[] = [`- OS: ${env.os}`];
@@ -143,7 +147,7 @@ export function buildEditorState(env: Pick<PromptEnv, 'activeFile' | 'openFiles'
 }
 
 
-const CLI_GUIDANCE: Record<ChatMode, string> = {
+const CLI_GUIDANCE: Record<Exclude<ChatMode, 'help'>, string> = {
 	agent: `OpenCursor mode: Agent. Work autonomously until the task is done and verified. For work with three or more steps keep a todo list and update it as you go. After changing code, check your work: run the project's lint, typecheck or tests when they exist and are quick, read the result and fix what you broke. If the user asks you to build a plan from earlier in this conversation, follow that plan's steps in order. Finish with a short summary: what changed (path:line references), how you verified it, anything the user must do. Do not commit or push unless asked.`,
 	plan: `OpenCursor mode: Plan. This turn is read only: do not modify, create or delete any file and run only inspection commands. Research the code first. Ask at most two clarifying questions, only if the request is truly ambiguous, and then stop. Otherwise reply with a plan in this structure: Goal (one or two sentences); What I found (facts with path:line references written as inline code like \`src/foo.ts:42\`); Steps (numbered, one small verifiable unit each, naming files and functions; include tests); Risks and unknowns (only real ones); How to verify (exact commands). If you have a todo list tool, create one todo per step in the same order. Do not start implementing; the user will press Build.`,
 	debug: `OpenCursor mode: Debug. Find the root cause with evidence. 1) Reproduce the problem first with the smallest command or test and read the real output. 2) State one to three falsifiable hypotheses. 3) Add temporary instrumentation, and put the literal text ${DEBUG_MARKER} on every temporary line you add (in the log message or a trailing comment). 4) Run, read the output, say which hypothesis it kills. 5) Fix the root cause with the smallest correct change, not the symptom. 6) Re-run the original reproduction to prove the fix. 7) Remove every ${DEBUG_MARKER} line and debug-only file, then grep for ${DEBUG_MARKER} in the files you touched and confirm nothing is found before you finish. Report root cause (path:line), fix, and evidence.`,
@@ -152,5 +156,6 @@ const CLI_GUIDANCE: Record<ChatMode, string> = {
 
 /** Mode guidance for subscription CLI agents (Claude Code, Codex, Gemini CLI, Grok): same intent, free of tool names. */
 export function cliModeGuidance(mode: ChatMode): string {
+	if (mode === 'help') { return helpCliGuidance(process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'); }
 	return CLI_GUIDANCE[mode];
 }

@@ -9,7 +9,7 @@ import type { ChatMode, TodoItem } from '../shared/protocol';
 export const DEBUG_MARKER = 'OC-DEBUG';
 
 export function isReadOnlyMode(mode: ChatMode): boolean {
-	return mode === 'ask' || mode === 'plan';
+	return mode === 'ask' || mode === 'plan' || mode === 'help';
 }
 
 interface Parsed { segments: string[][] }
@@ -186,6 +186,7 @@ export interface ToolLike { readonly name: string; readonly readOnly: boolean }
 /** Why `tool` may not run in `mode`, or undefined when it may. The loop re-checks every call with this. */
 export function toolBlockedReason(mode: ChatMode, tool: ToolLike, args: Record<string, unknown>): string | undefined {
 	if (!isReadOnlyMode(mode)) { return undefined; }
+	if (mode === 'help') { return tool.name === 'open_in_app' ? undefined : 'Help only explains the app and opens places in it; it has no workspace tools.'; }
 	const label = mode === 'plan' ? 'Plan' : 'Ask';
 	if (tool.name === 'run_terminal_cmd') {
 		if (args.is_background === true) { return `${label} mode is read-only: background processes are not allowed.`; }

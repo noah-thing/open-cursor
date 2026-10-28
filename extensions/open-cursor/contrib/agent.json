@@ -62,6 +62,17 @@
 			"command": "openCursor.chat.startTask",
 			"title": "Start a Task in a New Chat",
 			"category": "OpenCursor"
+		},
+		{
+			"command": "openCursor.freeModels.open",
+			"title": "Get Free Models",
+			"category": "OpenCursor"
+		},
+		{
+			"command": "openCursor.help.open",
+			"title": "Get Help",
+			"category": "OpenCursor",
+			"icon": "$(question)"
 		}
 	],
 	"keybindings": [

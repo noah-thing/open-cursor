@@ -7,13 +7,14 @@ import type { IProviderRegistry } from '../services';
 import type { ModelOption } from '../shared/protocol';
 import { CATALOG, ENV_KEYS, KEYLESS, LOCAL, PROVIDER_LABELS, guessModelInfo, modelId } from './catalog';
 import { createAdapter } from './factory';
+import { FREE_AUTO_ID, FREE_CHAIN, FREE_MODELS, FREE_ONLY, isFreeModel } from './free';
 import { ProviderError, type ChatRequest, type FimRequest, type LLMProvider, type ModelInfo, type ProviderId, type StreamEvent } from './types';
 
 const SECRET_PREFIX = 'openCursor.key.';
 const CACHE_KEY = 'openCursor.models.discovery.v1';
 const TTL_MS = 24 * 60 * 60 * 1000;
 
-const PROVIDERS: readonly ProviderId[] = ['anthropic', 'openai', 'google', 'openrouter', 'deepseek', 'xai', 'mistral', 'groq', 'ollama', 'lmstudio', 'custom'];
+const PROVIDERS: readonly ProviderId[] = ['anthropic', 'openai', 'google', 'openrouter', 'deepseek', 'xai', 'mistral', 'groq', 'nvidia', 'zai', 'sambanova', 'ollama', 'lmstudio', 'custom'];
 const KEY_PROVIDERS: readonly ProviderId[] = PROVIDERS.filter(p => !KEYLESS.has(p));
 
 const DEFAULT_BASE: Record<ProviderId, string> = {
@@ -25,9 +26,13 @@ const DEFAULT_BASE: Record<ProviderId, string> = {
 	xai: 'https://api.x.ai/v1',
 	mistral: 'https://api.mistral.ai/v1',
 	groq: 'https://api.groq.com/openai/v1',
+	nvidia: 'https://integrate.api.nvidia.com/v1',
+	zai: 'https://api.z.ai/api/paas/v4',
+	sambanova: 'https://api.sambanova.ai/v1',
 	ollama: 'http://localhost:11434',
 	lmstudio: 'http://localhost:1234/v1',
 	custom: '',
+	free: '',
 };
 
 /** Settings that carry a base URL, per provider. */
@@ -120,6 +125,7 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 
 	private hasKeySync(id: ProviderId): boolean {
 		if (KEYLESS.has(id)) { return true; }
+		if (id === 'free') { return FREE_CHAIN.some(m => this.hasKeySync(m.provider)); }
 		if (id === 'custom') { return !!this.cfg('providers.custom.baseUrl', ''); }
 		return !!this.keys.get(id);
 	}
@@ -216,7 +222,21 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 		if (this.all) { return this.all; }
 		const map = new Map<string, ModelInfo>();
 		for (const m of CATALOG) { map.set(m.id, m); }
-		for (const list of this.discovered.values()) { for (const m of list) { if (!map.has(m.id)) { map.set(m.id, m); } } }
+		for (const [provider, list] of this.discovered) {
+			for (const m of list) {
+				if (FREE_ONLY.has(provider) && !isFreeModel(m.id)) { continue; }
+				if (!map.has(m.id)) { map.set(m.id, m); }
+			}
+		}
+		for (const f of FREE_MODELS) {
+			const id = modelId(f.provider, f.model);
+			const known = map.get(id) ?? guessModelInfo(f.provider, f.model);
+			map.set(id, { ...known, label: f.label, contextWindow: f.contextWindow, maxOutputTokens: Math.min(known.maxOutputTokens, f.contextWindow), supportsTools: true });
+		}
+		map.set(FREE_AUTO_ID, {
+			id: FREE_AUTO_ID, provider: 'free', model: 'auto', label: 'Free (auto)', contextWindow: 128_000, maxOutputTokens: 8192,
+			supportsTools: true, supportsImages: false, supportsThinking: false,
+		});
 		this.overrides.clear();
 		for (const e of this.cfg<CustomEntry[]>('models.custom', [])) {
 			if (!e || !(PROVIDERS as readonly string[]).includes(e.provider) || !e.model) { continue; }
@@ -268,18 +288,62 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 	async listOptions(): Promise<ModelOption[]> {
 		await this.keysLoaded;
 		return this.getModels().map(m => ({
-			id: m.id, label: m.label, provider: m.provider, supportsImages: m.supportsImages, supportsThinking: m.supportsThinking, hasKey: this.hasKeySync(m.provider),
+			id: m.id, label: m.label, provider: m.provider, supportsImages: m.supportsImages, supportsThinking: m.supportsThinking, hasKey: this.hasKeySync(m.provider), free: isFreeModel(m.id),
 		}));
 	}
 
 	async* stream(req: ChatRequest): AsyncGenerator<StreamEvent> {
 		if (req.model.id.startsWith('cli:')) { throw new ProviderError('CLI agent models are not served by the provider registry.', 'custom'); }
 		this.allModels(); // refresh per-model base URL overrides
+		if (req.model.provider === 'free') { yield* this.streamFree(req); return; }
 		yield* this.getProvider(req.model.provider).stream(req);
+	}
+
+	/** Free models that just failed rest a while before Free (auto) tries them again. */
+	private readonly resting = new Map<string, number>();
+
+	/**
+	 * Free (auto): run the request on the first connected free model that has quota, and move on when
+	 * one is rate limited, refuses the key or cannot be reached. Only failures before the first token
+	 * move on; a reply is never stitched together from two models.
+	 */
+	private async* streamFree(req: ChatRequest): AsyncGenerator<StreamEvent> {
+		const now = Date.now();
+		const ready = FREE_CHAIN.filter(m => this.hasKeySync(m.provider));
+		if (!ready.length) { throw new ProviderError('No free model is connected yet. Open Free models to connect one.', 'free', 401, 'auth'); }
+		const key = (m: (typeof ready)[number]) => modelId(m.provider, m.model);
+		const order = [...ready.filter(m => (this.resting.get(key(m)) ?? 0) <= now), ...ready.filter(m => (this.resting.get(key(m)) ?? 0) > now)];
+		let last: unknown;
+		for (const fm of order) {
+			const model = this.getModel(key(fm)) ?? guessModelInfo(fm.provider, fm.model);
+			let started = false;
+			try {
+				for await (const ev of this.getProvider(fm.provider).stream({ ...req, model })) {
+					started = true;
+					yield ev;
+				}
+				this.resting.delete(key(fm));
+				return;
+			} catch (e) {
+				if (started || req.signal?.aborted) { throw e; }
+				last = e;
+				const kind = e instanceof ProviderError ? e.kind : 'other';
+				if (kind === 'context') { throw e; }
+				this.resting.set(key(fm), now + (kind === 'rate' ? 60_000 : kind === 'auth' ? 3_600_000 : 20_000));
+			}
+		}
+		throw last instanceof ProviderError ? new ProviderError(`Every connected free model is busy or out of quota right now. ${last.message}`, 'free', last.status, last.kind) : last;
 	}
 
 	async* fim(req: FimRequest): AsyncGenerator<string> {
 		this.allModels();
+		if (req.model.provider === 'free') {
+			const fm = FREE_CHAIN.find(m => this.hasKeySync(m.provider));
+			if (!fm) { return; }
+			const model = this.getModel(modelId(fm.provider, fm.model)) ?? guessModelInfo(fm.provider, fm.model);
+			yield* this.chatFim(this.getProvider(fm.provider), { ...req, model });
+			return;
+		}
 		const p = this.getProvider(req.model.provider);
 		if (p.fim && req.model.supportsFim) { yield* p.fim(req); return; }
 		yield* this.chatFim(p, req);

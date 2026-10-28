@@ -8,6 +8,7 @@ import type { ContextItem, MessagePart, ToolPart } from '../../../src/shared/pro
 import { Icon, Spinner, type IconName } from '../common/icons';
 import { Markdown } from './markdown';
 import { post } from './host';
+import { HelpJumpRow } from './help';
 import { KIND_ICON, basename, dirname, formatDuration } from './util';
 
 export function ContextPill({ item, onRemove, suggested, onClick }: {
@@ -251,6 +252,7 @@ export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fi
 export const ToolPartView = memo(function ToolPartView({ part, chatId }: { readonly part: ToolPart; readonly chatId: string }): ReactElement {
 	if (part.status === 'awaiting-approval') { return <ApprovalCard part={part} chatId={chatId} />; }
 	if (part.edit) { return <EditRow part={part} />; }
+	if (part.name === 'open_in_app') { return <HelpJumpRow part={part} />; }
 	return <ToolRow part={part} />;
 });
 

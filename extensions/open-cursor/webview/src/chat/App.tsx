@@ -8,6 +8,7 @@ import { Icon } from '../common/icons';
 import { Loader } from '../common/loader';
 import { Composer } from './composer';
 import { Header, History } from './header';
+import { HelpBottom, HelpTop } from './help';
 import { ConnectBlock, HomeBottom, HomeTop, buildStarters } from './home';
 import { onHostMessage, post, saveUiState } from './host';
 import { AssistantBlock, UserBubble } from './messages';
@@ -318,6 +319,7 @@ export function App(): ReactElement {
 	const recent = listed.filter(s => s.id !== chat.id && s.updatedAt > 0).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 4);
 	const effectiveChat: Chat = chat.mode === mode ? chat : { ...chat, mode };
 	const hasModel = state.models.some(m => m.hasKey);
+	const help = mode === 'help' && state.view === 'chat';
 	const starters = buildStarters({
 		hasFolder: !!state.workspaceName,
 		hasModel,
@@ -330,7 +332,7 @@ export function App(): ReactElement {
 	});
 
 	return (
-		<div className={'oc-app' + (wide ? ' is-wide' : '')} style={{ ['--oc-font-size' as string]: state.settings.fontSize ? state.settings.fontSize + 'px' : undefined }}>
+		<div className={'oc-app' + (wide ? ' is-wide' : '') + (help ? ' is-help' : '')} style={{ ['--oc-font-size' as string]: state.settings.fontSize ? state.settings.fontSize + 'px' : undefined }}>
 			{wide ? null : <Header summaries={state.summaries} openIds={state.openIds} activeId={state.activeId} view={state.view} onView={v => dispatch({ kind: 'view', view: v })} />}
 			<div className="oc-body">
 			{wide ? (
@@ -343,6 +345,9 @@ export function App(): ReactElement {
 						<button type="button" className="oc-rail-link" onClick={() => post({ type: 'workbench', action: 'showEditor' })} title="Bring back the editor and files">
 							<Icon name="code" size={14} /> Show editor
 						</button>
+						<button type="button" className={'oc-iconbtn oc-help-btn' + (help ? ' is-on' : '')} title="Get Help" aria-label="Get Help" onClick={() => { post({ type: 'openHelp' }); dispatch({ kind: 'view', view: 'chat' }); }}>
+							<Icon name="lifebuoy" size={15} />
+						</button>
 						<button type="button" className="oc-iconbtn" title="OpenCursor settings" aria-label="Settings" onClick={() => post({ type: 'openSettings' })}>
 							<Icon name="gear" size={15} />
 						</button>
@@ -353,7 +358,7 @@ export function App(): ReactElement {
 				<History summaries={listed} activeId={state.activeId} onPick={pickChat} />
 			) : (
 				<div className={'oc-stage' + (home ? ' is-home' : '')} ref={stageRef}>
-					{home ? (
+					{home && help ? <HelpTop /> : home ? (
 						<HomeTop workspaceName={state.workspaceName} />
 					) : (
 						<MessageList chat={chat} showThinking={state.settings.showThinking} editingId={editingId} setEditingId={setEditingId} scrollTo={editingId} />
@@ -389,7 +394,9 @@ export function App(): ReactElement {
 							}}
 						/>
 					</div>
-					{home ? (
+					{home && help ? (
+						<HelpBottom hasModel={hasModel} onAsk={q => post({ type: 'send', chatId: chat.id, text: q, context: [], mode: 'help', modelId })} />
+					) : home ? (
 						<HomeBottom
 							starters={starters}
 							recent={recent.slice(1)}

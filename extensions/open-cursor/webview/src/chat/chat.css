@@ -660,9 +660,9 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 
 .oc-seg { position: relative; display: flex; gap: 2px; padding: 2px; margin: 0 0 8px; border-radius: 9px; background: var(--oc-ink-4); box-shadow: inset 0 0 0 1px var(--oc-stroke-2); }
 .oc-seg-pill {
-	position: absolute; top: 2px; bottom: 2px; left: 0; border-radius: 7px;
+	position: absolute; top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px - (var(--tabs) - 1) * 2px) / var(--tabs)); border-radius: 7px;
 	background: var(--oc-bg-editor); box-shadow: 0 0 0 1px var(--oc-stroke), 0 1px 2px rgba(0, 0, 0, 0.18);
-	transition: transform 280ms var(--oc-glide), width 280ms var(--oc-glide);
+	transition: transform 280ms var(--oc-glide);
 }
 .oc-seg-tab {
 	position: relative; z-index: 1; flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;
@@ -737,3 +737,173 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 
 /* Opening a chat shows its history at once; only messages that arrive now animate in. */
 .oc-msg.is-history, .oc-msg.is-history * { animation: none !important; }
+
+/*
+ * Help: nacre. A pearl white base with a faint holographic sheen (pink, butter, mint, sky, lilac)
+ * that drifts slowly. Few surfaces carry it, and always at low strength, so it reads as material.
+ */
+@property --oc-nacre-turn { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.oc-app {
+	--oc-help: var(--oc-mode-help);
+	--oc-help-ink: color-mix(in srgb, var(--oc-mode-help) 78%, var(--oc-fg));
+	--oc-nacre-a: #ffc9df; --oc-nacre-b: #fff0bf; --oc-nacre-c: #bff3df; --oc-nacre-d: #c3d8ff; --oc-nacre-e: #ecccff;
+	--oc-nacre: linear-gradient(115deg, var(--oc-nacre-a), var(--oc-nacre-b) 20%, var(--oc-nacre-c) 40%, var(--oc-nacre-d) 60%, var(--oc-nacre-e) 80%, var(--oc-nacre-a));
+	--oc-nacre-ring: conic-gradient(from var(--oc-nacre-turn), var(--oc-nacre-a), var(--oc-nacre-b), var(--oc-nacre-c), var(--oc-nacre-d), var(--oc-nacre-e), var(--oc-nacre-a));
+	position: relative; isolation: isolate;
+}
+body.vscode-light .oc-app, body.vscode-high-contrast-light .oc-app {
+	--oc-nacre-a: #f39bc2; --oc-nacre-b: #f2cf6a; --oc-nacre-c: #78d3b0; --oc-nacre-d: #8fb3f5; --oc-nacre-e: #c99bf0;
+}
+@keyframes oc-nacre-drift { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
+@keyframes oc-nacre-turn { to { --oc-nacre-turn: 360deg; } }
+
+/* A pearl light under the conversation, fading in with Help */
+.oc-app::before {
+	content: ''; position: absolute; inset: auto -10% 0 -10%; height: 52%; pointer-events: none; z-index: -1;
+	background: var(--oc-nacre); background-size: 300% 100%;
+	-webkit-mask-image: radial-gradient(70% 100% at 50% 100%, #000, transparent 75%);
+	mask-image: radial-gradient(70% 100% at 50% 100%, #000, transparent 75%);
+	opacity: 0; transition: opacity 700ms var(--oc-ease);
+	animation: oc-nacre-drift 28s linear infinite; animation-play-state: paused;
+}
+.oc-app.is-help::before { opacity: 0.075; animation-play-state: running; }
+body.vscode-light .oc-app.is-help::before { opacity: 0.12; }
+
+.oc-help-btn.is-on { color: var(--oc-help-ink); background: color-mix(in srgb, var(--oc-help) 12%, transparent); }
+.oc-help-btn:active { transform: scale(0.94); }
+.oc-tab-help { flex: none; color: var(--oc-help-ink); }
+.oc-tab.is-help.is-active { background: color-mix(in srgb, var(--oc-help) 10%, var(--oc-ink-6)); }
+
+/* The chip: pearl text on a faint moving sheen */
+.oc-mode-chip.is-help {
+	position: relative; overflow: hidden; padding-right: 3px; cursor: default; color: var(--oc-help-ink);
+	background: color-mix(in srgb, var(--oc-help) 9%, transparent);
+}
+.oc-mode-chip.is-help::before {
+	content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; opacity: 0.2;
+	background: var(--oc-nacre); background-size: 300% 100%; animation: oc-nacre-drift 14s linear infinite;
+}
+.oc-mode-chip.is-help { isolation: isolate; }
+.oc-mode-chip.is-help:hover { color: var(--oc-help-ink); background: color-mix(in srgb, var(--oc-help) 13%, transparent); }
+.oc-help-leave {
+	display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 1px; border: 0; padding: 0; border-radius: 50%;
+	background: transparent; color: inherit; cursor: pointer; opacity: 0.55;
+	transition: opacity 120ms ease, background-color 120ms ease, transform 120ms var(--oc-ease-out);
+}
+.oc-help-leave:hover, .oc-help-leave:focus-visible { opacity: 1; background: color-mix(in srgb, var(--oc-help) 18%, transparent); }
+.oc-help-leave:active { transform: scale(0.9); }
+
+/* The box: a hairline of nacre that turns slowly, brighter while typing */
+.oc-composer.is-help::after {
+	content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+	background: var(--oc-nacre-ring);
+	-webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor; mask-composite: exclude;
+	opacity: 0.42; transition: opacity 260ms var(--oc-ease);
+	animation: oc-nacre-turn 16s linear infinite;
+}
+.oc-composer.is-help:hover::after { opacity: 0.6; }
+.oc-composer.is-help:focus-within::after { opacity: 0.95; }
+.oc-composer.is-help, .oc-stage.is-home .oc-composer.is-help,
+.oc-composer.is-help:focus-within, .oc-stage.is-home .oc-composer.is-help:focus-within {
+	box-shadow: 0 12px 38px -18px color-mix(in srgb, var(--oc-nacre-d) 45%, var(--oc-shadow));
+}
+
+/* The status line: the shimmer passes through the sheen */
+.oc-app.is-help .oc-working-label.is-shimmer {
+	background-image: linear-gradient(90deg, var(--oc-fg-2) 0%, var(--oc-fg-2) 30%, var(--oc-nacre-a) 40%, var(--oc-nacre-c) 50%, var(--oc-nacre-d) 60%, var(--oc-fg-2) 70%, var(--oc-fg-2) 100%);
+}
+.oc-app.is-help .oc-working::after { background: linear-gradient(90deg, transparent, var(--oc-nacre-a), var(--oc-nacre-c), var(--oc-nacre-d), transparent); opacity: 0.55; }
+
+/* The start screen */
+.oc-help-top { width: 100%; max-width: calc(var(--oc-col) + 20px); margin: 0 auto; padding: 0 20px 14px; }
+.oc-help-top > * { animation: oc-enter 380ms var(--oc-ease-out) both; }
+.oc-help-mark {
+	position: relative; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; margin-bottom: 12px; overflow: hidden;
+	color: var(--oc-help-ink);
+	background: radial-gradient(120% 120% at 30% 22%, color-mix(in srgb, #fff 34%, transparent), transparent 48%), color-mix(in srgb, var(--oc-help) 16%, var(--oc-bg));
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oc-help) 22%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--oc-nacre-e) 50%, transparent);
+	isolation: isolate;
+}
+/* the holographic belly, like light inside a pearl */
+.oc-help-mark::before {
+	content: ''; position: absolute; inset: -30%; z-index: -1; border-radius: 50%;
+	background: var(--oc-nacre-ring); filter: blur(6px); opacity: 0.7;
+	-webkit-mask-image: radial-gradient(60% 60% at 62% 74%, #000, transparent 70%);
+	mask-image: radial-gradient(60% 60% at 62% 74%, #000, transparent 70%);
+	animation: oc-nacre-turn 9s linear infinite;
+}
+.oc-help-mark::after {
+	content: ''; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--oc-nacre-d) 70%, transparent);
+	animation: oc-help-ring 1500ms var(--oc-ease-out) 160ms both;
+}
+.oc-help-mark svg { animation: oc-help-turn 900ms var(--oc-glide) 80ms both; }
+@keyframes oc-help-ring { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(1.7); } }
+@keyframes oc-help-turn { from { transform: rotate(-70deg) scale(0.86); opacity: 0; } to { transform: none; opacity: 1; } }
+.oc-help-title { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.005em; color: var(--oc-fg); animation-delay: 50ms !important; }
+.oc-help-lead { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--oc-fg-2); animation-delay: 100ms !important; }
+
+.oc-help-q { grid-template-columns: minmax(0, 1fr) 12px; }
+.oc-help-q .oc-starter-title { overflow: hidden; text-overflow: ellipsis; }
+.oc-help-q:hover .oc-starter-go, .oc-help-q:focus-visible .oc-starter-go { color: var(--oc-help-ink); }
+
+.oc-help-need { margin: 10px 10px 0; padding: 12px 12px 11px; border-radius: 10px; background: var(--oc-ink-4); animation: oc-enter 340ms var(--oc-ease-out) 70ms both; }
+.oc-help-need p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--oc-fg-2); }
+.oc-help-need-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.oc-help-jumps { margin-top: 18px; animation: oc-enter 340ms var(--oc-ease-out) both; animation-delay: calc(70ms + var(--i, 0) * 45ms); }
+.oc-help-jump-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px; }
+.oc-help-jump {
+	display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 9px; border: 0; border-radius: 999px;
+	font: inherit; font-size: 11.5px; color: var(--oc-fg-2); background: transparent; cursor: pointer;
+	box-shadow: inset 0 0 0 1px var(--oc-stroke);
+	transition: background-color 120ms ease, color 120ms ease, box-shadow 160ms ease, transform 120ms var(--oc-ease-out);
+}
+.oc-help-jump svg { color: var(--oc-fg-3); transition: color 120ms ease; }
+.oc-help-jump:hover, .oc-help-jump:focus-visible { color: var(--oc-fg); background: color-mix(in srgb, var(--oc-help) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oc-help) 28%, transparent); }
+.oc-help-jump:hover svg, .oc-help-jump:focus-visible svg { color: var(--oc-help-ink); }
+.oc-help-jump:active { transform: scale(0.97); }
+
+/* In answers: links into the app carry the sheen; the row an opened page leaves */
+.oc-go {
+	position: relative; isolation: isolate; overflow: hidden;
+	display: inline-flex; align-items: center; gap: 5px; margin: 2px 2px 2px 0; padding: 1px 8px 1px 9px; border: 0; border-radius: 999px;
+	font: inherit; font-size: 0.94em; line-height: 1.55; vertical-align: baseline; cursor: pointer;
+	color: var(--oc-help-ink); background: color-mix(in srgb, var(--oc-help) 9%, transparent);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oc-help) 16%, transparent);
+	transition: box-shadow 160ms ease, transform 120ms var(--oc-ease-out);
+}
+.oc-go::before {
+	content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0.16;
+	background: var(--oc-nacre); background-size: 300% 100%; animation: oc-nacre-drift 12s linear infinite;
+	transition: opacity 200ms ease;
+}
+.oc-go:hover::before, .oc-go:focus-visible::before { opacity: 0.3; }
+.oc-go:hover, .oc-go:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oc-help) 30%, transparent); }
+.oc-go:active { transform: scale(0.97); }
+.oc-go-arrow { flex: none; transition: transform 200ms var(--oc-ease-out); }
+.oc-go:hover .oc-go-arrow { transform: translateX(2px); }
+
+.oc-help-jumped { display: flex; align-items: center; gap: 9px; min-height: 26px; padding: 2px; font-size: 12.5px; color: var(--oc-fg-2); }
+.oc-help-jumped-dot {
+	flex: none; width: 7px; height: 7px; border-radius: 50%; margin: 0 4px; background: var(--oc-nacre-ring);
+	animation: oc-help-dot 320ms var(--oc-ease-out) both, oc-nacre-turn 6s linear infinite;
+}
+.oc-help-jumped.is-live .oc-help-jumped-dot { animation: oc-help-breathe 1100ms ease-in-out infinite, oc-nacre-turn 3s linear infinite; }
+.oc-help-jumped.is-err .oc-help-jumped-dot { background: var(--oc-error); animation: none; }
+.oc-help-jumped-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oc-help-again {
+	margin-left: auto; flex: none; padding: 2px 7px; border: 0; border-radius: 6px; font: inherit; font-size: 11.5px; cursor: pointer;
+	color: var(--oc-fg-3); background: transparent; opacity: 0; transform: translateX(-3px);
+	transition: opacity 140ms ease-out, transform 200ms var(--oc-ease-out), color 120ms ease, background-color 120ms ease;
+}
+.oc-help-jumped:hover .oc-help-again, .oc-help-again:focus-visible { opacity: 1; transform: none; }
+.oc-help-again:hover { color: var(--oc-help-ink); background: color-mix(in srgb, var(--oc-help) 10%, transparent); }
+@keyframes oc-help-dot { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes oc-help-breathe { 0%, 100% { opacity: 0.5; transform: scale(0.85); } 50% { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+	.oc-app::before { transition: none; animation: none; }
+	.oc-help-mark::after { display: none; }
+	.oc-composer.is-help::after, .oc-help-mark::before, .oc-go::before, .oc-mode-chip.is-help::before, .oc-help-jumped-dot { animation: none; }
+}

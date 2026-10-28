@@ -25,6 +25,9 @@ const PROVIDERS: { id: ProviderKey; label: string; keyless: boolean }[] = [
 	{ id: 'xai', label: 'xAI', keyless: false },
 	{ id: 'mistral', label: 'Mistral', keyless: false },
 	{ id: 'groq', label: 'Groq', keyless: false },
+	{ id: 'nvidia', label: 'NVIDIA', keyless: false },
+	{ id: 'zai', label: 'Z.ai', keyless: false },
+	{ id: 'sambanova', label: 'SambaNova', keyless: false },
 	{ id: 'ollama', label: 'Ollama', keyless: true },
 	{ id: 'lmstudio', label: 'LM Studio', keyless: true },
 	{ id: 'custom', label: 'Custom (OpenAI compatible)', keyless: false },
@@ -236,7 +239,7 @@ class SettingsPanel implements vscode.Disposable {
 		const { registry, cli, mcp, index, context } = this.services;
 		const all = await this.allModels(config);
 		const enabled = new Set(config['models.enabled']);
-		const models: ModelRow[] = all.map(m => ({
+		const models: ModelRow[] = all.filter((m): m is typeof m & { provider: ModelRow['provider'] } => m.provider !== 'free').map(m => ({
 			id: m.id,
 			label: m.label,
 			provider: m.provider,

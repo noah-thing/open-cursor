@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import * as nodePath from 'path';
 import * as cp from 'child_process';
 import type { LLMContent, ModelInfo } from '../providers/types';
@@ -16,6 +17,10 @@ import { toDisplayPath } from '../context/paths';
 import type { CliAgentInfo } from '../services';
 import { cliHint } from '../shared/cliHints';
 import { ConnectService } from '../connect/connect';
+import { FREE_AUTO_ID, isFreeModel } from '../providers/free';
+import { HelpNavigator } from '../help/navigator';
+import { buildHelpSystemPrompt } from '../help/prompt';
+import { firstInPlaceLink, parseHelpLink } from '../help/targets';
 import { suggestAllowPrefix } from './approval';
 import { applyCodeToFile } from './applyCode';
 import {
@@ -26,7 +31,7 @@ import { compactTranscript, runAgentLoop, type LoopHooks } from './loop';
 import { buildEditorState, buildSystemPrompt, type PromptRule } from './prompts';
 import { ChatStore, DEFAULT_TITLE, fallbackTitle, generateTitle, newId, type StoredChat } from './store';
 import { estimateMessagesTokens, appendUserContent } from './tokens';
-import { getToolSet } from './tools';
+import { getToolSet, type ToolSet } from './tools';
 import { disposeTerminalRunner, getTerminalRunner } from './tools/terminal';
 
 type Decision = 'run' | 'skip' | 'allowAlways';
@@ -34,6 +39,10 @@ type Decision = 'run' | 'skip' | 'allowAlways';
 export interface IChatController extends vscode.Disposable {
 	/** Send a prompt into the active chat (or a new one), used by editor commands. */
 	submit(opts: { text: string; context?: ContextItem[]; mode?: ChatMode; newChat?: boolean }): Promise<void>;
+	/** The model the active chat runs on. */
+	activeModelId(): string;
+	/** Put the active chat on this model, make it the default for new chats, and bring the chat forward. */
+	useModel(modelId: string): Promise<void>;
 }
 
 interface Runtime {
@@ -76,13 +85,14 @@ const BUILTIN_COMMANDS: { name: string; description: string }[] = [
 	{ name: 'debug', description: 'Switch to Debug mode' },
 	{ name: 'model', description: 'Switch model: /model <name>' },
 	{ name: 'rules', description: 'Open the rules folder' },
+	{ name: 'help', description: 'Ask how to do something in OpenCursor' },
 ];
 
 const CHAT_VISIBLE_KEY = 'openCursor.chat.visible';
 
 /** The CLI agent that is the same company's subscription for an API provider. */
 const SUBSCRIPTION_FOR: Record<string, string> = { anthropic: 'claude-code', openai: 'codex', xai: 'grok', google: 'gemini-cli' };
-const SUBSCRIPTION_ORDER = ['claude-code', 'codex', 'grok', 'gemini-cli'];
+const SUBSCRIPTION_ORDER = ['claude-code', 'codex', 'grok', 'gemini-cli', 'opencode'];
 const LOCAL_PROVIDERS = new Set(['ollama', 'lmstudio']);
 const PROVIDER_NAMES: Record<string, string> = {
 	anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google Gemini', openrouter: 'OpenRouter', deepseek: 'DeepSeek', xai: 'xAI',
@@ -110,9 +120,15 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	private chatFocused = false;
 
 	private readonly connect: ConnectService;
+	private readonly help: HelpNavigator;
 
 	constructor(private readonly ctx: vscode.ExtensionContext, private readonly services: Services) {
 		this.connect = new ConnectService(services, () => this.modelOptions, () => this.refreshModels());
+		this.help = new HelpNavigator({
+			newChat: async text => { await this.newChat(); this.post({ type: 'focusInput', text }); },
+			connect: async () => { await this.newChat(); this.post({ type: 'showConnect' }); },
+			pastChats: () => this.post({ type: 'showHistory' }),
+		});
 		const base = ctx.storageUri ?? ctx.globalStorageUri;
 		this.store = new ChatStore(nodePath.join(base.fsPath, 'chats'));
 		this.ready = this.store.init();
@@ -307,6 +323,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'queue': return this.queueMessage(m.chatId, m.text, m.context);
 			case 'unqueue': return this.unqueue(m.chatId, m.queuedId);
 			case 'newChat': await this.newChat(); return;
+			case 'openHelp': await this.openHelp(m.text); return;
+			case 'helpAction': {
+				const a = parseHelpLink(m.href);
+				if (a) { await this.help.run(a).catch(e => console.warn('[open-cursor] help action failed', m.href, e)); }
+				return;
+			}
 			case 'openChat': return this.openChat(m.chatId);
 			case 'closeChatTab': return this.closeTab(m.chatId);
 			case 'deleteChat': return this.deleteChat(m.chatId);
@@ -366,7 +388,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 				return v;
 			};
 			const options: ModelOption[] = await Promise.all(this.services.registry.getModels().map(async m => ({
-				id: m.id, label: m.label, provider: m.provider, supportsImages: m.supportsImages, supportsThinking: m.supportsThinking, hasKey: await hasKey(m.provider),
+				id: m.id, label: m.label, provider: m.provider, supportsImages: m.supportsImages, supportsThinking: m.supportsThinking, hasKey: await hasKey(m.provider), free: isFreeModel(m.id),
 			})));
 			let cliOptions: ModelOption[] = [];
 			try {
@@ -572,14 +594,14 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		await this.ready;
 		// reuse an untouched active chat instead of piling up empty ones
 		const cur = this.store.activeChatId ? await this.store.get(this.store.activeChatId) : undefined;
-		if (cur && cur.chat.messages.length === 0 && cur.chat.status === 'idle') {
+		if (cur && cur.chat.messages.length === 0 && cur.chat.status === 'idle' && cur.chat.mode !== 'help') {
 			await this.activate(cur);
 			return cur;
 		}
 		// ...or any other untouched chat left behind, so the list never fills with empty "New chat" rows
 		for (const s of this.store.summaries().filter(x => x.title === DEFAULT_TITLE && x.status === 'idle')) {
 			const empty = await this.store.get(s.id);
-			if (empty && empty.chat.messages.length === 0) {
+			if (empty && empty.chat.messages.length === 0 && empty.chat.mode !== 'help') {
 				await this.activate(empty);
 				return empty;
 			}
@@ -587,6 +609,62 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const sc = this.createChat();
 		await this.activate(sc);
 		return sc;
+	}
+
+	/**
+	 * The Help chat: the open one if there is one, else a fresh chat in Help mode. With `text` the
+	 * question is asked straight away.
+	 */
+	async openHelp(text?: string): Promise<void> {
+		await this.ready;
+		let sc: StoredChat | undefined;
+		for (const id of [...this.store.openChatIds].reverse()) {
+			const c = await this.store.get(id);
+			if (c?.chat.mode === 'help') { sc = c; break; }
+		}
+		if (!sc) {
+			sc = this.store.create({ mode: 'help', modelId: this.defaultModelId() });
+			this.store.setOpen([...this.store.openChatIds, sc.chat.id], sc.chat.id);
+		}
+		await this.activate(sc);
+		if (text?.trim()) {
+			await this.onSend(sc.chat.id, { text: text.trim(), context: [], mode: 'help', modelId: sc.chat.modelId || this.defaultModelId() });
+		} else {
+			this.post({ type: 'focusInput' });
+		}
+	}
+
+	/** What Help is told about the user's setup, one line per kind of source. */
+	private helpSetup(modelId: string): string {
+		const ready = this.modelOptions.filter(m => m.hasKey);
+		const current = this.modelOptions.find(m => m.id === modelId);
+		const subs = [...new Set(ready.filter(m => m.provider === 'cli').map(m => m.label.split(':')[0].trim()))];
+		const keys = [...new Set(ready.filter(m => m.provider !== 'cli' && !LOCAL_PROVIDERS.has(m.provider) && m.provider !== 'free').map(m => PROVIDER_NAMES[m.provider] ?? m.provider))];
+		const local = [...new Set(ready.filter(m => LOCAL_PROVIDERS.has(m.provider)).map(m => PROVIDER_NAMES[m.provider] ?? m.provider))];
+		return [
+			`- This Help chat runs on: ${current?.label ?? modelId}`,
+			`- Subscriptions ready: ${subs.join(', ') || 'none'}`,
+			`- API keys added: ${keys.join(', ') || 'none'}`,
+			`- Local servers with models: ${local.join(', ') || 'none'}`,
+			`- Free models usable: ${ready.some(m => m.free || isFreeModel(m.id)) ? 'yes' : 'none yet'}`,
+			`- Workspace: ${vscode.workspace.workspaceFolders?.length ? 'a folder is open' : 'no folder open'}`,
+		].join('\n');
+	}
+
+	/** Text only agents cannot call the tool, so the first link to a page in their answer opens on its own. */
+	private async openFirstHelpLink(turn: TurnState): Promise<void> {
+		if (turn.sc.chat.mode !== 'help' || turn.rt.abort?.signal.aborted || turn.errored) { return; }
+		if (turn.parts.some(p => p.type === 'tool' && p.name === 'open_in_app')) { return; }
+		const text = turn.parts.map(p => p.type === 'text' ? p.text : '').join('');
+		const a = firstInPlaceLink(text);
+		if (a) { await this.help.run(a).catch(() => undefined); }
+	}
+
+	/** An empty folder for Help turns on agent CLIs, so nothing they do can reach a project. */
+	private helpDir(): string {
+		const dir = nodePath.join(this.ctx.globalStorageUri.fsPath, 'help');
+		try { fs.mkdirSync(dir, { recursive: true }); } catch { /* falls back to the path itself */ }
+		return dir;
 	}
 
 	private async openChat(chatId: string): Promise<void> {
@@ -647,6 +725,20 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		sc.chat.mode = mode;
 		this.touch(sc);
 		this.postChatNow(sc);
+	}
+
+	activeModelId(): string {
+		const id = this.store.activeChatId;
+		const sc = id ? this.store.loaded().find(s => s.chat.id === id) : undefined;
+		return sc?.chat.modelId ?? this.defaultModelId();
+	}
+
+	async useModel(modelId: string): Promise<void> {
+		await vscode.workspace.getConfiguration('openCursor').update('models.default', modelId, vscode.ConfigurationTarget.Global);
+		await this.refreshModels();
+		const sc = await this.ensureActive();
+		await this.setModel(sc.chat.id, modelId);
+		await this.reveal();
 	}
 
 	private async setModel(chatId: string, modelId: string): Promise<void> {
@@ -721,6 +813,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			return args ? { ...req, text: args, mode } : 'done';
 		};
 		switch (name) {
+			case 'help': await this.openHelp(args); return 'done';
 			case 'new': await this.newChat(); if (args) { const n = this.store.activeChatId; if (n) { await this.onSend(n, { ...req, text: args }); } } return 'done';
 			case 'clear': {
 				if (rt.running) { return 'done'; }
@@ -913,6 +1006,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			} else {
 				await this.runNativeTurn(turn, userMsg, req, checkpointId);
 			}
+			await this.openFirstHelpLink(turn);
 		} catch (e) {
 			if (!rt.abort?.signal.aborted) {
 				this.addError(turn, `Something went wrong: ${e instanceof Error ? e.message : String(e)}`, 'retry');
@@ -1071,11 +1165,19 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const mode = sc.chat.mode;
 
 		const files = referencedFiles(req.context);
-		const rules = await this.services.context.getRules(files).catch(() => []);
+		const rules = mode === 'help' ? [] : await this.services.context.getRules(files).catch(() => []);
 		const inline: PromptRule[] = rules.filter(r => !r.agentRequested).map(r => ({ name: r.name, source: r.source, content: r.content }));
 		const agentRules = rules.filter(r => r.agentRequested).map(r => ({ name: r.name, description: r.description ?? '' }));
-		const toolSet = model.supportsTools ? getToolSet(mode, this.services) : { byName: new Map(), schemas: [] };
-		const system = buildSystemPrompt(mode, buildEnv(inline, toolSet.byName.has('fetch_rules') ? agentRules : []));
+		let toolSet: ToolSet = model.supportsTools ? getToolSet(mode, this.services) : { byName: new Map(), schemas: [] };
+		let system: string;
+		if (mode === 'help') {
+			const tool = this.help.tool();
+			toolSet = model.supportsTools ? { byName: new Map([[tool.schema.name, tool]]), schemas: [tool.schema] } : { byName: new Map(), schemas: [] };
+			const env = buildEnv([], []);
+			system = buildHelpSystemPrompt({ os: env.os, date: env.date, setup: this.helpSetup(model.id) }, toolSet.schemas.length > 0);
+		} else {
+			system = buildSystemPrompt(mode, buildEnv(inline, toolSet.byName.has('fetch_rules') ? agentRules : []));
+		}
 
 		const { content } = await this.buildUserContent(req, true);
 		if (signal.aborted) { return; }
@@ -1183,9 +1285,10 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			this.addError(turn, `${info?.label ?? agent} is not installed or was not found on PATH.`, 'openSettings');
 			return;
 		}
-		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+		const help = sc.chat.mode === 'help';
+		const cwd = help ? this.helpDir() : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
 		const files = referencedFiles(req.context);
-		const rules = await this.services.context.getRules(files).catch(() => []);
+		const rules = help ? [] : await this.services.context.getRules(files).catch(() => []);
 		const { content, resolvedTexts } = await this.buildUserContent(req, false);
 		const ruleText = rules.filter(r => !r.agentRequested && !/^(AGENTS|CLAUDE)\.md$/.test(r.name)).map(r => `Rule ${r.name}:\n${r.content}`).join('\n\n');
 		const first = content.find(c => c.type === 'text');
@@ -1247,6 +1350,15 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		});
 		await chain;
 		sc.cliSessionId = result.sessionId ?? sc.cliSessionId;
+		// OpenCode's free models share one quota. When it runs out before anything was produced, the same
+		// message carries on with the free keys the user connected, instead of stopping the work.
+		const answered = turn.parts.some(p => p.type === 'text' || p.type === 'tool');
+		if (result.stopReason === 'error' && agent === 'opencode' && !answered && /limit|quota|429|rate/i.test(result.error ?? '') && this.usable(FREE_AUTO_ID)) {
+			sc.chat.modelId = FREE_AUTO_ID;
+			this.appendText(turn, '_OpenCode\'s free quota is used up for now, so this continues on Free (auto)._\n\n');
+			await this.runNativeTurn(turn, userMsg, req, userMsg.checkpointId);
+			return;
+		}
 		if (result.stopReason === 'error') { this.addError(turn, result.error ?? 'The CLI agent failed.', 'retry'); }
 	}
 
@@ -1334,6 +1446,11 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		reg('openCursor.chat.open', async () => {
 			const sel = editorSelection();
 			await this.addContextToChat(sel ? [sel] : []);
+		});
+		reg('openCursor.help.open', async (text?: unknown) => {
+			await this.ready;
+			await this.reveal();
+			await this.openHelp(typeof text === 'string' ? text : undefined);
 		});
 		reg('openCursor.chat.newChat', async () => {
 			await this.ready;

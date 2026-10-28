@@ -32,6 +32,8 @@
 	--oc-mode-plan: var(--vscode-charts-yellow, #d9a343);
 	--oc-mode-debug: var(--vscode-charts-red, #e0617a);
 	--oc-mode-ask: var(--vscode-charts-green, #4fa87a);
+	/* Pearl, the app icon's own material: warm ivory, not one more mode hue. */
+	--oc-mode-help: #ddd3c2;
 	--oc-font: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif);
 	--oc-mono: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
 	--oc-ease: cubic-bezier(0.2, 0, 0, 1);
@@ -220,6 +222,7 @@ kbd {
 .oc-loader-mark { position: relative; width: var(--oc-pearl-w); height: var(--oc-pearl-h); animation: oc-pearl-float 2.4s ease-in-out infinite; will-change: transform; }
 .oc-loader-mark img { display: block; width: 100%; height: 100%; user-select: none; }
 /* On light themes the cream body needs an edge, as the dark tile gives it in the icon. */
+body.vscode-light, body.vscode-high-contrast-light { --oc-mode-help: #7d6a50; }
 body.vscode-light .oc-loader-mark img, body.vscode-high-contrast-light .oc-loader-mark img {
 	filter: drop-shadow(0 0 0.6px rgba(0, 0, 0, 0.55)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
 }

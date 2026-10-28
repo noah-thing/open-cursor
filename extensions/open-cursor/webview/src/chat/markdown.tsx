@@ -11,6 +11,8 @@ import { post } from './host';
 const SAFE_HREF = /^(https?:|mailto:|#|\/|\.\/|\.\.\/)/i;
 const PATH_LIKE = /^[\w@.\-/\\]*[\w\-]\.[A-Za-z0-9]{1,8}(?::\d+(?:-\d+)?)?$|^(?:[\w@.\-]+\/)+[\w@.\-]*(?::\d+(?:-\d+)?)?$/;
 
+const GO_ARROW = '<svg class="oc-go-arrow" width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 const md = new Marked({
 	gfm: true,
 	breaks: false,
@@ -21,6 +23,10 @@ const md = new Marked({
 		},
 		link(this: { parser: { parseInline(t: Token[]): string } }, token: Tokens.Link): string {
 			const text = this.parser.parseInline(token.tokens);
+			// Help's links into the app become buttons; the host checks the target before opening anything.
+			if (/^opencursor:/i.test(token.href.trim())) {
+				return '<button type="button" class="oc-go" data-help="' + escapeHtml(token.href.trim()) + '"><span>' + text + '</span>' + GO_ARROW + '</button>';
+			}
 			if (!SAFE_HREF.test(token.href.trim())) { return text; }
 			const title = token.title ? ' title="' + escapeHtml(token.title) + '"' : '';
 			return '<a href="' + escapeHtml(token.href) + '"' + title + '>' + text + '</a>';
@@ -179,6 +185,12 @@ export const Markdown = memo(function Markdown({ text, className }: { readonly t
 	const tokens = useMemo(() => parseBlocks(text).filter(t => t.type !== 'space'), [text]);
 	const onClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
 		const target = e.target as HTMLElement;
+		const go = target.closest<HTMLElement>('[data-help]');
+		if (go?.dataset.help) {
+			e.preventDefault();
+			post({ type: 'helpAction', href: go.dataset.help });
+			return;
+		}
 		const el = target.closest<HTMLElement>('[data-path]');
 		if (el?.dataset.path) {
 			e.preventDefault();

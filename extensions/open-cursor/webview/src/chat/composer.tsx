@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { Chat, ChatMode, ContextItem, ContextKind, ModelOption, SlashCommandInfo, UiSettings } from '../../../src/shared/protocol';
 import { Icon } from '../common/icons';
+import { HelpChip } from './help';
 import { MOD, ModeMenu, ModelMenu } from './menus';
 import { onHostMessage, post } from './host';
 import { ContextPill } from './parts';
@@ -221,6 +222,7 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 	};
 
 	const cycleMode = (dir: 1 | -1): void => {
+		if (mode === 'help') { return; }
 		const i = MODE_ORDER.indexOf(mode);
 		onMode(MODE_ORDER[(i + dir + MODE_ORDER.length) % MODE_ORDER.length]);
 	};
@@ -313,7 +315,7 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 	};
 
 	const placeholder = running ? 'Queue a follow-up' : MODE_META[mode].placeholder;
-	const suggest = activeFile && !suggestDismissed && !contexts.some(c => c.uri === activeFile.uri && c.kind === activeFile.kind) ? activeFile : null;
+	const suggest = mode !== 'help' && activeFile && !suggestDismissed && !contexts.some(c => c.uri === activeFile.uri && c.kind === activeFile.kind) ? activeFile : null;
 	const canSend = text.trim().length > 0 || contexts.length > 0;
 
 	return (
@@ -401,24 +403,26 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 				/>
 
 				<div className="oc-composer-bar">
-					<ModeMenu mode={mode} onSelect={onMode} />
+					{mode === 'help' ? <HelpChip /> : <ModeMenu mode={mode} onSelect={onMode} />}
 					<ModelMenu models={models} modelId={modelId} onSelect={onModel} onConnect={onConnect} />
 					<span className="oc-spacer" />
-					{chat.contextUsage ? <ContextRing usage={chat.contextUsage} /> : null}
-					<button
-						type="button"
-						className="oc-iconbtn"
-						title="Add context (@)"
-						aria-label="Add context"
-						onClick={() => {
-							const el = ref.current;
-							const pos = el?.selectionStart ?? text.length;
-							const needsSpace = pos > 0 && !/\s/.test(text[pos - 1]);
-							replaceRange(pos, pos, (needsSpace ? ' ' : '') + '@');
-						}}
-					>
-						<Icon name="at" size={15} />
-					</button>
+					{chat.contextUsage && mode !== 'help' ? <ContextRing usage={chat.contextUsage} /> : null}
+					{mode === 'help' ? null : (
+						<button
+							type="button"
+							className="oc-iconbtn"
+							title="Add context (@)"
+							aria-label="Add context"
+							onClick={() => {
+								const el = ref.current;
+								const pos = el?.selectionStart ?? text.length;
+								const needsSpace = pos > 0 && !/\s/.test(text[pos - 1]);
+								replaceRange(pos, pos, (needsSpace ? ' ' : '') + '@');
+							}}
+						>
+							<Icon name="at" size={15} />
+						</button>
+					)}
 					{running ? (
 						<>
 							{canSend ? (

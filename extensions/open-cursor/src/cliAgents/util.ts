@@ -7,6 +7,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import type { CliAgentId } from './types';
 
 export const COMMON_BIN_DIRS = (): string[] => {
 	const h = os.homedir();
@@ -21,6 +22,7 @@ export const COMMON_BIN_DIRS = (): string[] => {
 			path.join(local, 'Microsoft', 'WinGet', 'Links'),
 			path.join(h, 'scoop', 'shims'),
 			path.join(h, '.bun', 'bin'),
+			path.join(h, '.opencode', 'bin'),
 		];
 	}
 	return [
@@ -33,6 +35,7 @@ export const COMMON_BIN_DIRS = (): string[] => {
 		'/home/linuxbrew/.linuxbrew/bin',
 		path.join(h, '.npm-global', 'bin'),
 		path.join(h, '.bun', 'bin'),
+		path.join(h, '.opencode', 'bin'),
 	];
 };
 
@@ -343,9 +346,9 @@ export function readTextFile(p: string, maxBytes = 2_000_000): string | undefine
 }
 
 /** Short friendly hints for common failures. */
-export function friendlyError(agent: 'claude-code' | 'codex' | 'grok' | 'gemini-cli', raw: string): string {
-	const login = agent === 'claude-code' ? '`claude login`' : agent === 'codex' ? '`codex login`' : agent === 'grok' ? '`grok login`' : '`gemini` (and sign in)';
-	const label = agent === 'claude-code' ? 'Claude Code' : agent === 'codex' ? 'Codex' : agent === 'grok' ? 'Grok' : 'Gemini CLI';
+export function friendlyError(agent: CliAgentId, raw: string): string {
+	const login = { 'claude-code': '`claude login`', codex: '`codex login`', grok: '`grok login`', 'gemini-cli': '`gemini` (and sign in)', opencode: '`opencode auth login`' }[agent];
+	const label = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI', opencode: 'OpenCode' }[agent];
 	if (/not logged in|please run \/login|invalid api key|authentication|unauthori[sz]ed|401|oauth|sign in|log in|api key not valid|no credentials|auth(?:entication)? required/i.test(raw)) {
 		return `${label} is not signed in. Run ${login} in a terminal, then try again.\n\n${tail(raw, 400)}`;
 	}

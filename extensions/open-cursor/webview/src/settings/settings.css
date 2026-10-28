@@ -165,3 +165,13 @@ input[type='number'].st-input { -moz-appearance: textfield; }
 	.st-sub { grid-template-columns: 1fr; }
 	.st-sub-note { grid-column: 1; }
 }
+
+/* Narrow editor groups (beside the chat): rows stack so labels and descriptions keep their width. */
+.st-main { container-type: inline-size; }
+@container (max-width: 520px) {
+	.st-page { padding: 22px 18px 56px; }
+	.st-row { flex-direction: column; align-items: stretch; gap: 8px; }
+	.st-row-control { flex: 1 1 auto; flex-wrap: wrap; }
+	.st-row-control > .st-select, .st-row-control > [style*='width'] { width: 100% !important; }
+	.st-row-control .st-select > select { width: 100% !important; }
+}

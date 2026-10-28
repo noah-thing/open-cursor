@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
  *  Manual live run of one real turn against an installed CLI (spends tokens). Not part of the
- *  replay test. Usage: node test/run.mjs live <claude-code|codex|grok|gemini-cli> <cwd> <model> <mode> <autoRun> <prompt>
+ *  replay test. Usage: node test/run.mjs live <claude-code|codex|grok|gemini-cli|opencode> <cwd> <model> <mode> <autoRun> <prompt>
  *  Set CAPTURE=<file> to save the raw event stream as a fixture.
  *--------------------------------------------------------------------------------------------*/
 
@@ -12,6 +12,7 @@ import { runCodex } from '../codex';
 import { cliEnv, resolveBinary } from '../detect';
 import { runGemini } from '../gemini';
 import { runGrok } from '../grok';
+import { runOpenCode } from '../opencode';
 import type { AutoRun, CliAgentId, TurnHost } from '../types';
 import type { ChatMode } from '../../shared/protocol';
 
@@ -38,7 +39,7 @@ async function main(): Promise<void> {
 		usage: u => console.log(`[usage] ${JSON.stringify(u)}`),
 		uri: p => 'file://' + p,
 	};
-	const run = agent === 'claude-code' ? runClaude : agent === 'codex' ? runCodex : agent === 'grok' ? runGrok : runGemini;
+	const run = agent === 'claude-code' ? runClaude : agent === 'codex' ? runCodex : agent === 'grok' ? runGrok : agent === 'opencode' ? runOpenCode : runGemini;
 	const res = await run({
 		binary,
 		model,

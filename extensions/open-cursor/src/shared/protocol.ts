@@ -3,7 +3,7 @@
  *  Shared between the extension host and the chat webview. Plain JSON data only.
  *--------------------------------------------------------------------------------------------*/
 
-export type ChatMode = 'agent' | 'plan' | 'debug' | 'ask';
+export type ChatMode = 'agent' | 'plan' | 'debug' | 'ask' | 'help';
 
 export type ContextKind =
 	| 'file'
@@ -125,6 +125,8 @@ export interface ModelOption {
 	readonly supportsImages: boolean;
 	readonly supportsThinking: boolean;
 	readonly hasKey: boolean;
+	/** Costs nothing on the provider's free tier. */
+	readonly free?: boolean;
 }
 
 export interface PendingFileEdit {
@@ -217,7 +219,9 @@ export type HostMessageExt =
 	/** Local model servers and API providers, for the start screen's connect panel. */
 	| { readonly type: 'connectState'; readonly local: LocalServerStatus[]; readonly providers: ApiProviderStatus[] }
 	/** Outcome of the key or server the user just tried to connect. */
-	| { readonly type: 'connectResult'; readonly target: string; readonly ok: boolean; readonly message: string };
+	| { readonly type: 'connectResult'; readonly target: string; readonly ok: boolean; readonly message: string }
+	/** Help sent the user to the connect panel of a new chat. */
+	| { readonly type: 'showConnect' };
 
 export interface LocalServerStatus {
 	readonly id: 'ollama' | 'lmstudio' | 'custom';
@@ -262,4 +266,8 @@ export type WebviewMessageExt =
 	| { readonly type: 'connectServer'; readonly address: string }
 	| { readonly type: 'resetServer'; readonly id: LocalServerStatus['id'] }
 	/** Start or download a local model app on this computer. */
-	| { readonly type: 'localApp'; readonly id: 'ollama' | 'lmstudio' };
+	| { readonly type: 'localApp'; readonly id: 'ollama' | 'lmstudio' }
+	/** Open the Help chat; with text, ask it straight away. */
+	| { readonly type: 'openHelp'; readonly text?: string }
+	/** A clicked opencursor: link in a Help answer. The host checks it against the catalog. */
+	| { readonly type: 'helpAction'; readonly href: string };

@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  "Bring your own CLI subscription": runs Claude Code, Codex, Grok or Gemini CLI headless in the
+ *  "Bring your own CLI subscription": runs Claude Code, Codex, Grok, Gemini CLI or OpenCode headless in the
  *  workspace and translates their event streams into OpenCursor chat parts. Entry point for
  *  src/cliAgents. Everything except this file avoids vscode imports so it can be tested in plain node.
  *--------------------------------------------------------------------------------------------*/
@@ -13,6 +13,8 @@ import { runCodex } from './codex';
 import { AGENT_IDS, cliEnv, detectAll, resetLoginShellCache, type DetectConfig } from './detect';
 import { runGemini } from './gemini';
 import { runGrok } from './grok';
+import { runOpenCode } from './opencode';
+import { installOpenCodeCli, resetOpenCodeModelCache } from './opencodeSetup';
 import { cliHint } from '../shared/cliHints';
 import type { CliAgentId, RunOptions, RunResult, TurnHost } from './types';
 
@@ -25,8 +27,8 @@ function readConfig(): DetectConfig & { extraArgs: Record<CliAgentId, string[]>;
 	const list = (key: string): string[] => (c.get<unknown[]>(key) ?? []).filter((x): x is string => typeof x === 'string');
 	return {
 		enabled: c.get<boolean>('cli.enabled') ?? true,
-		paths: { 'claude-code': paths['claude-code'] ?? paths.claude, codex: paths.codex, grok: paths.grok, 'gemini-cli': paths['gemini-cli'] ?? paths.gemini },
-		extraArgs: { 'claude-code': list('cli.claudeCode.extraArgs'), codex: list('cli.codex.extraArgs'), grok: list('cli.grok.extraArgs'), 'gemini-cli': list('cli.gemini.extraArgs') },
+		paths: { 'claude-code': paths['claude-code'] ?? paths.claude, codex: paths.codex, grok: paths.grok, 'gemini-cli': paths['gemini-cli'] ?? paths.gemini, opencode: paths.opencode },
+		extraArgs: { 'claude-code': list('cli.claudeCode.extraArgs'), codex: list('cli.codex.extraArgs'), grok: list('cli.grok.extraArgs'), 'gemini-cli': list('cli.gemini.extraArgs'), opencode: list('cli.opencode.extraArgs') },
 		allowlist: list('agent.commandAllowlist'),
 	};
 }
@@ -43,6 +45,12 @@ function adaptHost(cb: CliTurnCallbacks): TurnHost {
 		usage: u => cb.onUsage(u),
 		uri: p => vscode.Uri.file(p).toString(),
 	};
+}
+
+/** Installs the OpenCode CLI for this user (no sudo, ~/.opencode/bin). Resolves once `opencode --version` works. */
+export async function installOpenCode(): Promise<{ ok: boolean; message: string }> {
+	const r = await installOpenCodeCli(await cliEnv(undefined));
+	return { ok: r.ok, message: r.message };
 }
 
 export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
@@ -101,6 +109,16 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 			return run();
 		},
 
+		async installOpenCode(): Promise<{ ok: boolean; message: string }> {
+			const r = await installOpenCode();
+			if (r.ok) {
+				resetLoginShellCache();
+				resetOpenCodeModelCache();
+				await run().catch(() => undefined);
+			}
+			return r;
+		},
+
 		get(id: CliAgentInfo['id']): CliAgentInfo | undefined {
 			return infos.find(i => i.id === id);
 		},
@@ -154,6 +172,8 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 						return await runGrok(runOpts);
 					case 'gemini-cli':
 						return await runGemini(runOpts);
+					case 'opencode':
+						return await runOpenCode(runOpts);
 				}
 			} catch (e) {
 				if (opts.signal.aborted) {

@@ -58,6 +58,7 @@ function phase(message: AssistantMessage): { label: string; waiting: boolean } {
 		if (last.status === 'awaiting-approval') { return { label: 'Waiting for your approval', waiting: true }; }
 		if (last.status === 'running' || last.status === 'streaming') {
 			if (last.edit) { return { label: 'Editing ' + basename(last.edit.path), waiting: false }; }
+			if (last.name === 'open_in_app') { return { label: 'Opening', waiting: false }; }
 			if (last.command || last.name === 'run_terminal_cmd') { return { label: 'Running a command', waiting: false }; }
 			if (isExploreTool(last)) { return { label: 'Exploring', waiting: false }; }
 			return { label: 'Working', waiting: false };

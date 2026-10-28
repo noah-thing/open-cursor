@@ -5,7 +5,7 @@
 
 import type { ChatMode, ToolPart } from '../shared/protocol';
 
-export type CliAgentId = 'claude-code' | 'codex' | 'grok' | 'gemini-cli';
+export type CliAgentId = 'claude-code' | 'codex' | 'grok' | 'gemini-cli' | 'opencode';
 export type AutoRun = 'ask' | 'allowlist' | 'always';
 export type Approval = 'run' | 'skip' | 'allowAlways';
 
@@ -52,4 +52,4 @@ export interface RunResult {
 	error?: string;
 }
 
-export const MODE_READONLY = (mode: ChatMode): boolean => mode === 'ask' || mode === 'plan';
+export const MODE_READONLY = (mode: ChatMode): boolean => mode === 'ask' || mode === 'plan' || mode === 'help';

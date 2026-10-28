@@ -36,7 +36,7 @@ export function Header({ summaries, openIds, activeId, view, onView }: {
 						<div
 							key={t.id}
 							ref={isActive ? activeTab : undefined}
-							className={'oc-tab' + (isActive ? ' is-active' : '')}
+							className={'oc-tab' + (isActive ? ' is-active' : '') + (t.mode === 'help' ? ' is-help' : '')}
 							role="tab"
 							aria-selected={isActive}
 							tabIndex={0}
@@ -45,7 +45,7 @@ export function Header({ summaries, openIds, activeId, view, onView }: {
 							onAuxClick={e => { if (e.button === 1) { post({ type: 'closeChatTab', chatId: t.id }); } }}
 							onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); post({ type: 'openChat', chatId: t.id }); onView('chat'); } }}
 						>
-							{busy ? <Spinner size={11} /> : t.status === 'error' ? <span className="oc-dot is-error" /> : null}
+							{busy ? <Spinner size={11} /> : t.status === 'error' ? <span className="oc-dot is-error" /> : t.mode === 'help' ? <Icon name="lifebuoy" size={11} className="oc-tab-help" /> : null}
 							<span className="oc-tab-label">{t.title || 'New chat'}</span>
 							{openIds.length > 1 ? (
 								<button type="button" className="oc-tab-x" aria-label={'Close ' + t.title} onClick={e => { e.stopPropagation(); post({ type: 'closeChatTab', chatId: t.id }); }}>
@@ -62,6 +62,9 @@ export function Header({ summaries, openIds, activeId, view, onView }: {
 				</button>
 				<button type="button" className={'oc-iconbtn' + (view === 'history' ? ' is-on' : '')} title="Past chats" aria-label="Past chats" aria-pressed={view === 'history'} onClick={() => onView(view === 'history' ? 'chat' : 'history')}>
 					<Icon name="history" size={15} />
+				</button>
+				<button type="button" className={'oc-iconbtn oc-help-btn' + (active?.mode === 'help' && view === 'chat' ? ' is-on' : '')} title="Get Help" aria-label="Get Help" onClick={() => { post({ type: 'openHelp' }); onView('chat'); }}>
+					<Icon name="lifebuoy" size={15} />
 				</button>
 				<button type="button" className="oc-iconbtn" title="OpenCursor settings" aria-label="Settings" onClick={() => post({ type: 'openSettings' })}>
 					<Icon name="gear" size={15} />

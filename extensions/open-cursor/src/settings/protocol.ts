@@ -17,7 +17,7 @@ export const SECTIONS: readonly { id: SettingsSection; label: string }[] = [
 	{ id: 'indexing', label: 'Indexing' },
 ];
 
-export type ProviderKey = 'anthropic' | 'openai' | 'google' | 'openrouter' | 'deepseek' | 'xai' | 'mistral' | 'groq' | 'ollama' | 'lmstudio' | 'custom';
+export type ProviderKey = 'anthropic' | 'openai' | 'google' | 'openrouter' | 'deepseek' | 'xai' | 'mistral' | 'groq' | 'nvidia' | 'zai' | 'sambanova' | 'ollama' | 'lmstudio' | 'custom';
 
 export interface CustomModel {
 	provider: ProviderKey;
@@ -102,7 +102,7 @@ export interface ProviderRow {
 }
 
 export interface CliRow {
-	id: 'claude-code' | 'codex' | 'grok' | 'gemini-cli';
+	id: 'claude-code' | 'codex' | 'grok' | 'gemini-cli' | 'opencode';
 	label: string;
 	installed: boolean;
 	binaryPath?: string;

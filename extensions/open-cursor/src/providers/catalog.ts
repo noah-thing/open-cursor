@@ -13,9 +13,13 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
 	xai: 'xAI',
 	mistral: 'Mistral',
 	groq: 'Groq',
+	nvidia: 'NVIDIA',
+	zai: 'Z.ai',
+	sambanova: 'SambaNova',
 	ollama: 'Ollama',
 	lmstudio: 'LM Studio',
 	custom: 'Custom',
+	free: 'Free',
 };
 
 /** Providers that need no key (local servers). `custom` may or may not. */
@@ -31,6 +35,9 @@ export const ENV_KEYS: Partial<Record<ProviderId, string[]>> = {
 	xai: ['XAI_API_KEY'],
 	mistral: ['MISTRAL_API_KEY'],
 	groq: ['GROQ_API_KEY'],
+	nvidia: ['NVIDIA_API_KEY'],
+	zai: ['ZAI_API_KEY'],
+	sambanova: ['SAMBANOVA_API_KEY'],
 };
 
 export function modelId(provider: ProviderId, model: string): string {

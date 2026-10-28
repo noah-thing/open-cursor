@@ -93,6 +93,17 @@
 				"category": "OpenCursor"
 			},
 			{
+				"command": "openCursor.freeModels.open",
+				"title": "Get Free Models",
+				"category": "OpenCursor"
+			},
+			{
+				"command": "openCursor.help.open",
+				"title": "Get Help",
+				"category": "OpenCursor",
+				"icon": "$(question)"
+			},
+			{
 				"command": "openCursor.diff.acceptHunk",
 				"title": "Keep Change",
 				"category": "OpenCursor"
@@ -587,12 +598,12 @@
 					"openCursor.cli.enabled": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Offer installed agent CLIs (Claude Code, Codex, Grok, Gemini CLI) in the model picker. They run on your own subscription."
+						"markdownDescription": "Offer installed agent CLIs (Claude Code, Codex, Grok, Gemini CLI, OpenCode) in the model picker. They run on your own subscription."
 					},
 					"openCursor.cli.paths": {
 						"type": "object",
 						"default": {},
-						"markdownDescription": "Explicit binary paths when detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"grok\": \"~/.local/bin/grok\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\" }`.",
+						"markdownDescription": "Explicit binary paths when detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"grok\": \"~/.local/bin/grok\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\", \"opencode\": \"~/.opencode/bin/opencode\" }`.",
 						"properties": {
 							"claude-code": {
 								"type": "string"
@@ -604,6 +615,9 @@
 								"type": "string"
 							},
 							"gemini-cli": {
+								"type": "string"
+							},
+							"opencode": {
 								"type": "string"
 							}
 						},
@@ -642,6 +656,14 @@
 						},
 						"default": [],
 						"markdownDescription": "Extra command line arguments appended to every `gemini` run."
+					},
+					"openCursor.cli.opencode.extraArgs": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"default": [],
+						"markdownDescription": "Extra command line arguments appended to every `opencode run`, e.g. `[\"--variant\", \"high\"]`."
 					}
 				}
 			},

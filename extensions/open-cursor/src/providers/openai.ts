@@ -401,6 +401,12 @@ export function createOpenAICompatible(id: Exclude<ProviderId, 'anthropic' | 'go
 			});
 		case 'groq':
 			return new OpenAICompatibleProvider({ id, baseUrl: d.baseUrl ?? 'https://api.groq.com/openai/v1', getKey: key, thinkTags: true, parseModel: parseGroq });
+		case 'nvidia':
+		case 'zai':
+		case 'sambanova':
+			return new OpenAICompatibleProvider({ id, baseUrl: d.baseUrl ?? { nvidia: 'https://integrate.api.nvidia.com/v1', zai: 'https://api.z.ai/api/paas/v4', sambanova: 'https://api.sambanova.ai/v1' }[id], getKey: key, thinkTags: true });
+		case 'free':
+			throw new Error('Free (auto) is routed by the registry, not by an adapter.');
 		case 'lmstudio':
 			return new LmStudioProvider({ id, baseUrl: d.baseUrl ?? 'http://localhost:1234/v1', getKey: key, requiresKey: false, thinkTags: true });
 		case 'custom':

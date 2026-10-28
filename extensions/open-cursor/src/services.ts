@@ -109,19 +109,20 @@ export interface IContextService {
 }
 
 /**
- * An installed agent CLI (claude, codex, grok, gemini) used as the agent backend for a chat, on the
+ * An installed agent CLI (claude, codex, grok, gemini, opencode) used as the agent backend for a chat, on the
  * user's own subscription. The CLI runs its own tools; we translate its JSON event stream into chat
  * parts, route its permission prompts to our approval UI where the CLI allows it, and capture file
  * originals so its edits go through the same Keep/Undo review and checkpoints as native agent edits.
  */
 export interface CliAgentInfo {
-	readonly id: 'claude-code' | 'codex' | 'grok' | 'gemini-cli';
+	readonly id: 'claude-code' | 'codex' | 'grok' | 'gemini-cli' | 'opencode';
 	readonly label: string; // "Claude Code"
 	readonly binaryPath?: string; // resolved path, undefined = not installed
 	readonly version?: string;
 	readonly loggedIn?: boolean; // best effort
 	/** Shown in the picker as `cli:<id>/<model>`, e.g. `cli:claude-code/sonnet`. `default` is the CLI's own default. */
 	readonly models: { id: string; label: string }[];
+	// OpenCode models are `provider/model` ids. Those that are free without an account also carry `free: true` at runtime.
 }
 
 export interface CliTurnCallbacks {
@@ -143,6 +144,8 @@ export interface ICliAgents {
 	/** Ignores the cache. For after the user installs or signs in to a CLI. */
 	refresh(): Promise<CliAgentInfo[]>;
 	get(id: CliAgentInfo['id']): CliAgentInfo | undefined;
+	/** Installs the OpenCode CLI without sudo (~/.opencode/bin), then re-detects. Works even when it is not installed yet. */
+	installOpenCode(): Promise<{ ok: boolean; message: string }>;
 	/**
 	 * `sessionId` is the CLI's own session id from the previous turn of this chat; the returned one
 	 * is passed back in so the next turn resumes the same CLI conversation.

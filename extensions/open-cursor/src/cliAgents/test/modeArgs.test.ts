@@ -3,6 +3,7 @@ import { cliModeGuidance } from '../../agent/prompts';
 import { DEBUG_MARKER } from '../../agent/modes';
 import { claudeModeArgs, cliPromptPrefix, codexModeArgs, geminiModeArgs, CLAUDE_EDIT_TOOLS } from '../modeArgs';
 import { grokPermissionArgs } from '../grok';
+import { openCodeArgs, openCodeEnv, openCodePermission } from '../opencode';
 import type { AutoRun } from '../types';
 import type { ChatMode } from '../../shared/protocol';
 
@@ -84,3 +85,51 @@ test('prompt prefix (gemini, grok) carries the per-mode guidance', () => {
 });
 
 void done('cli modes');
+test('opencode: ask/plan deny everything but reading, whatever the auto-run setting', () => {
+	for (const mode of RO) {
+		for (const autoRun of RUNS) {
+			const rule = openCodePermission({ mode, autoRun, commandAllowlist: ['npm test'] });
+			assert.strictEqual(rule['*'], 'deny');
+			for (const t of ['read', 'glob', 'grep', 'list']) { assert.strictEqual(rule[t], 'allow', t); }
+			for (const t of ['edit', 'bash', 'write']) { assert.ok(!(t in rule), t); }
+			assert.ok(!openCodeArgs({ mode, autoRun, model: 'opencode/big-pickle', extraArgs: [] }).includes('--auto'));
+		}
+	}
+});
+
+test('opencode: agent/debug allow edits, gate the shell by the allowlist, never ask', () => {
+	for (const mode of FULL) {
+		const ask = openCodePermission({ mode, autoRun: 'ask', commandAllowlist: ['npm test'] });
+		assert.strictEqual(ask['*'], 'allow');
+		assert.deepStrictEqual(ask.bash, { '*': 'deny' });
+		assert.strictEqual(ask.external_directory, 'deny');
+		assert.strictEqual(ask.question, 'deny');
+		const list = openCodePermission({ mode, autoRun: 'allowlist', commandAllowlist: ['npm test', 'git status && rm -rf /', 'ls > x', ''] });
+		assert.deepStrictEqual(list.bash, { '*': 'deny', 'npm test': 'allow', 'npm test *': 'allow' });
+		const always = openCodePermission({ mode, autoRun: 'always', commandAllowlist: [] });
+		assert.deepStrictEqual(always, { '*': 'allow', question: 'deny' });
+		// no rule may be `ask`: a headless OpenCode would wait forever
+		for (const r of [ask, list, always]) { assert.ok(!JSON.stringify(r).includes('"ask"')); }
+	}
+});
+
+test('opencode: the child sees the workspace as PWD and carries the permission config without touching the user config', () => {
+	const env = openCodeEnv({ env: { PWD: '/somewhere/else', PATH: '/bin' }, cwd: '/work', mode: 'plan', autoRun: 'always', commandAllowlist: [] });
+	assert.strictEqual(env.PWD, '/work');
+	assert.strictEqual(env.PATH, '/bin');
+	assert.strictEqual(JSON.parse(env.OPENCODE_CONFIG_CONTENT!).permission['*'], 'deny');
+	assert.ok(!('OPENCODE_CONFIG' in env));
+});
+
+test('opencode: --auto only for agent/debug with auto-run always, only on OpenCode 2', () => {
+	const a = (mode: ChatMode, autoRun: AutoRun, version = '2.0.25', sessionId?: string): string[] => openCodeArgs({ mode, autoRun, model: 'opencode/big-pickle', version, sessionId, extraArgs: ['--variant', 'high'] });
+	assert.deepStrictEqual(a('agent', 'ask'), ['run', '--format', 'json', '--thinking', '--standalone', '-m', 'opencode/big-pickle', '--variant', 'high']);
+	assert.ok(a('agent', 'always').includes('--auto'));
+	assert.ok(!a('agent', 'allowlist').includes('--auto'));
+	assert.ok(!a('debug', 'ask').includes('--auto'));
+	assert.ok(!a('ask', 'always').includes('--auto'));
+	assert.ok(!a('agent', 'always', '1.19.5').includes('--auto') && !a('agent', 'always', '1.19.5').includes('--standalone'));
+	assert.strictEqual(after(a('agent', 'ask', '2.0.25', 'ses_abc'), '--session'), 'ses_abc');
+	assert.ok(!openCodeArgs({ mode: 'agent', autoRun: 'ask', model: 'default', extraArgs: [] }).includes('-m'));
+});
+

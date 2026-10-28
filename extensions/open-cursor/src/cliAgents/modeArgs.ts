@@ -29,6 +29,10 @@ export const CLAUDE_BASE_PROMPT =
 
 /** System prompt and permission flags for Claude Code. `acceptEdits` is applied by the caller when there is no approval channel. */
 export function claudeModeArgs(o: Pick<RunOptions, 'mode'>): string[] {
+	if (o.mode === 'help') {
+		// Help answers from the manual alone: no tools at all, not even reading.
+		return ['--append-system-prompt', cliModeGuidance('help'), '--permission-mode', 'plan', '--tools', ''];
+	}
 	const readonly = MODE_READONLY(o.mode);
 	// Always pass a mode: a defaultMode set at user level (e.g. bypassPermissions) would otherwise skip our prompts.
 	const args = ['--append-system-prompt', `${CLAUDE_BASE_PROMPT}\n\n${cliModeGuidance(o.mode)}`, '--permission-mode', readonly ? 'plan' : 'default'];

@@ -18,6 +18,7 @@ export const CLI_HINTS: Readonly<Record<string, CliHint>> = {
 	codex: { install: 'npm install -g @openai/codex', login: 'Run `codex login` in a terminal and sign in with ChatGPT.', loginCommand: 'codex login' },
 	grok: { install: 'curl -fsSL https://x.ai/cli/install.sh | bash', login: 'Run `grok login` in a terminal and sign in with your Grok account.', loginCommand: 'grok login' },
 	'gemini-cli': { install: 'npm install -g @google/gemini-cli', login: 'Run `gemini` once in a terminal and sign in with Google.', loginCommand: 'gemini' },
+	opencode: { install: 'curl -fsSL https://opencode.ai/v2/install | bash', login: 'The free models need no sign in. To use your own provider, run `opencode auth login` in a terminal.', loginCommand: 'opencode auth login' },
 };
 
 export function cliHint(id: string): CliHint {

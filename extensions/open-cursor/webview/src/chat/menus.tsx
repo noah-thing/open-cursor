@@ -110,7 +110,7 @@ export function ModeMenu({ mode, onSelect }: { readonly mode: ChatMode; readonly
 	);
 }
 
-const AGENT_NAMES: Record<string, string> = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI' };
+const AGENT_NAMES: Record<string, string> = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI', opencode: 'OpenCode' };
 const LOCAL = new Set(['ollama', 'lmstudio']);
 
 function agentOf(m: ModelOption): string | undefined {

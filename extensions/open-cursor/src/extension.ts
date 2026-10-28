@@ -18,6 +18,7 @@ import { registerTerminalCmdK } from './terminal/cmdK';
 import { registerCommitMessage } from './scm/commitMessage';
 import { registerSettings } from './settings/panel';
 import { registerImporter } from './migrate/importer';
+import { FreeModelsPanel } from './connect/freePanel';
 
 export function activate(ctx: vscode.ExtensionContext): void {
 	const registry = createProviderRegistry(ctx);
@@ -33,13 +34,16 @@ export function activate(ctx: vscode.ExtensionContext): void {
 		cli: createCliAgents(ctx),
 	};
 
-	createChatController(ctx, services);
+	const chat = createChatController(ctx, services);
 	registerInlineEdit(ctx, services);
 	registerTab(ctx, services);
 	registerTerminalCmdK(ctx, services);
 	registerCommitMessage(ctx, services);
 	registerSettings(ctx, services);
 	registerImporter(ctx);
+
+	const free = new FreeModelsPanel(ctx, services, { activeModel: () => chat.activeModelId(), useModel: id => chat.useModel(id) });
+	ctx.subscriptions.push(free, vscode.commands.registerCommand('openCursor.freeModels.open', () => free.open()));
 }
 
 export function deactivate(): void { }

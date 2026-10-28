@@ -66,7 +66,7 @@ export function buildStarters({ hasFolder, hasModel, recent, onMode, onPick }: {
 	return rows;
 }
 
-const ORDER = ['claude-code', 'codex', 'grok', 'gemini-cli'];
+const ORDER = ['claude-code', 'codex', 'grok', 'gemini-cli', 'opencode'];
 
 type Tab = 'subs' | 'local' | 'keys';
 
@@ -100,7 +100,7 @@ export function ConnectBlock({ agents, local, providers, results, modelId, neede
 	readonly onUse: (modelId: string) => void;
 	readonly onHide: () => void;
 }): ReactElement {
-	const [tab, setTab] = useState<Tab>(() => agents.some(a => a.installed) ? 'subs' : 'local');
+	const [tab, setTab] = useState<Tab>('subs');
 	const [busy, setBusy] = useState<Record<string, boolean>>({});
 	// Probing servers takes a moment and re-lays out the panel; do it once in a while, not on every visit.
 	useEffect(() => {
@@ -110,12 +110,8 @@ export function ConnectBlock({ agents, local, providers, results, modelId, neede
 	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 	useEffect(() => { setBusy(b => { const n = { ...b }; for (const k of Object.keys(results)) { delete n[k]; } return n; }); }, [results]);
 
-	const segRef = useRef<HTMLDivElement>(null);
-	const [pill, setPill] = useState<{ x: number; w: number } | undefined>(undefined);
-	useLayoutEffect(() => {
-		const btn = segRef.current?.querySelector<HTMLElement>(`[data-tab="${tab}"]`);
-		if (btn) { setPill({ x: btn.offsetLeft, w: btn.offsetWidth }); }
-	}, [tab]);
+	// The pill sits under the active tab by index alone, so it never depends on a measurement taken mid layout.
+	const tabIndex = TABS.findIndex(t => t.id === tab);
 	const bodyRef = useRef<HTMLDivElement>(null);
 	const innerRef = useRef<HTMLDivElement>(null);
 	const [height, setHeight] = useState<number | undefined>(undefined);
@@ -139,8 +135,8 @@ export function ConnectBlock({ agents, local, providers, results, modelId, neede
 				</div>
 				{needed ? null : <button type="button" className="oc-iconbtn" title="Hide" aria-label="Hide" onClick={onHide}><Icon name="x" size={13} /></button>}
 			</header>
-			<div className="oc-seg" role="tablist" ref={segRef}>
-				{pill ? <span className="oc-seg-pill" style={{ transform: `translateX(${pill.x}px)`, width: pill.w }} aria-hidden="true" /> : null}
+			<div className="oc-seg" role="tablist" style={{ ['--tabs' as string]: TABS.length }}>
+				<span className="oc-seg-pill" style={{ transform: `translateX(calc(${tabIndex} * (100% + 2px)))` }} aria-hidden="true" />
 				{TABS.map(t => (
 					<button key={t.id} type="button" role="tab" data-tab={t.id} aria-selected={tab === t.id} className={'oc-seg-tab' + (tab === t.id ? ' is-on' : '')} onClick={() => setTab(t.id)}>
 						{t.label}

@@ -16,6 +16,8 @@ import { parseStatusZ, diffStat } from '../fileTracker';
 import { GeminiParser } from '../gemini';
 import { GrokParser, grokPermissionArgs, grokToolView, stripAnsi } from '../grok';
 import { parseGrokModels } from '../detect';
+import { OpenCodeParser, openCodeToolView } from '../opencode';
+import { buildOpenCodeModels, fallbackOpenCodeModels, openCodeMajor, openCodeModelLabel, parseOpenCodeAuth, parseOpenCodeModelList } from '../opencodeSetup';
 import { commandAllowed } from '../policy';
 import { TurnTracker } from '../tracking';
 import type { TurnHost } from '../types';
@@ -239,6 +241,123 @@ test('grok: plan file write becomes the plan text, exit_plan_mode is hidden', as
 	assert.strictEqual(rec.text, '# Plan\n- step');
 	assert.deepStrictEqual([...rec.finalTools.values()].map(t => t.name), ['create_plan']);
 	assert.ok(!rec.changed.length);
+});
+
+test('opencode: edit + shell fixture (real run): tools, session, usage, edits via hints', async () => {
+	const evs = lines('opencode-edit-shell.jsonl');
+	const { host, rec } = recorder();
+	const p = new OpenCodeParser(CWD, host, await TurnTracker.create(CWD, process.env, host));
+	for (const ev of evs) {
+		await p.feed(ev);
+	}
+	p.finish();
+	assert.strictEqual(p.sessionId, 'ses_e7ce1be17ffeMEtEHBY5JFJkrq');
+	assert.ok(!p.failure && !p.denied.length);
+	const tools = [...rec.finalTools.values()].filter(t => !t.id.startsWith('edit-'));
+	assert.deepStrictEqual(
+		tools.map(t => `${t.status}:${t.name}:${t.title}`),
+		['done:read_file:Read hello.txt', 'done:run_terminal_cmd:Ran `ls`'],
+	);
+	assert.ok(tools[1].output?.includes('new.txt'));
+	assert.strictEqual(tools[1].command?.text, 'ls');
+	assert.match(rec.text, /Done\. I read hello\.txt/);
+	assert.deepStrictEqual(rec.changed.map(x => path.basename(x)), ['hello.txt', 'new.txt']);
+	assert.deepStrictEqual(rec.usage, [{ inputTokens: 16579 + 70 + 138 + 16651, outputTokens: 68 + 13 + 156 }]);
+});
+
+test('opencode: edits in a git repo get real +/- counts and originals', async () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-opencode-git-'));
+	try {
+		const git = (...a: string[]): void => void cp.execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: dir, stdio: 'ignore' });
+		git('init', '-q');
+		fs.writeFileSync(path.join(dir, 'hello.txt'), 'alpha\nbeta\ndelta\n');
+		git('add', '.');
+		git('commit', '-qm', 'i');
+		const { host, rec } = recorder();
+		const p = new OpenCodeParser(dir, host, await TurnTracker.create(dir, process.env, host));
+		for (const ev of lines('opencode-edit-shell.jsonl')) {
+			const tool = (ev.part as Record<string, unknown> | undefined)?.tool;
+			// the real CLI changed the files before it reported the tool call
+			if (tool === 'edit') {
+				fs.writeFileSync(path.join(dir, 'hello.txt'), 'alpha\ngamma\ndelta\n');
+			} else if (tool === 'write') {
+				fs.writeFileSync(path.join(dir, 'new.txt'), 'line1\nline2');
+			}
+			const s = JSON.stringify(ev).split('/work').join(dir);
+			await p.feed(JSON.parse(s) as Record<string, unknown>);
+		}
+		const edits = [...rec.finalTools.values()].filter(t => t.edit).map(t => t.edit!);
+		assert.deepStrictEqual(edits.map(e => [e.path, e.added, e.removed, !!e.isNew]), [['hello.txt', 1, 1, false], ['new.txt', 2, 0, true]]);
+		const orig = new Map(rec.originals.map(([f, c]) => [path.basename(f), c]));
+		assert.strictEqual(orig.get('hello.txt'), 'alpha\nbeta\ndelta\n');
+		assert.strictEqual(orig.get('new.txt'), undefined);
+		assert.ok(orig.has('new.txt'));
+		assert.ok(!rec.text.includes('not a git repository'));
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('opencode: a command the permission config refused is a failed row and is remembered', async () => {
+	const { host, rec } = recorder();
+	const p = new OpenCodeParser(CWD, host, await TurnTracker.create(CWD, process.env, host));
+	for (const ev of lines('opencode-denied.jsonl')) {
+		await p.feed(ev);
+	}
+	assert.deepStrictEqual(p.denied, ['touch chained.txt']);
+	const rows = [...rec.finalTools.values()];
+	const bad = rows.find(t => t.status === 'error')!;
+	assert.strictEqual(bad.name, 'run_terminal_cmd');
+	assert.match(bad.output ?? '', /Permission denied/);
+	assert.ok(rows.some(t => t.status === 'done' && t.title === 'Ran `ls`'));
+	assert.deepStrictEqual(rec.changed, []);
+});
+
+test('opencode: reasoning becomes thinking, error events become the failure', async () => {
+	const { host, rec } = recorder();
+	const p = new OpenCodeParser(CWD, host, await TurnTracker.create(CWD, process.env, host));
+	for (const ev of lines('opencode-reasoning.jsonl')) {
+		await p.feed(ev);
+	}
+	assert.match(rec.thinking, /17\*23 = 391/);
+	assert.strictEqual(rec.text, '17 × 23 = 391');
+	const q = new OpenCodeParser(CWD, host, await TurnTracker.create(CWD, process.env, host));
+	for (const ev of lines('opencode-error.jsonl')) {
+		await q.feed(ev);
+	}
+	assert.strictEqual(q.failure, 'Model unavailable: opencode/nope');
+});
+
+test('opencode: tool titles', () => {
+	const t = (n: string, i: Record<string, unknown>, ph: 'run' | 'done' = 'done'): string => openCodeToolView(n, i, ph, '/work').title;
+	assert.strictEqual(t('read', { path: '/work/src/a.ts' }), 'Read src/a.ts');
+	assert.strictEqual(t('edit', { path: '/work/a.ts' }, 'run'), 'Editing a.ts');
+	assert.strictEqual(t('shell', { command: 'npm test' }), 'Ran `npm test`');
+	assert.strictEqual(t('grep', { pattern: 'foo' }), 'Searched `foo`');
+	assert.strictEqual(t('websearch', { query: 'x' }), 'Searched the web for `x`');
+});
+
+test('opencode: free models are labelled readably and listed first; other providers only when signed in', () => {
+	assert.deepStrictEqual(
+		['opencode/big-pickle', 'opencode/deepseek-v4.1-flash-free', 'opencode/glm-5.3-flash-free', 'opencode/nemotron-3-ultra-free', 'opencode/flint-40b-free', 'opencode/mimo-v2.6-flash-free', 'opencode/nemotron-3.5-super-vl-free', 'opencode/beam-free'].map(openCodeModelLabel),
+		['Big Pickle', 'DeepSeek V4.1 Flash', 'GLM 5.3 Flash', 'Nemotron 3 Ultra', 'Flint 40B', 'MiMo V2.6 Flash', 'Nemotron 3.5 Super VL', 'Beam'],
+	);
+	const out = 'opencode/nemotron-3-ultra-free\nopencode/big-pickle\nopenai/gpt-5\nanthropic/claude-sonnet-4\nopencode/zen-paid-model\nnoise line\n';
+	const all = parseOpenCodeModelList(out);
+	assert.strictEqual(all.length, 5);
+	const none = buildOpenCodeModels(all, []);
+	assert.deepStrictEqual(none.map(m => m.id), ['opencode/big-pickle', 'opencode/nemotron-3-ultra-free']);
+	assert.ok(none.every(m => m.free));
+	const signed = buildOpenCodeModels(all, parseOpenCodeAuth('[{"id":"openai","name":"OpenAI","connections":[{"type":"env","name":"OPENAI_API_KEY"}]}]'));
+	assert.deepStrictEqual(signed.map(m => [m.id, m.label, !!m.free]), [
+		['opencode/big-pickle', 'Big Pickle', true],
+		['opencode/nemotron-3-ultra-free', 'Nemotron 3 Ultra', true],
+		['openai/gpt-5', 'OpenAI: gpt-5', false],
+	]);
+	assert.strictEqual(fallbackOpenCodeModels()[0].id, 'opencode/big-pickle');
+	assert.strictEqual(openCodeMajor('2.0.25'), 2);
+	assert.strictEqual(openCodeMajor('1.19.5'), 1);
+	assert.deepStrictEqual(parseOpenCodeAuth('not json'), []);
 });
 
 test('grok: permission flags per mode', () => {

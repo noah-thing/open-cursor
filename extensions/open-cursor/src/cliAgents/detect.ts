@@ -9,11 +9,12 @@ import * as os from 'os';
 import * as path from 'path';
 import type { CliAgentInfo } from '../services';
 import type { CliAgentId } from './types';
+import { fallbackOpenCodeModels, listOpenCodeModels } from './opencodeSetup';
 import { COMMON_BIN_DIRS, defaultShell, executableNames, exists, parseJson, rec, runQuick, withPath } from './util';
 
-export const BINARY_NAME: Record<CliAgentId, string> = { 'claude-code': 'claude', codex: 'codex', grok: 'grok', 'gemini-cli': 'gemini' };
-export const AGENT_LABEL: Record<CliAgentId, string> = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI' };
-export const AGENT_IDS: CliAgentId[] = ['claude-code', 'codex', 'grok', 'gemini-cli'];
+export const BINARY_NAME: Record<CliAgentId, string> = { 'claude-code': 'claude', codex: 'codex', grok: 'grok', 'gemini-cli': 'gemini', opencode: 'opencode' };
+export const AGENT_LABEL: Record<CliAgentId, string> = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI', opencode: 'OpenCode' };
+export const AGENT_IDS: CliAgentId[] = ['claude-code', 'codex', 'grok', 'gemini-cli', 'opencode'];
 
 export interface DetectConfig {
 	readonly enabled: boolean;
@@ -140,6 +141,9 @@ async function checkLogin(id: CliAgentId, binary: string, env: NodeJS.ProcessEnv
 				return true;
 			}
 			return fs.existsSync(path.join(home, '.gemini', 'oauth_creds.json')) ? true : undefined;
+		case 'opencode':
+			// The free Zen models need no account.
+			return true;
 	}
 }
 
@@ -227,6 +231,8 @@ export function modelsFor(id: CliAgentId): { id: string; label: string }[] {
 				{ id: 'pro', label: 'Pro' },
 				{ id: 'flash', label: 'Flash' },
 			];
+		case 'opencode':
+			return fallbackOpenCodeModels();
 	}
 }
 
@@ -244,6 +250,11 @@ export async function detectAgent(id: CliAgentId, cfg: DetectConfig): Promise<Cl
 		const [st, gver] = await Promise.all([grokStatus(binary, env), runQuick(binary, ['--version'], { env, timeoutMs: 6000 })]);
 		const models = st.models.length ? [{ id: 'default', label: 'Default' }, ...st.models] : base.models;
 		return { ...base, models, binaryPath: binary, version: gver ? parseVersion(gver.stdout + ' ' + gver.stderr) : undefined, loggedIn: st.loggedIn };
+	}
+	if (id === 'opencode') {
+		const ver = await runQuick(binary, ['--version'], { env, timeoutMs: 6000 });
+		const version = ver ? parseVersion(ver.stdout + ' ' + ver.stderr) : undefined;
+		return { ...base, models: await listOpenCodeModels(binary, version, env), binaryPath: binary, version, loggedIn: true };
 	}
 	const [ver, loggedIn] = await Promise.all([runQuick(binary, ['--version'], { env, timeoutMs: 6000 }), checkLogin(id, binary, env)]);
 	return { ...base, binaryPath: binary, version: ver ? parseVersion(ver.stdout + ' ' + ver.stderr) : undefined, loggedIn };

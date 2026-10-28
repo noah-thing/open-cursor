@@ -31,6 +31,7 @@ const webview: esbuild.BuildOptions = {
 	entryPoints: {
 		chat: path.join(root, 'webview/src/chat/main.tsx'),
 		settings: path.join(root, 'webview/src/settings/main.tsx'),
+		free: path.join(root, 'webview/src/free/main.tsx'),
 	},
 	outdir: path.join(root, 'dist/webview'),
 	bundle: true,
