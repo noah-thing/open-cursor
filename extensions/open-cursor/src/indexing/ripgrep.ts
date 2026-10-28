@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Keyword search fallback over the bundled ripgrep, used when no embedding backend exists.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';

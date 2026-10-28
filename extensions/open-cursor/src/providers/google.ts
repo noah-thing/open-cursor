@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Google Gemini adapter: streamGenerateContent (SSE), function calling, inline images, thinking.
  *--------------------------------------------------------------------------------------------*/
 
 import { guessModelInfo, isChatModelId } from './catalog';

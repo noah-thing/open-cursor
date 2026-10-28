@@ -213,12 +213,10 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 		let est = estimateRequestTokens(p.system, transcriptMessages(transcript), p.tools.schemas);
 		hooks.onContextUsage(est, limit);
 		if (!force && est <= limit * COMPACT_THRESHOLD) { return; }
-		// stage 1: shorten old tool output
 		const pruned = pruneOldToolResults(transcriptMessages(transcript), 8, 800);
 		pruned.forEach((m, i) => { transcript[i] = { turn: transcript[i].turn, msg: m }; });
 		est = estimateRequestTokens(p.system, pruned, p.tools.schemas);
 		if (!force && est <= limit * COMPACT_THRESHOLD) { hooks.onContextUsage(est, limit); return; }
-		// stage 2: summarise older turns
 		const id = `summarize_${Date.now()}`;
 		hooks.onToolPart({ type: 'tool', id, name: 'summarize', status: 'running', title: 'Summarizing earlier context' });
 		let ok = false;
@@ -255,7 +253,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 		await manageContext(false);
 		if (signal.aborted) { return 'aborted'; }
 
-		// ---- one model turn, with retries before any output has been emitted
+		// retry the model call only while nothing has been emitted yet
 		const calls = new Map<string, PendingCall>();
 		let text = '';
 		let thinking = '';
@@ -357,7 +355,6 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 			return 'error';
 		}
 
-		// ---- assemble the assistant message
 		const finished = [...calls.values()].filter(c => c.finished);
 		for (const c of calls.values()) {
 			if (!c.finished) { hooks.onToolPart({ type: 'tool', id: c.id, name: c.name, status: 'cancelled', title: c.name }); }
@@ -394,7 +391,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 			return 'done';
 		}
 
-		// ---- run tools: consecutive read-only calls in parallel, mutating ones one at a time
+		// consecutive readonly calls run in parallel, mutating ones one at a time
 		const results = new Map<string, LLMContent>();
 		const runCall = async (c: PendingCall): Promise<void> => {
 			results.set(c.id, await executeCall(c));

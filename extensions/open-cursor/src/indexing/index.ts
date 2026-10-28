@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Semantic codebase index: chunk, embed (OpenAI / Gemini / Ollama), cosine search in JS,
- *  incremental by mtime+size, ripgrep keyword fallback. Line numbers in results are 1-based inclusive.
+ *  Semantic codebase index with a ripgrep keyword fallback. Result line numbers are 1-based inclusive.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -52,7 +51,6 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 	const enabled = () => cfg().get<boolean>('enabled', true);
 	const fire = () => onDidChange.fire();
 
-	// ---- file filtering --------------------------------------------------------------------
 	function loadIgnores(): FolderIgnore[] {
 		return (vscode.workspace.workspaceFolders ?? []).map(f => {
 			let text = '';
@@ -90,7 +88,6 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		return out;
 	}
 
-	// ---- embedding pipeline ----------------------------------------------------------------
 	interface Pending {
 		key: string;
 		sig: string;
@@ -186,7 +183,6 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		if (failure) { throw failure; }
 	}
 
-	// ---- scanning --------------------------------------------------------------------------
 	async function ensureLoaded(): Promise<void> {
 		loaded ??= (async () => {
 			if (dir) { await store.load(dir); }
@@ -256,7 +252,6 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		await running;
 	}
 
-	// ---- incremental updates ---------------------------------------------------------------
 	const dirty = new Set<string>();
 	let dirtyTimer: ReturnType<typeof setTimeout> | undefined;
 	function markDirty(uri: vscode.Uri): void {
@@ -284,7 +279,6 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		fire();
 	}
 
-	// ---- search ----------------------------------------------------------------------------
 	async function readLines(cache: Map<string, string[] | undefined>, fsPath: string): Promise<string[] | undefined> {
 		if (cache.has(fsPath)) { return cache.get(fsPath); }
 		let lines: string[] | undefined;
@@ -343,7 +337,6 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		return out;
 	}
 
-	// ---- public ----------------------------------------------------------------------------
 	function getStatus(): Status {
 		if (!enabled()) { return { state: 'disabled', files: 0, chunks: 0 }; }
 		return { state, files: store.fileCount, chunks: store.chunkCount, ...(progress !== undefined ? { progress } : {}), ...(error ? { error } : {}) };
@@ -366,7 +359,6 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		await scan();
 	}
 
-	// ---- wiring ----------------------------------------------------------------------------
 	const watcher = vscode.workspace.createFileSystemWatcher('**/*');
 	watcher.onDidChange(markDirty);
 	watcher.onDidCreate(markDirty);

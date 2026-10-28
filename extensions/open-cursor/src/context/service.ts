@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  IContextService implementation: rules, slash commands, @-mentions.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';

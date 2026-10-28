@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Fuzzy path scoring for @-mentions. Pure.
  *--------------------------------------------------------------------------------------------*/
 
 /**
@@ -27,7 +26,6 @@ export function fuzzyScore(query: string, path: string): number | undefined {
 		score += 300;
 	}
 
-	// Subsequence match over the full path, preferring the basename region.
 	let qi = 0;
 	let run = 0;
 	let best = 0;

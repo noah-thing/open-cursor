@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Dependency free HTML to readable text, plus ANSI stripping. Pure.
  *--------------------------------------------------------------------------------------------*/
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: '\'', nbsp: ' ', ndash: '-', mdash: '-', hellip: '...', rsquo: '\'', lsquo: '\'', rdquo: '"', ldquo: '"', copy: '(c)' };

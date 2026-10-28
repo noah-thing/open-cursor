@@ -46,7 +46,7 @@ export function fallbackTitle(text: string): string {
 	return words.length > 48 ? words.slice(0, 47).trimEnd() + '…' : words;
 }
 
-/** Cleans a model-written title: strips quotes and trailing punctuation, caps the length. */
+/** Cleans a model written title: strips quotes and trailing punctuation, caps the length. */
 export function sanitizeTitle(raw: string): string | undefined {
 	const t = raw.split('\n')[0].replace(/^["'`*#\s]+|["'`*.\s]+$/g, '').replace(/^title:\s*/i, '').trim();
 	if (!t || t.length < 3) { return undefined; }

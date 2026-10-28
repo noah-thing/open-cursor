@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Transcript model and rebuilding model history from UI chat messages. Pure.
+ *  Transcript model and model history rebuilt from UI messages. Pure.
  *--------------------------------------------------------------------------------------------*/
 
 import type { LLMContent, LLMMessage } from '../providers/types';
@@ -23,7 +23,7 @@ export function truncateTranscript(entries: readonly TranscriptEntry[], messageI
 }
 
 /**
- * Approximates the model-facing history from UI messages. Used when no raw transcript exists for a
+ * Approximates the model facing history from UI messages. Used when no raw transcript exists for a
  * chat or a turn (old chats, after compaction removed a turn). Tool calls are replayed from their parts.
  */
 export function buildHistoryFromChat(messages: readonly ChatMessage[]): TranscriptEntry[] {

@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  edit_file matching: exact replace with a whitespace tolerant fallback and precise failure
- *  messages. Pure (no vscode import).
+ *  edit_file matching: exact replace, whitespace tolerant fallback, precise failures. Pure.
  *--------------------------------------------------------------------------------------------*/
 
 export type EditOutcome =
@@ -82,7 +81,6 @@ function similarity(a: string, b: string): number {
 	return (2 * inter) / (Math.max(a.length - 1, 1) + Math.max(b.length - 1, 1));
 }
 
-/** Best matching window for an error message. */
 export function closestRegion(fileLines: string[], oldLines: string[]): { start: number; end: number; score: number } | undefined {
 	if (!fileLines.length || !oldLines.length) { return undefined; }
 	const target = oldLines.map(normLine);
@@ -144,9 +142,9 @@ export function applyEdit(content: string, oldString: string, newString: string,
 		return { ok: false, error: 'old_string is empty but the file is not. Provide the text to replace, or use write_file to overwrite the whole file.' };
 	}
 
-	// 1. exact
+	// exact
 	const exact = countOccurrences(content, oldS);
-	// A match that starts inside a line's indentation would leave new_string mis-indented: let the line based path handle it.
+	// A match that starts inside a line's indentation would leave new_string misindented: let the line based path handle it.
 	const midIndent = exact === 1 && /^[ \t]/.test(oldS) && /[ \t]/.test(content[content.indexOf(oldS) - 1] ?? '');
 	if ((exact === 1 && !midIndent) || (exact > 1 && replaceAll)) {
 		const out = replaceAll ? content.split(oldS).join(newS) : content.replace(oldS, () => newS);
@@ -156,7 +154,7 @@ export function applyEdit(content: string, oldString: string, newString: string,
 		return { ok: false, error: `old_string matches ${exact} places in the file. Add surrounding lines to make it unique, or set replace_all to true to change every occurrence.` };
 	}
 
-	// 2. line number prefixes copied from read_file
+	// line number prefixes copied from read_file
 	const stripped = stripLineNumberPrefixes(oldS);
 	if (stripped !== undefined) {
 		const strippedNew = stripLineNumberPrefixes(newS) ?? newS;
@@ -167,7 +165,7 @@ export function applyEdit(content: string, oldString: string, newString: string,
 		}
 	}
 
-	// 3. whitespace tolerant, line based
+	// whitespace tolerant, line based
 	const fileLines = content.split(eol);
 	let oldLines = oldS.split(eol);
 	let newLines = newS.split(eol);
@@ -193,7 +191,7 @@ export function applyEdit(content: string, oldString: string, newString: string,
 		return { ok: true, content: content.replace(oldS, () => newS), replacements: 1, fuzzy: false };
 	}
 
-	// 4. failure with the closest region
+	// failure with the closest region
 	const region = closestRegion(fileLines, oldLines);
 	if (!region) {
 		return { ok: false, error: 'old_string was not found in the file and nothing similar exists. Re-read the file with read_file and copy the text exactly.' };

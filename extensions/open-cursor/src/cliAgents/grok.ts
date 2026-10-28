@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
  *  Grok CLI runner. `grok -p <prompt> --output-format streaming-json`. Headless mode cannot ask us
- *  for approvals: a shell command that is not read only or allow-listed is refused and the CLI
+ *  for approvals: a shell command that is not read only or on the allowlist is refused and the CLI
  *  ends the turn ("cancelled"). So agent mode runs with `acceptEdits` inside `--sandbox workspace`
  *  (the kernel only lets it write the workspace and temp dirs), ask/plan with `plan` inside
  *  `--sandbox read-only`. Only autoRun === 'always' uses `bypassPermissions` without a sandbox.
- *  Allow-listed commands are passed as `--allow Bash(...)` rules. Edits are found by diffing git
+ *  Allowlisted commands are passed as `--allow Bash(...)` rules. Edits are found by diffing git
  *  status. Event shapes: text / thought deltas, tool_call + tool_call_update, usage, end.
  *--------------------------------------------------------------------------------------------*/
 

@@ -129,14 +129,11 @@ export function sseFromBody(res: Response): AsyncGenerator<SseEvent> {
 	return parseSse(readLines(res.body));
 }
 
-/** Test helper: SSE events from a literal string. */
 export async function* linesOf(text: string): AsyncGenerator<string> {
 	for (const l of text.split('\n')) { yield l.endsWith('\r') ? l.slice(0, -1) : l; }
 }
 
-/**
- * Wraps an adapter generator: abort becomes a clean `done: aborted`, stray errors become network ProviderErrors.
- */
+/** Abort becomes a clean `done: aborted`; stray errors become network ProviderErrors. */
 export async function* guarded(provider: ProviderId, signal: AbortSignal, gen: AsyncGenerator<StreamEvent>): AsyncGenerator<StreamEvent> {
 	try {
 		yield* gen;

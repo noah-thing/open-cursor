@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Pure chunking for the semantic index (no vscode import).
  *--------------------------------------------------------------------------------------------*/
 
 export interface Chunk {
@@ -49,7 +48,6 @@ export function chunkText(text: string, opts: ChunkOptions = {}): Chunk[] {
 			}
 			if (best !== -1) { end = best; }
 		}
-		// Character cap.
 		let chars = 0;
 		let capped = start;
 		while (capped < end && (chars + lines[capped].length + 1 <= maxChars || capped === start)) {

@@ -1,11 +1,10 @@
-/* OpenCursor settings. MIT License. Same tokens and density as the chat panel. */
+/* OpenCursor settings. MIT License. */
 
 body { overflow: hidden; }
 .st-loading { height: 100%; display: grid; place-items: center; color: var(--oc-fg-3); font-size: 12px; }
 
 .st-app { display: grid; grid-template-columns: 208px minmax(0, 1fr); height: 100%; background: var(--oc-bg-editor); }
 
-/* Nav */
 .st-nav { display: flex; flex-direction: column; gap: 1px; padding: 18px 10px; background: var(--oc-bg); border-right: 1px solid var(--oc-stroke-2); overflow-y: auto; }
 .st-nav-title { padding: 0 10px 12px; font-size: 11px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: var(--oc-fg-3); }
 .st-nav-item {
@@ -17,7 +16,6 @@ body { overflow: hidden; }
 .st-nav-item .oc-icon { color: var(--oc-fg-3); }
 .st-nav-item.is-active .oc-icon { color: var(--oc-fg); }
 
-/* Page */
 .st-main { overflow-y: auto; }
 .st-page { max-width: 720px; margin: 0 auto; padding: 32px 32px 72px; animation: oc-rise 180ms var(--oc-ease); }
 .st-h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
@@ -29,7 +27,6 @@ body { overflow: hidden; }
 .st-group-actions { display: flex; gap: 6px; flex: none; }
 .st-card { border: 1px solid var(--oc-stroke); border-radius: 12px; background: var(--oc-ink-4); overflow: hidden; }
 
-/* Rows */
 .st-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 14px; }
 .st-row + .st-row, .st-model-group .st-row + .st-row { border-top: 1px solid var(--oc-stroke-2); }
 .st-row.is-compact { padding: 8px 14px; }
@@ -47,7 +44,6 @@ body { overflow: hidden; }
 .st-spacer { flex: 1; }
 .st-empty { padding: 20px 14px; text-align: center; font-size: 12px; color: var(--oc-fg-3); }
 
-/* Controls */
 .st-switch {
 	position: relative; width: 30px; height: 18px; border-radius: 9px; background: var(--oc-ink-20); flex: none;
 	transition: background-color var(--oc-dur) var(--oc-ease);
@@ -112,7 +108,6 @@ input[type='number'].st-input { -moz-appearance: textfield; }
 .st-dot.is-busy { background: var(--oc-accent); animation: st-pulse 1.2s ease-in-out infinite; }
 @keyframes st-pulse { 50% { opacity: 0.35; } }
 
-/* Providers */
 .st-provider { gap: 8px; }
 .st-provider-head { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .st-key-line { display: flex; gap: 6px; }
@@ -137,7 +132,6 @@ input[type='number'].st-input { -moz-appearance: textfield; }
 .st-form > .st-btn { justify-self: end; }
 .st-form .st-input { width: 100%; }
 
-/* lists */
 .st-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .st-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 5px; }
 .st-chip { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 3px 0 9px; border-radius: 6px; background: var(--oc-ink-8); }
@@ -147,7 +141,6 @@ input[type='number'].st-input { -moz-appearance: textfield; }
 .st-list-add { display: flex; gap: 6px; }
 .st-list-add .st-input { flex: 1; }
 
-/* CLI */
 .st-howto { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .st-code { display: block; padding: 6px 10px; border-radius: 7px; background: var(--oc-ink-8); font-family: var(--oc-mono); font-size: 12px; user-select: all; }
 .st-cli .st-provider-head { gap: 9px; }
@@ -158,7 +151,6 @@ input[type='number'].st-input { -moz-appearance: textfield; }
 .st-progress { height: 4px; border-radius: 2px; background: var(--oc-ink-8); overflow: hidden; }
 .st-progress > div { height: 100%; background: var(--oc-accent); border-radius: 2px; transition: width 300ms var(--oc-ease); }
 
-/* Toasts */
 .st-toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 100; pointer-events: none; }
 .st-toast { padding: 8px 12px; border-radius: 9px; font-size: 12.5px; background: var(--oc-popup-bg); border: 1px solid var(--oc-popup-border); box-shadow: 0 6px 24px var(--oc-shadow); animation: oc-pop 160ms var(--oc-ease); max-width: 360px; }
 .st-toast.is-error { border-color: color-mix(in srgb, var(--oc-error) 45%, transparent); color: var(--oc-error); }

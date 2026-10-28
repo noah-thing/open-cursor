@@ -1,8 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  The start screen of an empty chat: where you are above the composer, ways to begin below it.
- *  App renders the three pieces around one composer so the composer node never remounts and
- *  can glide from the middle of the panel to the bottom when the first message is sent.
+ *  Start screen of an empty chat.
  *--------------------------------------------------------------------------------------------*/
 
 import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactElement, type ReactNode } from 'react';
@@ -21,7 +19,6 @@ export interface Starter {
 	readonly run: () => void;
 }
 
-/** Above the composer: the folder this chat works in. */
 export function HomeTop({ workspaceName }: { readonly workspaceName: string | undefined }): ReactElement {
 	return (
 		<div className="oc-home-top">
@@ -84,7 +81,6 @@ function hostOf(url: string): string {
 	try { return new URL(url).host; } catch { return url; }
 }
 
-/** A button that shows it is working while the host answers. */
 function Busy({ busy, children, ...rest }: { readonly busy: boolean; readonly children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>): ReactElement {
 	return <button type="button" {...rest} disabled={busy || rest.disabled}>{busy ? <Spinner size={11} /> : null}{children}</button>;
 }
@@ -112,10 +108,8 @@ export function ConnectBlock({ agents, local, providers, results, modelId, neede
 		lastConnectRequest = Date.now();
 		post({ type: 'requestConnect' });
 	}, []); // eslint-disable-line react-hooks/exhaustive-deps
-	// A result arriving ends the wait for that target.
 	useEffect(() => { setBusy(b => { const n = { ...b }; for (const k of Object.keys(results)) { delete n[k]; } return n; }); }, [results]);
 
-	// The pill under the active tab slides to it; the body eases to the new height.
 	const segRef = useRef<HTMLDivElement>(null);
 	const [pill, setPill] = useState<{ x: number; w: number } | undefined>(undefined);
 	useLayoutEffect(() => {

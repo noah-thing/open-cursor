@@ -5,7 +5,7 @@
  *  gemini 0.46.0, grok 1.0.70 (`<cli> --help`).
  *
  *  Strongest equivalent per mode:
- *    ask / plan : the CLI's own read-only permission mode AND, where it has one, an OS sandbox
+ *    ask / plan : the CLI's own read only permission mode AND, where it has one, an OS sandbox
  *                 that cannot write (codex -s read-only, grok --sandbox read-only); Claude Code
  *                 also has its edit tools removed with --disallowed-tools.
  *    agent/debug: edits allowed (workspace sandbox where the CLI has one).
@@ -30,7 +30,7 @@ export const CLAUDE_BASE_PROMPT =
 /** System prompt and permission flags for Claude Code. `acceptEdits` is applied by the caller when there is no approval channel. */
 export function claudeModeArgs(o: Pick<RunOptions, 'mode'>): string[] {
 	const readonly = MODE_READONLY(o.mode);
-	// Always pass a mode: a user-level defaultMode (e.g. bypassPermissions) would otherwise skip our prompts.
+	// Always pass a mode: a defaultMode set at user level (e.g. bypassPermissions) would otherwise skip our prompts.
 	const args = ['--append-system-prompt', `${CLAUDE_BASE_PROMPT}\n\n${cliModeGuidance(o.mode)}`, '--permission-mode', readonly ? 'plan' : 'default'];
 	if (readonly) {
 		args.push('--disallowed-tools', CLAUDE_EDIT_TOOLS.join(','));

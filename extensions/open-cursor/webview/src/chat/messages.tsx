@@ -37,7 +37,6 @@ function buildNodes(parts: readonly MessagePart[]): Node[] {
 	return out;
 }
 
-/** Ticks once a second while `on`, for live elapsed times. */
 export function useNow(on: boolean): number {
 	const [now, setNow] = useState(() => Date.now());
 	useEffect(() => {
@@ -89,7 +88,6 @@ const WorkingLine = memo(function WorkingLine({ message }: { readonly message: A
 	);
 });
 
-/** After a run: a quiet line saying what it did. */
 function RunSummary({ message }: { readonly message: AssistantMessage }): ReactElement | null {
 	const steps = message.parts.filter((p): p is ToolPart => p.type === 'tool');
 	if (steps.length < 2) { return null; }

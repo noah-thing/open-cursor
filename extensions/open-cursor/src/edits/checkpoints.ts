@@ -1,8 +1,7 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Checkpoints: before-contents of every file the agent touched, per user message, stored as
- *  content-addressed blobs under the extension storage dir. Restore rewinds files to the earliest
- *  captured state across the target checkpoint and every later one.
+ *  Before-contents of every file the agent touched, per user message, stored as content-addressed
+ *  blobs under the extension storage dir.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -12,7 +11,7 @@ import { planRestore, type CheckpointRecord } from './checkpointLogic';
 import { deleteOnDisk, writeDocument } from './fileOps';
 
 export interface CheckpointOptions {
-	/** Called before files are rewritten so pending review state for them can be dropped. */
+	/** Called before files are rewritten so their pending review state can be dropped. */
 	onRestore?(uris: vscode.Uri[]): void;
 }
 
@@ -81,7 +80,7 @@ export function createCheckpoints(ctx: vscode.ExtensionContext, options: Checkpo
 	function begin(chatId: string, messageId: string): string {
 		const rec: Rec = { id: randomUUID(), messageId, seq: ++seqCounter, files: {} };
 		const recs = chats.get(chatId);
-		// Older on-disk records are merged lazily in `restore`; seq is monotonic by time so ordering holds.
+		// older on-disk records are merged in `restore`; seq grows with time so ordering holds
 		if (recs) { recs.push(rec); } else { chats.set(chatId, [rec]); }
 		saveRec(chatId, rec);
 		return rec.id;
@@ -133,7 +132,7 @@ export function createCheckpoints(ctx: vscode.ExtensionContext, options: Checkpo
 			// keep the records so the restore can be retried
 			throw new Error(`${failed.length} file${failed.length === 1 ? '' : 's'} could not be restored: ${failed.slice(0, 3).join('; ')}${failed.length > 3 ? '; ...' : ''}`);
 		}
-		// Later checkpoints have been undone; the target stays so it can be restored again.
+		// later checkpoints are undone; the target stays so it can be restored again
 		const idx = recs.findIndex(r => r.id === checkpointId);
 		const dropped = recs.splice(idx + 1);
 		queue(async () => {

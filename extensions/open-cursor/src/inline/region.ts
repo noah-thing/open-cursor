@@ -6,7 +6,7 @@
 export interface Sel { startLine: number; startCol: number; endLine: number; endCol: number }
 
 export interface Region {
-	/** 'lines' replaces whole lines; 'cursor' inserts at a point inside a non-blank line. */
+	/** 'lines' replaces whole lines; 'cursor' inserts at a point in a non-blank line. */
 	kind: 'lines' | 'cursor';
 	start: number; // offsets into the document text
 	end: number;
@@ -49,7 +49,7 @@ export function computeRegion(text: string, sel: Sel): Region {
 	return { kind: 'lines', start, end, startLine: sl, endLine: el, before: text.slice(0, start), selected: text.slice(start, end), after: text.slice(end) };
 }
 
-/** Last `maxLines` lines of s (keeps the final partial line). */
+/** Last `maxLines` lines of s, including a final partial line. */
 export function tailLines(s: string, maxLines: number): string {
 	let idx = s.endsWith('\n') ? s.length - 1 : s.length;
 	for (let n = 0; n < maxLines; n++) {

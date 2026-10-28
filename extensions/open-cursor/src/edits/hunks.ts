@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Pure hunk logic for pending edits (no vscode import): line diff, stable ids, accept/reject folding.
+ *  Pure hunk logic for pending edits, no vscode import.
  *--------------------------------------------------------------------------------------------*/
 
 import { diffArrays } from 'diff';
 
-/** Normalise line endings. All review state is kept with `\n`; VS Code converts to the document EOL on write. */
+/** Review state is kept with `\n` endings; withEol converts back to the document's EOL on write. */
 export function norm(text: string): string {
 	return text.indexOf('\r') === -1 ? text : text.replace(/\r\n?/g, '\n');
 }
@@ -16,10 +16,9 @@ export function splitLines(text: string): string[] {
 
 export interface Hunk {
 	readonly id: string;
-	/** 0-based start line in the original. */
+	/** 0-based. */
 	readonly origStart: number;
 	readonly origCount: number;
-	/** 0-based start line in the current text. */
 	readonly curStart: number;
 	readonly curCount: number;
 	readonly removedLines: string[];
@@ -111,7 +110,7 @@ export function countChanges(hunks: readonly Hunk[]): { added: number; removed: 
 	return { added, removed };
 }
 
-/** Smallest single replacement turning `oldText` into `newText` (keeps cursors and folds outside it intact). */
+/** Smallest single replacement turning `oldText` into `newText`, so cursors and folds outside it survive. */
 export function minimalEdit(oldText: string, newText: string): { start: number; end: number; text: string } | undefined {
 	if (oldText === newText) {
 		return undefined;
@@ -134,7 +133,6 @@ export function minimalEdit(oldText: string, newText: string): { start: number; 
 	return { start: p, end: oldText.length - s, text: newText.slice(p, newText.length - s) };
 }
 
-/** Convert `\n` text to the document EOL. */
 export function withEol(text: string, eol: '\n' | '\r\n'): string {
 	return eol === '\n' ? norm(text) : norm(text).replace(/\n/g, '\r\n');
 }

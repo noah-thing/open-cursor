@@ -10,7 +10,6 @@
 	--oc-col: 760px;
 }
 
-/* ---------- Header ---------- */
 .oc-header {
 	display: flex;
 	align-items: center;
@@ -57,7 +56,6 @@
 .oc-dot.is-error { background: var(--oc-error); }
 .oc-header-actions { display: flex; align-items: center; gap: 1px; flex: none; }
 
-/* ---------- Popovers and menus ---------- */
 .oc-menu-wrap { position: relative; display: inline-flex; }
 .oc-popover {
 	position: absolute;
@@ -118,7 +116,6 @@
 .oc-menu-footer:hover { background: var(--oc-hover); color: var(--oc-fg); }
 .oc-more-menu { min-width: 190px; }
 
-/* ---------- Chips (composer bar pickers) ---------- */
 .oc-chip {
 	display: inline-flex;
 	align-items: center;
@@ -140,7 +137,6 @@
 .oc-mode-chip.is-agent { color: var(--oc-fg); background: var(--oc-ink-6); }
 .oc-mode-chip:hover { filter: brightness(1.15); }
 
-/* ---------- Message list ---------- */
 .oc-scroll-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
 .oc-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
 .oc-messages {
@@ -163,7 +159,6 @@
 .oc-jump:hover { color: var(--oc-fg); }
 .oc-loading { flex: 1; display: grid; place-items: center; font-size: 12px; animation: oc-fade 200ms 160ms ease-out both; }
 
-/* ---------- User bubble ---------- */
 .oc-user { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .oc-bubble {
 	position: relative;
@@ -210,7 +205,6 @@
 .oc-confirm-body { margin-top: 3px; font-size: 12px; color: var(--oc-fg-2); }
 .oc-confirm-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 10px; }
 
-/* ---------- Pills ---------- */
 .oc-pills { display: flex; flex-wrap: wrap; gap: 4px; }
 .oc-pill {
 	display: inline-flex; align-items: center; max-width: 100%; height: 20px; border-radius: 5px;
@@ -230,14 +224,12 @@
 .oc-pill-suggest .oc-pill-x { margin-left: -2px; opacity: 0; transition: opacity 100ms; }
 .oc-pill-suggest:hover .oc-pill-x, .oc-pill-suggest:focus-within .oc-pill-x { opacity: 1; }
 
-/* ---------- Assistant ---------- */
 .oc-assistant { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 0 2px; }
 .oc-assistant > * { min-width: 0; }
 .oc-working { padding: 2px 0 2px 1px; font-size: 12.5px; }
 .oc-assistant-foot { display: flex; gap: 2px; margin-top: -2px; opacity: 0; transition: opacity 120ms; }
 .oc-assistant:hover .oc-assistant-foot, .oc-assistant-foot:focus-within { opacity: 1; }
 
-/* Rows: thinking, tools */
 .oc-row-head {
 	display: flex; align-items: center; gap: 7px; width: 100%; min-height: 24px;
 	padding: 1px 4px 1px 2px; margin-left: -2px; border-radius: 6px;
@@ -281,7 +273,6 @@ button.oc-row-head:hover:not(:disabled) { background: var(--oc-ink-6); color: va
 .oc-tool.is-edit .oc-edit-dir + .oc-spacer { flex: 0 0 4px; }
 .oc-group-body { padding-left: 14px; display: flex; flex-direction: column; border-left: 1px solid var(--oc-stroke-2); margin-left: 8px; animation: oc-rise 160ms var(--oc-ease); }
 
-/* Approval card */
 .oc-approval {
 	border: 1px solid var(--oc-stroke); border-radius: 12px; background: var(--oc-bg-editor); overflow: hidden;
 	box-shadow: 0 0 0 1px color-mix(in srgb, var(--oc-mode-plan) 22%, transparent);
@@ -297,7 +288,6 @@ button.oc-row-head:hover:not(:disabled) { background: var(--oc-ink-6); color: va
 .oc-approval-cwd { margin: 5px 10px 0; font-size: 11px; color: var(--oc-fg-3); }
 .oc-approval-actions { display: flex; align-items: center; gap: 6px; padding: 9px 10px 10px; }
 
-/* Error card */
 .oc-error {
 	display: flex; gap: 8px; padding: 9px 10px; border-radius: 10px;
 	background: color-mix(in srgb, var(--oc-error) 9%, transparent); border: 1px solid color-mix(in srgb, var(--oc-error) 28%, transparent);
@@ -307,7 +297,6 @@ button.oc-row-head:hover:not(:disabled) { background: var(--oc-ink-6); color: va
 .oc-error-text { font-size: 12.5px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .oc-error-actions { margin-top: 8px; display: flex; gap: 6px; }
 
-/* ---------- Markdown ---------- */
 .oc-md { font-size: var(--oc-text); line-height: 1.55; overflow-wrap: anywhere; }
 .oc-md-block > :first-child { margin-top: 0; }
 .oc-md-block > :last-child { margin-bottom: 0; }
@@ -341,7 +330,6 @@ button.oc-row-head:hover:not(:disabled) { background: var(--oc-ink-6); color: va
 .oc-md strong { font-weight: 600; }
 .oc-md-image { color: var(--oc-fg-3); font-style: italic; }
 
-/* Code block */
 .oc-code {
 	border: 1px solid var(--oc-stroke); border-radius: 10px; background: var(--oc-bg-editor); overflow: hidden;
 	margin: 2px 0;
@@ -366,7 +354,6 @@ button.oc-row-head:hover:not(:disabled) { background: var(--oc-ink-6); color: va
 .oc-code-more { display: block; width: 100%; padding: 5px; text-align: center; font-size: 11.5px; color: var(--oc-fg-2); border-top: 1px solid var(--oc-stroke-2); }
 .oc-code-more:hover { background: var(--oc-ink-6); color: var(--oc-fg); }
 
-/* Build bar for plan mode */
 .oc-build {
 	display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 12px; border-radius: 10px;
 	background: color-mix(in srgb, var(--oc-mode-plan) 9%, transparent); border: 1px solid color-mix(in srgb, var(--oc-mode-plan) 24%, transparent);
@@ -374,7 +361,6 @@ button.oc-row-head:hover:not(:disabled) { background: var(--oc-ink-6); color: va
 }
 .oc-build-text { flex: 1; font-size: 12.5px; color: var(--oc-fg-2); }
 
-/* ---------- Dock (trays + composer) ---------- */
 .oc-dock { flex: none; padding: 0 10px 10px; display: flex; flex-direction: column; max-width: calc(var(--oc-col) + 20px); width: 100%; margin: 0 auto; position: relative; }
 .oc-dock::before {
 	content: ''; position: absolute; left: 0; right: 0; top: -22px; height: 22px; pointer-events: none;
@@ -416,7 +402,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-review-file:hover .oc-review-file-actions, .oc-review-file:focus-within .oc-review-file-actions { opacity: 1; }
 .oc-review-file-actions .oc-iconbtn { width: 22px; height: 22px; }
 
-/* ---------- Composer ---------- */
 .oc-composer-wrap { position: relative; z-index: 2; }
 .oc-composer {
 	position: relative; display: flex; flex-direction: column; gap: 6px; padding: 9px 10px 7px;
@@ -458,7 +443,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 }
 .oc-notice span { flex: 1; }
 
-/* @ and / popup */
 .oc-popup {
 	position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 60; max-height: 260px; overflow-y: auto; padding: 4px;
 	border-radius: 10px; background: var(--oc-popup-bg); border: 1px solid var(--oc-popup-border);
@@ -475,7 +459,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-popup-more { color: var(--oc-fg-3); }
 .oc-popup-empty { padding: 10px; text-align: center; font-size: 12px; color: var(--oc-fg-3); }
 
-/* ---------- History ---------- */
 .oc-history { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .oc-hist-search { display: flex; align-items: center; gap: 8px; margin: 10px 10px 4px; padding: 0 8px 0 10px; height: 30px; border-radius: 8px; background: var(--oc-input-bg); box-shadow: inset 0 0 0 1px var(--oc-stroke); color: var(--oc-fg-3); }
 .oc-hist-search:focus-within { box-shadow: inset 0 0 0 1px var(--oc-focus); }
@@ -505,7 +488,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-tray-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .oc-review-actions { white-space: nowrap; }
 
-/* First run: ways to connect a model */
 .oc-setup { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 18px; }
 .oc-setup-item {
 	display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
@@ -519,9 +501,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-setup-sub { font-size: 11.5px; color: var(--vscode-descriptionForeground); }
 .oc-review-head .oc-tray-title { flex: none; }
 
-/* ======================================================================================
-   Layout: header, then a body holding the chat list (wide only) and the stage.
-   ====================================================================================== */
 .oc-body { flex: 1 1 auto; min-height: 0; display: flex; }
 .oc-body > .oc-history { flex: 1 1 auto; min-width: 0; animation: oc-fade 160ms ease-out both; }
 .oc-stage { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; container: stage / inline-size; }
@@ -544,10 +523,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-app.is-wide .oc-tabs { visibility: hidden; }
 .oc-app.is-wide .oc-header-actions > [aria-label='Past chats'] { display: none; }
 
-/* ======================================================================================
-   Start screen. Spacers above and below hold the composer a little above the middle;
-   the pieces around it arrive in a short cascade and leave as ghosts (see useStageMotion).
-   ====================================================================================== */
 .oc-stage.is-home { overflow-y: auto; overflow-x: hidden; }
 /* The composer sits at a fixed height on the screen, so blocks that arrive below it (subscriptions,
    recent chats) never push it around. */
@@ -601,16 +576,12 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 /* Ghosts keep their last frame; their own entrance must not replay when they are put back. */
 .oc-leaving, .oc-leaving * { animation: none !important; }
 
-/* ======================================================================================
-   A run in progress.
-   ====================================================================================== */
 .oc-assistant > .oc-tool, .oc-assistant > .oc-group, .oc-assistant > .oc-thinking, .oc-assistant > .oc-approval,
 .oc-assistant > .oc-error, .oc-group-body > *, .oc-md-block, .oc-code {
 	animation: oc-enter 260ms var(--oc-ease-out) both;
 }
 .oc-assistant > .oc-approval { animation: oc-pop 200ms var(--oc-ease-out) both; }
 
-/* The status line. Its label changes with the work; the record of steps grows to its right. */
 .oc-working {
 	position: relative; display: flex; align-items: center; gap: 10px; min-height: 26px; padding: 3px 2px 5px; overflow: hidden;
 	font-size: 12.5px; color: var(--oc-fg-2);
@@ -635,7 +606,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-trace > i.is-awaiting-approval { background: var(--oc-mode-plan); }
 .oc-trace > i.is-rejected, .oc-trace > i.is-cancelled { background: var(--oc-ink-12); }
 
-/* Thinking: the newest sentence slides through under the title. */
 .oc-think-live {
 	margin: -1px 0 3px 23px; height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 	font-size: 12px; line-height: 18px; color: var(--oc-fg-3);
@@ -645,15 +615,11 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 
 .oc-tick { display: inline-block; animation: oc-tick 260ms var(--oc-ease-out) both; }
 
-/* After a run: the summary stays, the actions wait for the pointer. */
 .oc-assistant-foot { opacity: 1; align-items: center; gap: 6px; min-height: 22px; }
 .oc-assistant-foot .oc-iconbtn { opacity: 0; transition: opacity 120ms ease, background-color 100ms, transform 120ms var(--oc-ease-out); }
 .oc-assistant:hover .oc-assistant-foot .oc-iconbtn, .oc-assistant-foot:focus-within .oc-iconbtn { opacity: 1; }
 .oc-run-summary { font-size: 11.5px; color: var(--oc-fg-3); animation: oc-fade 400ms ease-out both; }
 
-/* ======================================================================================
-   Context going in: pills, pasted images, drag and drop.
-   ====================================================================================== */
 .oc-composer .oc-pill { animation: oc-pop 200ms var(--oc-ease-out) both; transform-origin: 0 50%; }
 .oc-pill-thumb { animation: oc-reveal 360ms var(--oc-ease-out) both; }
 .oc-drop-hint {
@@ -663,9 +629,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 	animation: oc-fade 140ms ease-out both;
 }
 
-/* ======================================================================================
-   Small arrivals: tabs, todos, menus that open from where they were asked for.
-   ====================================================================================== */
 .oc-tab { animation: oc-enter 200ms var(--oc-ease-out) both; }
 .oc-todo-text { text-decoration: line-through; text-decoration-color: transparent; transition: text-decoration-color 320ms ease, color 320ms ease; }
 .oc-todo-icon.is-done, .oc-todo-icon.is-active { animation: oc-check 260ms var(--oc-ease-out) both; }
@@ -685,10 +648,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-rail-link:hover { background: var(--oc-ink-6); color: var(--oc-fg); }
 .oc-rail-link:active { transform: scale(0.98); }
 
-/* ======================================================================================
-   Connect panel (start screen). Same surface as the composer above it, so the two read as
-   one tool. Tabs slide a pill, the body eases to each tab's height, rows arrive in a cascade.
-   ====================================================================================== */
 .oc-connect {
 	margin: 14px 0 4px; padding: 12px 12px 10px; border-radius: 14px;
 	background: var(--oc-input-bg); box-shadow: inset 0 0 0 1px var(--oc-stroke);
@@ -769,7 +728,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 	.oc-conn-keyform { padding-left: 6px; }
 }
 
-/* Model menu: sections, connect rows, a chip that warns when its model cannot run. */
 .oc-model-menu { max-height: min(460px, 72vh); }
 .oc-menu-section + .oc-menu-section { margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--oc-stroke-2); }
 .oc-menu-section-title { padding: 8px 8px 2px; font-size: 11px; font-weight: 600; color: var(--oc-fg-2); }

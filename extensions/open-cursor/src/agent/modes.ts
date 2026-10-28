@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  What each chat mode is allowed to do, and what must be true before a turn may end. Pure
- *  (no vscode), so the tool registry, the agent loop and the tests share one definition.
+ *  What each chat mode may do, and what must hold before a turn can end. Pure.
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChatMode, TodoItem } from '../shared/protocol';
@@ -12,8 +11,6 @@ export const DEBUG_MARKER = 'OC-DEBUG';
 export function isReadOnlyMode(mode: ChatMode): boolean {
 	return mode === 'ask' || mode === 'plan';
 }
-
-// ------------------------------------------------------------------ read-only shell commands
 
 interface Parsed { segments: string[][] }
 
@@ -184,8 +181,6 @@ export function isReadOnlyCommand(command: string): ReadOnlyCheck {
 	return { ok: true };
 }
 
-// ------------------------------------------------------------------ tool gating
-
 export interface ToolLike { readonly name: string; readonly readOnly: boolean }
 
 /** Why `tool` may not run in `mode`, or undefined when it may. The loop re-checks every call with this. */
@@ -203,9 +198,7 @@ export function toolBlockedReason(mode: ChatMode, tool: ToolLike, args: Record<s
 	return undefined;
 }
 
-// ------------------------------------------------------------------ end-of-turn checks
-
-/** Marker hits as `path:line` (1-based). Pure text scan. */
+/** Marker hits as `path:line` (counted from 1). Pure text scan. */
 export function findMarkerLines(text: string, marker = DEBUG_MARKER): number[] {
 	const out: number[] = [];
 	text.split('\n').forEach((l, i) => { if (l.includes(marker)) { out.push(i + 1); } });

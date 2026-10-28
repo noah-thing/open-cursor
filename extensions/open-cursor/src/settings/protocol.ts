@@ -98,7 +98,6 @@ export interface ProviderRow {
 	label: string;
 	/** A key is stored (or found in the environment). */
 	hasKey: boolean;
-	/** Local servers that need no key. */
 	keyless: boolean;
 }
 

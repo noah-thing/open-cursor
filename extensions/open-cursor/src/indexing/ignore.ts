@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Gitignore-style matcher for .cursorignore / .open-cursorignore (no vscode import).
  *--------------------------------------------------------------------------------------------*/
 
 import { minimatch } from 'minimatch';

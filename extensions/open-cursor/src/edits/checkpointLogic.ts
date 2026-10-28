@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Pure restore planning for checkpoints (no vscode import).
+ *  Pure restore planning for checkpoints, no vscode import.
  *--------------------------------------------------------------------------------------------*/
 
 export interface CheckpointRecord {
 	readonly id: string;
-	/** uri string -> blob hash of the content before the checkpoint, or null if the file did not exist. */
+	/** uri string to blob hash of the content before the checkpoint; null if the file did not exist. */
 	readonly files: Readonly<Record<string, string | null>>;
 }
 

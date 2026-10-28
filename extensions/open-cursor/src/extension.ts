@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Wiring. Every module builds itself from the ExtensionContext and the shared Services bag.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';

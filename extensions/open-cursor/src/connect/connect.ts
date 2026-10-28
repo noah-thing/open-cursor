@@ -118,7 +118,7 @@ export class ConnectService {
 	}
 
 	/**
-	 * Connects to a model server on another computer (or this one on a non-default port). Ollama
+	 * Connects to a model server on another computer (or this one on a port other than the default). Ollama
 	 * answers on /api/tags; LM Studio, llama.cpp, vLLM and friends answer the OpenAI /v1/models list.
 	 */
 	async connectServer(address: string): Promise<{ ok: boolean; message: string }> {
@@ -140,7 +140,6 @@ export class ConnectService {
 		};
 	}
 
-	/** Back to this computer's default address. */
 	async resetServer(id: LocalServerStatus['id']): Promise<void> {
 		await vscode.workspace.getConfiguration('openCursor').update(BASE_SETTING[id], undefined, vscode.ConfigurationTarget.Global);
 		await this.reload();

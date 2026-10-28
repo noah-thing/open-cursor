@@ -42,7 +42,6 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 		if (el) { el.scrollTop = el.scrollHeight; }
 	}, []);
 
-	// Restore position when the chat changes.
 	useLayoutEffect(() => {
 		const saved = scrollPositions[chat.id];
 		const el = scroller.current;
@@ -57,7 +56,6 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 		setShowJump(!stick.current);
 	}, [chat.id, toBottom]);
 
-	// A new user message always jumps to the end.
 	useLayoutEffect(() => {
 		if (lastIsUser) {
 			stick.current = true;

@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  File helpers shared by the tools.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -30,7 +29,7 @@ export async function resolveForWrite(p: string, ctx: ToolContext, action: strin
 	return { uri: r.uri };
 }
 
-/** Resolve a path for a read-only tool; asks the user when it lies outside the workspace. */
+/** Resolve a path for a readonly tool; asks the user when it lies outside the workspace. */
 export async function resolveForRead(p: string, ctx: ToolContext, action: string): Promise<{ uri: vscode.Uri } | { error: string }> {
 	const r = resolvePath(p);
 	if (!r.inWorkspace) {

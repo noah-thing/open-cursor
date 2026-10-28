@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Canonical model-facing types. Every provider adapter converts to and from these.
  *--------------------------------------------------------------------------------------------*/
 
 export type ProviderId =

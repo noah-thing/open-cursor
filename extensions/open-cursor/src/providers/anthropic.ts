@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Anthropic Messages API adapter (streaming, tools, images, extended thinking, prompt caching).
  *--------------------------------------------------------------------------------------------*/
 
 import { ANTHROPIC_MODELS, guessModelInfo, isChatModelId } from './catalog';

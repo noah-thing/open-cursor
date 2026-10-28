@@ -49,7 +49,6 @@ export function parseStatusZ(out: string): StatusEntry[] {
 	return entries;
 }
 
-/** Added/removed line counts between two versions of a file. */
 export function diffStat(a: string | undefined, b: string | undefined): { added: number; removed: number } {
 	if (a === undefined) {
 		return { added: countLines(b ?? ''), removed: 0 };

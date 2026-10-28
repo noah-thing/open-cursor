@@ -2,7 +2,7 @@
  *  OpenCursor. MIT License.
  *  "Bring your own CLI subscription": runs Claude Code, Codex, Grok or Gemini CLI headless in the
  *  workspace and translates their event streams into OpenCursor chat parts. Entry point for
- *  src/cliAgents. Everything except this file is vscode-free so it can be tested in plain node.
+ *  src/cliAgents. Everything except this file avoids vscode imports so it can be tested in plain node.
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';

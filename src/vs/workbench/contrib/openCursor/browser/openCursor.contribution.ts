@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Core side of OpenCursor: inline diff review, the Cmd+K box, and workbench defaults that give
- *  the editor its AI-first layout. Everything else lives in extensions/open-cursor.
+ *  Core side of OpenCursor: inline diff review, the Cmd+K box and workbench defaults.
  *--------------------------------------------------------------------------------------------*/
 
 import './openCursorDiff.js';
@@ -11,12 +10,11 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		// The built-in Copilot chat stack is replaced by OpenCursor's own agent.
+		// Copilot chat is replaced by OpenCursor's own agent.
 		'chat.disableAIFeatures': true,
 		'workbench.activityBar.location': 'top',
 		// The chat is the only thing in the secondary side bar, so its one-icon tab strip goes away.
 		'workbench.activityBar.autoHide': true,
-		// Motion everywhere the workbench offers it: lists, the terminal and the caret glide instead of jumping.
 		'workbench.list.smoothScrolling': true,
 		'terminal.integrated.smoothScrolling': true,
 		'editor.cursorBlinking': 'smooth',

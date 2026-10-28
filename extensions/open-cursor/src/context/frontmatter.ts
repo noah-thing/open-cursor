@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Rule/command frontmatter parsing and glob matching. Pure (no vscode import) so it is unit testable.
  *--------------------------------------------------------------------------------------------*/
 
 import { minimatch } from 'minimatch';

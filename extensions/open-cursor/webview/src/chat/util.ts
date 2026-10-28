@@ -58,7 +58,6 @@ export function groupHistory(chats: readonly ChatSummary[], now = Date.now()): {
 	return (Object.keys(buckets) as HistoryGroup[]).filter(k => buckets[k].length).map(label => ({ label, items: buckets[label] }));
 }
 
-/** Subsequence fuzzy score; higher is better, -1 means no match. */
 export function fuzzyScore(query: string, text: string): number {
 	if (!query) { return 0; }
 	const q = query.toLowerCase();

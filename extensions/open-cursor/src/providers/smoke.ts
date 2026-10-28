@@ -1,9 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Smoke test for one adapter under plain node (no vscode). Example:
- *    OC_SMOKE_PROVIDER=ollama OC_SMOKE_MODEL=qwen3:8b node smoke.js
- *  Env: OC_SMOKE_PROVIDER, OC_SMOKE_MODEL, OC_SMOKE_BASEURL, OC_SMOKE_KEY (else the provider's
- *  usual env var), OC_SMOKE_THINK=1, OC_SMOKE_FIM=1, OC_SMOKE_LIST=1.
+ *  Smoke test for one adapter under plain node. Env: OC_SMOKE_PROVIDER, OC_SMOKE_MODEL, OC_SMOKE_BASEURL, OC_SMOKE_KEY, OC_SMOKE_THINK, OC_SMOKE_FIM, OC_SMOKE_LIST.
  *--------------------------------------------------------------------------------------------*/
 
 import { ENV_KEYS, guessModelInfo } from './catalog';
@@ -75,7 +72,6 @@ async function main(): Promise<void> {
 		for await (const s of adapter.fim({ model: { ...model, supportsFim: true }, prefix: 'def add(a, b):\n    ', suffix: '\n\nprint(add(1, 2))\n', maxTokens: 32, temperature: 0, signal: new AbortController().signal })) { out += s; }
 		console.log(JSON.stringify(out));
 	}
-	// abort check
 	const ac = new AbortController();
 	const it = adapter.stream({ model, system: '', messages: [{ role: 'user', content: [{ type: 'text', text: 'Count from 1 to 500.' }] }], signal: ac.signal, maxTokens: 800 })[Symbol.asyncIterator]();
 	let last: StreamEvent | undefined;

@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Pending AI edits: per-file review sessions with hunks, Keep/Undo, persistence and rendering.
+ *  Per-file review sessions for AI edits: hunks, Keep/Undo, persistence, rendering.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -10,12 +10,12 @@ import { computeHunks, countChanges, foldAccept, applyReject, norm, type Hunk } 
 import { readCurrent, writeDocument, deleteOnDisk } from './fileOps';
 
 const ORIGINAL_SCHEME = 'open-cursor-original';
-/** CodeLens text mirrors the real shortcut: Cmd on macOS, Ctrl elsewhere. */
+/** CodeLens titles show the real shortcut: Cmd on macOS, Ctrl elsewhere. */
 const MOD = process.platform === 'darwin' ? '⌘' : 'Ctrl+';
 const STATE_KEY = 'openCursor.pendingEdits.v1';
 
 export interface IPendingEditsInternal extends IPendingEdits {
-	/** Drop review state for these files without touching their content (used by checkpoint restore). */
+	/** Drops review state without touching file content. Checkpoint restore uses it. */
 	forget(uris: readonly vscode.Uri[]): void;
 }
 
@@ -23,7 +23,6 @@ interface Session {
 	readonly uri: vscode.Uri;
 	readonly key: string;
 	original: string;
-	/** Did the file exist before the review began? */
 	readonly existed: boolean;
 	deleted: boolean;
 	current: string;
@@ -58,13 +57,12 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		return p;
 	};
 
-	// ---- core bridge detection -------------------------------------------------------------
+	// When the forked workbench provides these commands it draws the diff UI itself and we skip decorations and CodeLens.
 	let coreAvailable = false;
 	const coreReady = Promise.resolve(vscode.commands.getCommands(false)).then(cmds => {
 		coreAvailable = cmds.includes('_openCursor.diff.set');
 	}, () => undefined);
 
-	// ---- helpers ---------------------------------------------------------------------------
 	const keyOf = (uri: vscode.Uri) => uri.toString();
 
 	async function refreshCurrent(s: Session): Promise<void> {
@@ -101,7 +99,6 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		return [...sessions.values()];
 	}
 
-	// ---- persistence -----------------------------------------------------------------------
 	let persistTimer: ReturnType<typeof setTimeout> | undefined;
 	function persistSoon(): void {
 		clearTimeout(persistTimer);
@@ -113,7 +110,6 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		}, 300);
 	}
 
-	// ---- lifecycle -------------------------------------------------------------------------
 	function changed(s?: Session): void {
 		if (s) {
 			originalChanged.fire(originalUri(s.uri));
@@ -132,7 +128,7 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		changed(s);
 	}
 
-	/** Recompute hunks; the review ends when original == current (never for deleted files). */
+	/** Recomputes hunks. The review ends once original equals current, except for deleted files. */
 	function settle(s: Session): void {
 		recompute(s);
 		if (!s.deleted && s.original === s.current) {
@@ -146,7 +142,6 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		return vscode.Uri.from({ scheme: ORIGINAL_SCHEME, path: uri.path, query: encodeURIComponent(uri.toString()) });
 	}
 
-	// ---- IPendingEdits ---------------------------------------------------------------------
 	async function statType(uri: vscode.Uri): Promise<vscode.FileType | undefined> {
 		try {
 			return (await vscode.workspace.fs.stat(uri)).type;
@@ -160,7 +155,7 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 			const key = keyOf(uri);
 			let s = sessions.get(key);
 			if (expectedBefore !== undefined) {
-				// Atomic read-modify-write: the caller computed newContent from expectedBefore (null = file must not exist).
+				// the caller built newContent from expectedBefore (null = file must not exist)
 				const live = await readCurrent(uri);
 				const same = expectedBefore === null ? live === undefined : live === norm(expectedBefore);
 				if (!same) {
@@ -173,7 +168,7 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 					throw new Error('The existing file cannot be read as text, so it was not overwritten.');
 				}
 				if (originalOverride !== undefined) {
-					// The caller already changed the file on disk (CLI agents): the review starts from the caller's original.
+					// a CLI agent already changed the file on disk, so review against the caller's original
 					s = { uri, key, original: originalOverride === null ? '' : norm(originalOverride), existed: originalOverride !== null, deleted: false, current: cur ?? '', source, chatId, hunks: [] };
 				} else {
 					s = { uri, key, original: cur ?? '', existed: cur !== undefined, deleted: false, current: cur ?? '', source, chatId, hunks: [] };
@@ -354,17 +349,15 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		}
 	}
 
-	// ---- original content provider ---------------------------------------------------------
 	disposables.push(vscode.workspace.registerTextDocumentContentProvider(ORIGINAL_SCHEME, {
 		onDidChange: originalChanged.event,
 		provideTextDocumentContent(uri) {
 			let key = '';
-			try { key = decodeURIComponent(uri.query); } catch { /* ignore */ }
+			try { key = decodeURIComponent(uri.query); } catch { /* malformed query, no such session */ }
 			return sessions.get(key)?.original ?? '';
 		},
 	}));
 
-	// ---- manual edits keep the review alive ------------------------------------------------
 	disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
 		const s = sessions.get(keyOf(e.document.uri));
 		if (!s || s.deleted || e.contentChanges.length === 0) {
@@ -400,7 +393,6 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		}
 	}));
 
-	// ---- rendering: core bridge or decorations + CodeLens ----------------------------------
 	const sentToCore = new Map<string, string>();
 	let renderTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -527,7 +519,6 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		},
 	}));
 
-	// ---- context keys ----------------------------------------------------------------------
 	const ctxCache = new Map<string, boolean>();
 	function setCtx(key: string, value: boolean): void {
 		if (ctxCache.get(key) !== value) {
@@ -565,7 +556,6 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		}),
 	);
 
-	// ---- navigation ------------------------------------------------------------------------
 	async function reveal(s: Session, hunk?: Hunk): Promise<void> {
 		const editor = await vscode.window.showTextDocument(s.uri, { preserveFocus: false });
 		const h = hunk ?? s.hunks[0];
@@ -609,7 +599,6 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		}
 	}
 
-	// ---- commands --------------------------------------------------------------------------
 	const toUri = (arg: UriArg): vscode.Uri | undefined => {
 		if (typeof arg === 'string') { return vscode.Uri.parse(arg); }
 		if (arg) { return arg; }
@@ -637,7 +626,6 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 	reg('openCursor.diff.nextHunk', () => step(1));
 	reg('openCursor.diff.prevHunk', () => step(-1));
 
-	// ---- restore after reload --------------------------------------------------------------
 	void (async () => {
 		const saved = ctx.workspaceState.get<PersistedSession[]>(STATE_KEY) ?? [];
 		for (const p of saved) {

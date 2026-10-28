@@ -150,7 +150,7 @@ const CLI_GUIDANCE: Record<ChatMode, string> = {
 	ask: `OpenCursor mode: Ask. This turn is read only: do not modify, create or delete any file and run only inspection commands. Answer the question directly: lead with the answer, then the evidence. Ground every claim in code you read this turn and cite it as inline code like \`src/foo.ts:42\` or \`src/foo.ts:42-60\` (workspace-relative, nothing else inside the backticks). Keep it short unless the question needs depth. Reply in plain text; do not call a plan or exit-plan tool. If a change is needed, describe it briefly and say Agent mode will make it.`,
 };
 
-/** Mode guidance for subscription CLI agents (Claude Code, Codex, Gemini CLI, Grok): same intent, tool-name free. */
+/** Mode guidance for subscription CLI agents (Claude Code, Codex, Gemini CLI, Grok): same intent, free of tool names. */
 export function cliModeGuidance(mode: ChatMode): string {
 	return CLI_GUIDANCE[mode];
 }

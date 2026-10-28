@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  File helpers shared by pending edits and checkpoints: write through the editor buffer.
+ *  File helpers shared by pending edits and checkpoints.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -20,13 +20,13 @@ export async function readCurrent(uri: vscode.Uri): Promise<string | undefined> 
 	return doc ? norm(doc.getText()) : undefined;
 }
 
-/** Write full content through the editor buffer (undo stack, dirty state), then save. Creates the file if missing. */
+/** Writes through the editor buffer so undo and dirty state stay right, then saves. Creates the file if missing. */
 export async function writeDocument(uri: vscode.Uri, text: string): Promise<void> {
 	let doc = await openDoc(uri);
 	if (!doc) {
 		try {
 			await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
-		} catch { /* exists */ }
+		} catch { /* directory already exists */ }
 		await vscode.workspace.fs.writeFile(uri, Buffer.from(norm(text), 'utf8'));
 		return;
 	}

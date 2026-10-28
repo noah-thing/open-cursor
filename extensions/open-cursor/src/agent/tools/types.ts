@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Shared tool contracts.
  *--------------------------------------------------------------------------------------------*/
 
 import type { ToolSchema } from '../../providers/types';
@@ -36,7 +35,7 @@ export interface ToolContext {
 
 export interface ToolDef<A = any> {
 	readonly schema: ToolSchema;
-	/** Read-only tools may run in parallel and are allowed in ask/plan mode. */
+	/** Readonly tools may run in parallel and are allowed in ask/plan mode. */
 	readonly readOnly: boolean;
 	run(args: A, ctx: ToolContext): Promise<ToolResult>;
 	/** One line for the UI row. `result` is set once the tool finished. */

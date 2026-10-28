@@ -93,7 +93,6 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 	const popupRef = useRef<HTMLDivElement>(null);
 	const running = chat.status === 'running' || chat.status === 'awaiting-approval';
 
-	// Auto grow.
 	useLayoutEffect(() => {
 		const el = ref.current;
 		if (!el) { return; }
@@ -108,10 +107,8 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 		}
 	}, [focusNonce]);
 
-	// Focus when switching chats.
 	useEffect(() => { ref.current?.focus({ preventScroll: true }); }, [chat.id]);
 
-	// Trigger detection.
 	const mention: MentionState | undefined = useMemo(() => {
 		const before = text.slice(0, caret);
 		const m = /(^|\s)@([^\s@]*)$/.exec(before);
@@ -129,7 +126,6 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 
 	useEffect(() => { if (!mention) { setMentionKind(undefined); } }, [mention]);
 
-	// Mention search with a short debounce.
 	useEffect(() => {
 		if (!mention) { return; }
 		const id = ++mentionSeq;

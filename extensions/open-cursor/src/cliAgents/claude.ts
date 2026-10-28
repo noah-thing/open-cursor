@@ -150,7 +150,7 @@ export interface ClaudeResult {
 	sawResult: boolean;
 }
 
-/** Turns Claude Code's stream-json events into host callbacks. Pure, vscode-free, replayable in tests. */
+/** Turns Claude Code's stream-json events into host callbacks. Pure, replayable in tests. */
 export class ClaudeParser {
 	readonly result: ClaudeResult = { isError: false, sawResult: false };
 	private readonly tools = new Map<string, ToolState>();

@@ -12,7 +12,6 @@ import { MODE_META, MODE_ORDER, fuzzyScore, providerLabel } from './util';
 export const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 export const MOD = IS_MAC ? '⌘' : 'Ctrl+';
 
-/** Closes on outside pointer down or Escape. */
 export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, onClose: () => void): void {
 	useEffect(() => {
 		if (!open) { return; }

@@ -1,7 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Ollama adapter: native /api/chat NDJSON streaming with tools, images and thinking;
- *  FIM through /api/generate; model discovery through /api/tags + /api/show.
  *--------------------------------------------------------------------------------------------*/
 
 import { isFimName, modelId } from './catalog';

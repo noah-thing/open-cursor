@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  @-mention search and resolution into prompt text.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -26,7 +25,6 @@ export interface ContextHooks {
 	resolveChat?(chatId: string): Promise<string | undefined>;
 }
 
-/** Cached workspace file list kept fresh by a watcher. */
 export class FileIndex implements vscode.Disposable {
 	private files = new Set<string>(); // uri strings
 	private ready: Promise<void> | undefined;

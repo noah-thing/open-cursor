@@ -113,8 +113,6 @@ test('marker scan and reminders', () => {
 	assert.deepStrictEqual(turnEndReminders({ ...base, mode: 'plan', finalText: 'Which database?' }), [], 'a clarifying question needs no todos');
 });
 
-// ---------------------------------------------------------------- loop with a fake grep over an in-memory file system
-
 const model: ModelInfo = { id: 'x/y', provider: 'custom', model: 'y', label: 'Y', contextWindow: 100000, maxOutputTokens: 4000, supportsTools: true, supportsImages: false, supportsThinking: false };
 const tool = (name: string, readOnly: boolean, run: ToolDef['run']): ToolDef => ({ schema: { name, description: name, parameters: { type: 'object', properties: {} } }, readOnly, run, title: (_a, s) => `${name} ${s}` });
 const call = (id: string, name: string, input: unknown = {}): StreamEvent[] => [{ type: 'tool_call_start', id, name }, { type: 'tool_call', id, name, input }, { type: 'done', stopReason: 'tool_use' } as StreamEvent];

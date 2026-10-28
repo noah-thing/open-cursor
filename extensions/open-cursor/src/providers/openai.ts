@@ -1,7 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  OpenAI Chat Completions adapter and the reusable OpenAI-compatible provider used by
- *  openrouter, deepseek, xai, mistral, groq, lmstudio and custom endpoints.
  *--------------------------------------------------------------------------------------------*/
 
 import { PROVIDER_LABELS, guessModelInfo, isChatModelId, isFimName, isReasoningName, modelId } from './catalog';
@@ -94,7 +92,7 @@ export function buildOpenAIBody(req: ChatRequest, o: CompatOptions): Rec {
 	return body;
 }
 
-/** Splits a leading <think>...</think> block of streamed content into thinking events. */
+// splits a leading <think>...</think> block of streamed content into thinking events
 export class ThinkSplitter {
 	private mode: 'start' | 'think' | 'text' = 'start';
 	private buf = '';
@@ -298,8 +296,6 @@ function defaultParse(provider: ProviderId, raw: Rec): ModelInfo | undefined {
 	});
 }
 
-// ---- per provider parsers ----
-
 function parseOpenRouter(raw: Rec): ModelInfo | undefined {
 	const id = String(raw.id ?? '');
 	const sp: string[] = raw.supported_parameters ?? [];
@@ -369,8 +365,6 @@ class LmStudioProvider extends OpenAICompatibleProvider {
 		return raws.map(parseLmStudio).filter((m): m is ModelInfo => !!m);
 	}
 }
-
-// ---- factories ----
 
 export interface CompatDeps {
 	getKey: KeyGetter;

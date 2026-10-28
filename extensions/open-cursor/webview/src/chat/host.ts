@@ -32,7 +32,6 @@ export function loadUiState(): ChatUiState {
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let pending: ChatUiState | undefined;
 
-/** Debounced vscode.setState. */
 export function saveUiState(state: ChatUiState): void {
 	pending = state;
 	if (saveTimer) { return; }

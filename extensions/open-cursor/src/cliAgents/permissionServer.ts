@@ -4,7 +4,7 @@
  *  `--permission-prompt-tool mcp__oc__approve`. Claude Code calls it for every tool use that needs
  *  permission; we relay the request to the extension over a local socket (JSON lines) and return
  *  the extension's decision. Standalone: bundled to dist/permissionServer.js, no imports from the
- *  extension, only node built-ins.
+ *  extension, only node builtins.
  *
  *  Env: OC_PERM_SOCKET (unix socket / named pipe path), OC_PERM_TOKEN (shared secret).
  *--------------------------------------------------------------------------------------------*/

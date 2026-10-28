@@ -10,7 +10,6 @@ export function stripAnsi(s: string): string {
 	return s.replace(ANSI, '').replace(/\r\n/g, '\n').replace(/[^\n]*\r(?!\n)/g, '');
 }
 
-/** Bounded ring of terminal output lines. */
 export class OutputBuffer {
 	private lines: string[] = [''];
 	constructor(private readonly max = 200) { }

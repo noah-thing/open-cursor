@@ -1,9 +1,7 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Renders pending AI edits inside code editors: added lines get a green wash, removed lines are
- *  drawn as syntax highlighted view zones, and every hunk gets Undo / Keep buttons. The extension
- *  owns the edit state and pushes it here with `_openCursor.diff.set`; buttons call back into the
- *  extension's `openCursor.diff.*` commands.
+ *  Draws pending AI edits in the editor: green wash for added lines, view zones for removed ones, Keep/Undo per hunk.
+ *  State lives in the extension (`_openCursor.diff.set`); the buttons call its `openCursor.diff.*` commands.
  *--------------------------------------------------------------------------------------------*/
 
 import './media/openCursor.css';
@@ -135,7 +133,6 @@ class HunkWidget implements IOverlayWidget {
 	layout(afterLineNumber: number, removedHeightPx: number): void {
 		const { contentLeft, contentWidth, verticalScrollbarWidth } = this._editor.getLayoutInfo();
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		// Sit on the first line of the hunk (removed zone if any, else the first added line).
 		const top = (afterLineNumber === 0 ? 0 : this._editor.getTopForLineNumber(afterLineNumber) + lineHeight) - removedHeightPx - this._editor.getScrollTop();
 		this._position = {
 			preference: {

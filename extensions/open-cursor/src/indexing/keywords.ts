@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Pure keyword extraction and ranking for the ripgrep fallback (no vscode import).
  *--------------------------------------------------------------------------------------------*/
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'how', 'where', 'what', 'does', 'are', 'was', 'into', 'code', 'file', 'function', 'find', 'all', 'not', 'use', 'used', 'using']);

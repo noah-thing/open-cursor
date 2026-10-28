@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Workspace path helpers shared by the context service and the agent tools.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -70,7 +69,6 @@ export function homeDir(): string {
 	return os.homedir();
 }
 
-/** Normalises a path that may be absolute or workspace relative to a workspace-relative posix path. */
 export function normaliseToRelative(p: string): string {
 	const roots = workspaceRoots();
 	const posix = p.replace(/\\/g, '/');

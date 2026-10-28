@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Builds an adapter for a provider id. No vscode imports, so it works under plain node.
  *--------------------------------------------------------------------------------------------*/
 
 import { AnthropicProvider } from './anthropic';

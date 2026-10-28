@@ -1,7 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Embedding backends: OpenAI /v1/embeddings, Gemini batchEmbedContents, Ollama /api/embed.
- *  Keys follow the provider convention: ctx.secrets 'openCursor.key.<provider>' then environment.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';

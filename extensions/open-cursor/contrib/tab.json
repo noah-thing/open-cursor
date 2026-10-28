@@ -24,7 +24,7 @@
 		"properties": {
 			"openCursor.tab.enabled": {
 				"type": "boolean", "default": true,
-				"markdownDescription": "Enable Tab completions (multi-line ghost text as you type)."
+				"markdownDescription": "Enable Tab completions (ghost text over several lines as you type)."
 			},
 			"openCursor.tab.debounceMs": {
 				"type": "number", "default": 75, "minimum": 0, "maximum": 2000,

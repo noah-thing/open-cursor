@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Cursor-style Tab: debounced, cancellable inline completions over registry.fim (or a tight chat
- *  prompt for models without FIM), typed-through cache, status bar toggle, latency log.
+ *  Inline completions over registry.fim, or a chat prompt for models without FIM.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -49,7 +48,6 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 	const changeEmitter = new vscode.EventEmitter<vscode.InlineCompletionChangeHint | void>();
 	const cfg = () => vscode.workspace.getConfiguration(CFG);
 
-	// ---- recent edits ring buffer --------------------------------------------------------
 	ctx.subscriptions.push(vscode.workspace.onDidChangeTextDocument(e => {
 		if ((e.document.uri.scheme !== 'file' && e.document.uri.scheme !== 'untitled') || e.contentChanges.length === 0) { return; }
 		const c = e.contentChanges[0];
@@ -94,10 +92,8 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 		return snippets;
 	}
 
-	// ---- model selection -----------------------------------------------------------------
 	function tabModel(): ModelInfo | undefined { return services.registry.getDefaultModel('tab'); }
 
-	// ---- provider ------------------------------------------------------------------------
 	const provider: vscode.InlineCompletionItemProvider = {
 		onDidChange: changeEmitter.event,
 
@@ -128,7 +124,7 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 				return [new vscode.InlineCompletionItem(cached, new vscode.Range(pos, pos))];
 			}
 
-			// Next edit chain after an accepted completion (experimental).
+			// experimental: after an accepted completion, try to predict a follow-up edit
 			const hint = (context as { changeHint?: { data?: unknown } }).changeHint;
 			if (hint?.data === 'accepted' && c.get<boolean>('nextEdit', false)) {
 				const ne = await predictNextEdit(doc, pos, token);
@@ -192,7 +188,6 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 				return [new vscode.InlineCompletionItem(result, new vscode.Range(pos, pos))];
 			} catch (err) {
 				if (ac.signal.aborted || token.isCancellationRequested) {
-					// Aborted early because the boundary was reached: use what we have.
 					return undefined;
 				}
 				log.line(`error ${err instanceof Error ? err.message : String(err)}`);
@@ -210,7 +205,7 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 		},
 	};
 
-	// ---- next edit (experimental, proposed inlineCompletionsAdditions) -----------------------
+	// needs the proposed inlineCompletionsAdditions API
 	async function predictNextEdit(doc: vscode.TextDocument, pos: vscode.Position, token: vscode.CancellationToken): Promise<vscode.InlineCompletionItem[] | undefined> {
 		const model = services.registry.getDefaultModel('inline');
 		if (!model || !lastEditDiff || doc.lineCount > 4000) { return undefined; }
@@ -247,12 +242,11 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 	try {
 		registration = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**' }, provider, { displayName: 'OpenCursor Tab', debounceDelayMs: 0 });
 	} catch {
-		// Proposed API not enabled (stock VS Code): plain registration.
+		// the proposed API is not enabled in stock VS Code
 		registration = vscode.languages.registerInlineCompletionItemProvider({ pattern: '**' }, provider);
 	}
 	ctx.subscriptions.push(registration, out, changeEmitter);
 
-	// ---- status bar ----------------------------------------------------------------------
 	const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 	item.command = 'openCursor.tab.toggle';
 	function refresh(): void {

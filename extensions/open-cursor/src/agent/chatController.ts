@@ -122,8 +122,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		return this.services.context as Partial<IContextServiceEx>;
 	}
 
-	// ---------------------------------------------------------------- registration
-
 	register(): void {
 		const d = this.disposables;
 		d.push(vscode.window.registerWebviewViewProvider('openCursor.chat', this, { webviewOptions: { retainContextWhenHidden: true } }));
@@ -170,8 +168,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.agentWatch?.dispose();
 		void this.store.flush();
 	}
-
-	// ---------------------------------------------------------------- webview plumbing
 
 	resolveWebviewView(view: vscode.WebviewView): void {
 		this.view = view;
@@ -270,7 +266,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		}
 	}
 
-	/** Reveal the chat view and wait until its webview exists. */
 	private async reveal(): Promise<void> {
 		if (!this.view) {
 			this.viewPromise = new Promise<void>(res => { this.viewResolved = res; });
@@ -362,8 +357,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		void this.postAgents();
 	}
 
-	// ---------------------------------------------------------------- models
-
 	private async refreshModels(post = true): Promise<void> {
 		try {
 			const keyCache = new Map<string, Promise<boolean>>();
@@ -389,8 +382,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (post) { this.post({ type: 'models', models: this.modelOptions }); }
 		this.repairEmptyChats();
 	}
-
-	// ---------------------------------------------------------------- local servers and API keys on the start screen
 
 	private async postConnectState(): Promise<void> {
 		const [local, providers] = await Promise.all([this.connect.localServers(), this.connect.apiProviders()]);
@@ -419,8 +410,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		// Give the server a moment, then look again.
 		setTimeout(() => { void this.refreshModels().then(() => this.postConnectState()); }, 2500);
 	}
-
-	// ---------------------------------------------------------------- agent CLIs on the start screen
 
 	private async postAgents(fresh = false): Promise<void> {
 		let agents: CliAgentInfo[];
@@ -534,8 +523,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.store.markDirty(sc.chat.id);
 		return true;
 	}
-
-	// ---------------------------------------------------------------- chat lifecycle
 
 	private runtime(chatId: string): Runtime {
 		let rt = this.runtimes.get(chatId);
@@ -670,13 +657,10 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.postChatNow(sc);
 	}
 
-	/** Mark persisted state changed. */
 	private touch(sc: StoredChat): void {
 		sc.chat.updatedAt = Date.now();
 		this.store.markDirty(sc.chat.id);
 	}
-
-	// ---------------------------------------------------------------- snapshots to the webview
 
 	private schedulePost(sc: StoredChat): void {
 		const rt = this.runtime(sc.chat.id);
@@ -692,8 +676,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (rt.postTimer) { clearTimeout(rt.postTimer); rt.postTimer = undefined; }
 		this.post({ type: 'chat', chat: sc.chat });
 	}
-
-	// ---------------------------------------------------------------- sending
 
 	async submit(opts: { text: string; context?: ContextItem[]; mode?: ChatMode; newChat?: boolean }): Promise<void> {
 		await this.ready;
@@ -865,8 +847,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.touch(sc);
 	}
 
-	// ---------------------------------------------------------------- the turn
-
 	private async startTurn(sc: StoredChat, req: SendRequest): Promise<void> {
 		const chatId = sc.chat.id;
 		const rt = this.runtime(chatId);
@@ -993,7 +973,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		}
 	}
 
-	// ---- part mutation helpers (replace elements; MessagePart fields are readonly)
+	// MessagePart fields are readonly, so these replace elements
 
 	private syncMsg(turn: TurnState, done = false): void {
 		const i = turn.sc.chat.messages.findIndex(m => m.id === turn.msg.id);
@@ -1057,8 +1037,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			});
 		});
 	}
-
-	// ---- native loop
 
 	private async buildUserContent(req: SendRequest, snapshotEditor: boolean): Promise<{ content: LLMContent[]; resolvedTexts: string[] }> {
 		const textItems = req.context.filter(c => c.kind !== 'image');
@@ -1158,8 +1136,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		return choice === 'Allow' && !signal.aborted;
 	}
 
-	// ---- /summarize
-
 	private async summarizeChat(sc: StoredChat): Promise<void> {
 		const registry = this.services.registry;
 		const model = registry.getModel(sc.chat.modelId) ?? registry.getDefaultModel('chat');
@@ -1194,8 +1170,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.postChatNow(sc);
 		this.postChats();
 	}
-
-	// ---- CLI agents
 
 	private async runCliTurn(turn: TurnState, userMsg: UserMessage, req: SendRequest): Promise<void> {
 		const { sc, rt } = turn;
@@ -1276,8 +1250,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (result.stopReason === 'error') { this.addError(turn, result.error ?? 'The CLI agent failed.', 'retry'); }
 	}
 
-	// ---------------------------------------------------------------- misc webview actions
-
 	private async openFile(uri: string, range?: { startLine: number; endLine: number }): Promise<void> {
 		try {
 			const u = vscode.Uri.parse(uri);
@@ -1315,8 +1287,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		}
 	}
 
-	// ---------------------------------------------------------------- past chats for @mentions
-
 	private searchChats(q: string): ContextItem[] {
 		const needle = q.toLowerCase();
 		return this.store.summaries()
@@ -1341,8 +1311,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const joined = lines.join('\n\n');
 		return joined.length > 12000 ? joined.slice(0, 6000) + '\n[...]\n' + joined.slice(-6000) : joined;
 	}
-
-	// ---------------------------------------------------------------- commands
 
 	private async addContextToChat(items: ContextItem[], opts: { newChat?: boolean } = {}): Promise<void> {
 		await this.ready;

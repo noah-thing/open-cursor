@@ -26,7 +26,6 @@ export class TurnTracker {
 		return !!this.tracker;
 	}
 
-	/** Call after any tool call that may have touched files. */
 	async afterToolCall(hint?: readonly string[]): Promise<void> {
 		if (!this.tracker) {
 			// Not a git repo: no baseline to diff against. Still tell the UI which files changed.

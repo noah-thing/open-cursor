@@ -1,7 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Provider registry: keys (SecretStorage + env fallback), settings, lazy cached model discovery,
- *  default model selection, FIM fallback and the models/providers commands.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -107,8 +105,6 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 
 	private cfg<T>(key: string, fallback: T): T { return vscode.workspace.getConfiguration('openCursor').get<T>(key, fallback); }
 
-	// ---- keys ----
-
 	private async readKey(id: ProviderId): Promise<string | undefined> {
 		let key = (await this.ctx.secrets.get(SECRET_PREFIX + id))?.trim();
 		if (!key) {
@@ -148,8 +144,6 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 		if (this.keys.get(id)) { void this.discover(id, true); } else { void this.ctx.globalState.update(CACHE_KEY, this.cache); }
 	}
 
-	// ---- providers ----
-
 	private baseUrl(id: ProviderId): (model?: string) => string {
 		return model => {
 			const o = model ? this.overrides.get(model) : undefined;
@@ -168,8 +162,6 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 		}
 		return a;
 	}
-
-	// ---- models ----
 
 	private ensureStarted(): void {
 		this.started ??= (async () => {
@@ -280,8 +272,6 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 		}));
 	}
 
-	// ---- streaming ----
-
 	async* stream(req: ChatRequest): AsyncGenerator<StreamEvent> {
 		if (req.model.id.startsWith('cli:')) { throw new ProviderError('CLI agent models are not served by the provider registry.', 'custom'); }
 		this.allModels(); // refresh per-model base URL overrides
@@ -324,8 +314,6 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 		}
 		if (buf && !buf.includes('```')) { yield buf; }
 	}
-
-	// ---- commands ----
 
 	async verify(id: ProviderId): Promise<{ ok: boolean; message: string }> {
 		await this.keysLoaded;

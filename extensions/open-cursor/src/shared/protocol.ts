@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Shared between the extension host and the chat webview. Plain data only (JSON safe).
+ *  Shared between the extension host and the chat webview. Plain JSON data only.
  *--------------------------------------------------------------------------------------------*/
 
 export type ChatMode = 'agent' | 'plan' | 'debug' | 'ask';
@@ -40,16 +40,16 @@ export interface ToolPart {
 	readonly type: 'tool';
 	readonly id: string;
 	readonly name: string;
-	/** Parsed args when known; while streaming this may be partial. */
+	/** May be partial while streaming. */
 	readonly args?: Record<string, unknown>;
 	readonly status: ToolStatus;
 	/** One line, human readable: "Read extension.ts L1-120", "Searched `foo` · 12 results". */
 	readonly title: string;
-	/** Optional collapsed body (command output, search results, error text). */
+	/** Collapsed body: command output, search results, error text. */
 	readonly output?: string;
-	/** For file edits. Lines added/removed and the file it touched. */
+	/** Set for file edits. */
 	readonly edit?: { uri: string; path: string; added: number; removed: number; isNew?: boolean; deleted?: boolean };
-	/** For run_terminal_cmd awaiting approval. */
+	/** Set for run_terminal_cmd awaiting approval. */
 	readonly command?: { text: string; cwd?: string; background?: boolean };
 	readonly durationMs?: number;
 }
@@ -106,7 +106,7 @@ export interface Chat {
 	readonly status: 'idle' | 'running' | 'awaiting-approval' | 'error';
 	/** Messages the user typed while the agent was running; sent in order after the turn. */
 	readonly queued: { id: string; text: string; context: ContextItem[] }[];
-	/** Approximate tokens of context in use, and the model's window. */
+	/** Approximate tokens in use, and the model's window. */
 	readonly contextUsage?: { used: number; limit: number };
 }
 
@@ -163,7 +163,7 @@ export type HostMessage =
 	| { readonly type: 'settings'; readonly settings: UiSettings }
 	| { readonly type: 'pendingEdits'; readonly files: PendingFileEdit[] }
 	| { readonly type: 'mentionResults'; readonly requestId: number; readonly items: ContextItem[] }
-	/** Cmd+L / Cmd+Shift+L etc: add a context pill to the composer (optionally start a new chat first). */
+	/** Adds a context pill to the composer (Cmd+L), optionally in a new chat. */
 	| { readonly type: 'addContext'; readonly item: ContextItem; readonly newChat?: boolean }
 	| { readonly type: 'focusInput'; readonly text?: string }
 	| { readonly type: 'showHistory' };
@@ -172,7 +172,7 @@ export type HostMessage =
 export type WebviewMessage =
 	| { readonly type: 'ready' }
 	| { readonly type: 'send'; readonly chatId: string; readonly text: string; readonly context: ContextItem[]; readonly mode: ChatMode; readonly modelId: string }
-	/** Edit an earlier user message and resend from there (reverts the checkpoint first if `revert`). */
+	/** Edits an earlier user message and resends from there; reverts the checkpoint first if `revert`. */
 	| { readonly type: 'resend'; readonly chatId: string; readonly messageId: string; readonly text: string; readonly context: ContextItem[]; readonly revert: boolean; readonly modelId?: string }
 	| { readonly type: 'stop'; readonly chatId: string }
 	| { readonly type: 'queue'; readonly chatId: string; readonly text: string; readonly context: ContextItem[] }
@@ -200,11 +200,6 @@ export type WebviewMessage =
 	| { readonly type: 'runInTerminal'; readonly command: string }
 	| { readonly type: 'pasteImage'; readonly dataUrl: string; readonly name?: string };
 
-// ---------------------------------------------------------------------------------------------
-// UI additions (webview/ui module). Additive only: the unions above are unchanged. The chat
-// webview accepts `HostMessageExt` and posts `WebviewMessageExt`.
-// ---------------------------------------------------------------------------------------------
-
 export interface SlashCommandInfo {
 	readonly name: string; // without the leading slash
 	readonly description: string;
@@ -213,7 +208,7 @@ export interface SlashCommandInfo {
 
 export type HostMessageExt =
 	| HostMessage
-	/** Reply to `requestSlashCommands`; also fine to push whenever commands change. */
+	/** Reply to `requestSlashCommands`; also pushed whenever commands change. */
 	| { readonly type: 'slashCommands'; readonly commands: SlashCommandInfo[] }
 	/** The file in the active editor, shown as a suggested context pill. `null` when there is none. */
 	| { readonly type: 'activeEditor'; readonly item: ContextItem | null }
@@ -221,7 +216,7 @@ export type HostMessageExt =
 	| { readonly type: 'agents'; readonly agents: AgentStatus[] }
 	/** Local model servers and API providers, for the start screen's connect panel. */
 	| { readonly type: 'connectState'; readonly local: LocalServerStatus[]; readonly providers: ApiProviderStatus[] }
-	/** Outcome of a key or server the user just tried to connect. */
+	/** Outcome of the key or server the user just tried to connect. */
 	| { readonly type: 'connectResult'; readonly target: string; readonly ok: boolean; readonly message: string };
 
 export interface LocalServerStatus {

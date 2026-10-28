@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Parser and converter tests with hand-written payloads. Plain node, no vscode, no network:
- *    npx esbuild src/providers/parsers.test.ts --bundle --platform=node --outfile=<tmp>/t.js && node <tmp>/t.js
+ *  Parser and converter tests with hand written payloads. Plain node, no vscode, no network.
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';

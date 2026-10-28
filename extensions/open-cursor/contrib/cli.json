@@ -10,7 +10,7 @@
 			"openCursor.cli.paths": {
 				"type": "object",
 				"default": {},
-				"markdownDescription": "Explicit binary paths when auto-detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"grok\": \"~/.local/bin/grok\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\" }`.",
+				"markdownDescription": "Explicit binary paths when detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"grok\": \"~/.local/bin/grok\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\" }`.",
 				"properties": {
 					"claude-code": { "type": "string" },
 					"codex": { "type": "string" },

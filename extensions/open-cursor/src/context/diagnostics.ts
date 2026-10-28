@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Diagnostics formatting shared by the read_lints tool and the @Lints mention.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';

@@ -592,7 +592,7 @@
 					"openCursor.cli.paths": {
 						"type": "object",
 						"default": {},
-						"markdownDescription": "Explicit binary paths when auto-detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"grok\": \"~/.local/bin/grok\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\" }`.",
+						"markdownDescription": "Explicit binary paths when detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"grok\": \"~/.local/bin/grok\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\" }`.",
 						"properties": {
 							"claude-code": {
 								"type": "string"
@@ -764,7 +764,7 @@
 					"openCursor.tab.enabled": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Enable Tab completions (multi-line ghost text as you type)."
+						"markdownDescription": "Enable Tab completions (ghost text over several lines as you type)."
 					},
 					"openCursor.tab.debounceMs": {
 						"type": "number",

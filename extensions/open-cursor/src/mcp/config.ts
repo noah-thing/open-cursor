@@ -29,7 +29,6 @@ export function isHttp(c: ServerConfig): c is HttpServerConfig {
 	return typeof (c as HttpServerConfig).url === 'string';
 }
 
-/** Parse one mcp.json text. Tolerates comments and trailing commas. Returns [] on invalid content. */
 /** Remove // and /* *\/ comments outside strings, and trailing commas. */
 export function stripJsonc(text: string): string {
 	let out = '';
@@ -54,6 +53,7 @@ export function stripJsonc(text: string): string {
 	return out.replace(/,(\s*[}\]])/g, '$1');
 }
 
+/** Parse one mcp.json text. Tolerates comments and trailing commas. Returns [] on invalid content. */
 export function parseConfig(text: string): { name: string; config: ServerConfig }[] {
 	let json: unknown;
 	try {

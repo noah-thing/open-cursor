@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Cmd+K inline edit: the commands the core prompt box calls, streamed into the document as a
- *  pending edit so the diff renders live. Also a quick-input fallback for stock VS Code.
+ *  Cmd+K inline edit. Streams into the document as a pending edit; has a quick input fallback for stock VS Code.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -21,16 +20,16 @@ export interface InlineSubmitArgs {
 interface Session {
 	uri: vscode.Uri;
 	instructions: string[];
-	/** The text the user originally selected (what Undo puts back into the replaced range). */
+	/** What the user originally selected; Undo puts it back. */
 	original: string;
-	/** Text before / after the edited region and the replacement currently in the document. */
+	/** Text around the edited region, and the replacement currently in the document. */
 	before: string;
 	after: string;
 	replacement: string;
 	startLine: number;
 	kind: Region['kind'];
 	applied: boolean;
-	/** Replacement before the running follow-up (undefined for the first run). */
+	/** Replacement before the running follow-up; undefined on the first run. */
 	prior?: string;
 	abort?: AbortController;
 }
@@ -40,7 +39,7 @@ const APPLY_INTERVAL_MS = 100;
 export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Services): void {
 	const sessions = new Map<string, Session>();
 
-	/** Per-session listeners (used by the quick-input fallback, which has no core box). */
+	/** The quick input fallback has no core box, so it listens here instead. */
 	const listeners = new Map<string, (state: 'generating' | 'done' | 'error', message?: string) => void>();
 
 	async function status(sessionId: string, state: 'generating' | 'done' | 'error', message?: string): Promise<void> {
@@ -49,8 +48,8 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 	}
 
 	/**
-	 * Re-anchor `s.before` / `s.after` on the current replacement when the user edited elsewhere in the file.
-	 * Returns false when the replacement can no longer be found (the user edited inside it or removed it).
+	 * Re-anchors `s.before` and `s.after` on the replacement after edits elsewhere in the file.
+	 * False when the replacement is gone or was edited.
 	 */
 	async function relocate(s: Session): Promise<boolean> {
 		let text: string;
@@ -162,7 +161,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 			clearInterval(timer);
 			if (ac.signal.aborted) { await applying; if (lost) { await status(args.sessionId, 'error', 'File changed during edit'); } return; }
 			await applying;
-			// Put the document back to the last good state so a failed run leaves no half edit.
+			// roll back to the last good state so a failed run leaves no half edit
 			try {
 				if (session.applied && await relocate(session)) {
 					const good = followUp ? previousReplacement : undefined;
@@ -188,7 +187,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		if (!s?.abort) { return; }
 		s.abort.abort();
 		s.abort = undefined;
-		// Aborting mid stream leaves a partial edit: restore the last complete state.
+		// aborting mid stream leaves a partial edit
 		try {
 			if (s.applied && await relocate(s)) {
 				if (s.prior === undefined) {
@@ -218,7 +217,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		s.abort?.abort();
 		sessions.delete(sessionId);
 		if (!s.applied) { return; }
-		// Undo only the replaced range; edits the user made elsewhere in the file stay.
+		// only the replaced range is undone; the user's edits elsewhere stay
 		try {
 			if (await relocate(s)) {
 				await services.pendingEdits.applyContent(s.uri, s.before + s.original + s.after, 'inline');

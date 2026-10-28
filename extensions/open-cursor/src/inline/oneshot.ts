@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Shared helper for single-turn text generation (terminal Cmd+K, commit messages).
+ *  Single turn text generation for terminal Cmd+K and commit messages.
  *--------------------------------------------------------------------------------------------*/
 
 import type { Services } from '../services';
@@ -23,7 +23,7 @@ export async function collectText(
 	return out;
 }
 
-/** Resolve a usable chat-capable model: explicit id, else the inline default, else chat default. */
+/** The given model, else the inline default, else the chat default. */
 export function pickInlineModel(services: Services, modelId?: string): ModelInfo | undefined {
 	if (modelId && !modelId.startsWith('cli:')) {
 		const m = services.registry.getModel(modelId);

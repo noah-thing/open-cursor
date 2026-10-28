@@ -1,5 +1,4 @@
-/* OpenCursor. MIT License. Shared tokens and controls for the chat and settings webviews.
-   Everything derives from VS Code theme variables so every theme works. */
+/* OpenCursor. MIT License. Tokens derive from VS Code theme variables. */
 
 :root {
 	--oc-fg: var(--vscode-foreground, #cccccc);
@@ -79,7 +78,6 @@ button:disabled { cursor: default; }
 .oc-icon { flex: none; display: block; }
 .oc-spacer { flex: 1 1 auto; min-width: 0; }
 
-/* Icon button */
 .oc-iconbtn {
 	display: inline-grid;
 	place-items: center;
@@ -97,7 +95,6 @@ button:disabled { cursor: default; }
 .oc-iconbtn.is-danger { color: var(--oc-error); background: color-mix(in srgb, var(--oc-error) 14%, transparent); }
 .oc-iconbtn.is-keep:hover { color: var(--oc-add); }
 
-/* Buttons */
 .oc-btn {
 	display: inline-flex;
 	align-items: center;
@@ -169,7 +166,6 @@ kbd {
 .oc-added { color: var(--oc-add); font-variant-numeric: tabular-nums; font-size: 11.5px; }
 .oc-removed { color: var(--oc-del); font-variant-numeric: tabular-nums; font-size: 11.5px; }
 
-/* Motion */
 .is-shimmer {
 	background-image: linear-gradient(90deg, var(--oc-fg-2) 0%, var(--oc-fg-2) 38%, var(--oc-fg) 50%, var(--oc-fg-2) 62%, var(--oc-fg-2) 100%);
 	background-size: 250% 100%;
@@ -186,7 +182,6 @@ kbd {
 
 @keyframes oc-rise { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 @keyframes oc-pop { from { opacity: 0; transform: translateY(4px) scale(0.97); } to { opacity: 1; transform: none; } }
-/* Arrivals: things that appear because work happened. A little travel and a little blur, then still. */
 @keyframes oc-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes oc-swap { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 @keyframes oc-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -204,7 +199,6 @@ kbd {
 	.is-shimmer { animation: none; -webkit-text-fill-color: currentColor; color: var(--oc-fg-2); background: none; }
 }
 
-/* highlight.js tokens, theme aware */
 .hljs { color: inherit; background: transparent; }
 .hljs-comment, .hljs-quote { color: var(--oc-fg-3); font-style: italic; }
 .hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag, .hljs-meta .hljs-keyword { color: var(--vscode-symbolIcon-keywordForeground, #c586c0); }
@@ -219,7 +213,6 @@ kbd {
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: 600; }
 
-/* Loader: Pearl floats, a pearl sheen passes over it, a line of light runs underneath. */
 .oc-loader {
 	flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
 	animation: oc-fade 260ms 140ms ease-out both;

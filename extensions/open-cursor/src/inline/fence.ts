@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Incremental parser for "one fenced code block" model output. No vscode import.
+ *  Incremental parser for model output that is one fenced code block. No vscode import.
  *--------------------------------------------------------------------------------------------*/
 
 /**
@@ -54,12 +54,11 @@ export class FenceParser {
 		}
 	}
 
-	/** Code so far. */
 	get content(): string {
 		if (this.openEnd < 0) { return ''; }
 		if (this.closeAt >= 0) { return stripFinalNewline(this.raw.slice(this.openEnd, this.closeAt)); }
 		let body = this.raw.slice(this.openEnd);
-		// Hold back an incomplete last line that could still become the closing fence.
+		// hold back a last line that could still turn into the closing fence
 		const lastNl = body.lastIndexOf('\n');
 		const tail = body.slice(lastNl + 1);
 		if (/^\s{0,3}`*$/.test(tail) && tail.trim() !== '') { body = body.slice(0, lastNl + 1); }

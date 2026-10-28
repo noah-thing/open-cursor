@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Chat webview state. Host snapshots are merged with structural sharing so unchanged messages
- *  keep their object identity and React.memo skips them while the last message streams.
+ *  Chat webview state. Host snapshots merge with structural sharing so React.memo can skip unchanged messages.
  *--------------------------------------------------------------------------------------------*/
 
 import type {

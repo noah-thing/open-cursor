@@ -1,7 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  "Apply" for code blocks in chat: ask a cheap model to merge the snippet into the target file,
- *  then land the result as a pending edit.
+ *  Apply for chat code blocks: a cheap model merges the snippet into the file.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';

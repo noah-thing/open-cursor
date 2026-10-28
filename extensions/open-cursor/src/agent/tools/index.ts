@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Tool registry: built-in tools plus MCP tools, filtered by chat mode.
+ *  Tool registry: bundled tools plus MCP tools, filtered by chat mode.
  *--------------------------------------------------------------------------------------------*/
 
 import type { ToolSchema } from '../../providers/types';
@@ -57,8 +57,8 @@ export interface ToolSet {
 }
 
 /**
- * Read-only variant of the shell tool for Plan and Ask: same runner, but every command is checked
- * against the read-only allowlist first and background processes are not offered.
+ * Readonly variant of the shell tool for Plan and Ask: same runner, but every command is checked
+ * against the read only allowlist first and background processes are not offered.
  */
 export function readOnlyTerminal(base: ToolDef): ToolDef {
 	const props = { ...(base.schema.parameters as { properties: Record<string, unknown> }).properties };
@@ -81,7 +81,7 @@ export function readOnlyTerminal(base: ToolDef): ToolDef {
 }
 
 /**
- * Tools offered for a mode. Plan and Ask get the read tools and the read-only shell, nothing that
+ * Tools offered for a mode. Plan and Ask get the read tools and the read only shell, nothing that
  * can change the workspace (the loop re-checks every call with toolBlockedReason). Ask has no todo
  * list; MCP tools need agent or debug mode.
  */

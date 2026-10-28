@@ -281,7 +281,6 @@ export function createMcpManager(ctx: vscode.ExtensionContext): IMcpManager {
 		}
 	}
 
-	// ---- IMcpManager -----------------------------------------------------------------------
 	function getServers(): McpServerState[] {
 		return [...servers.values()].map(s => ({
 			name: s.name,
@@ -373,7 +372,6 @@ export function createMcpManager(ctx: vscode.ExtensionContext): IMcpManager {
 		await vscode.window.showTextDocument(vscode.Uri.file(file));
 	}
 
-	// ---- wiring ----------------------------------------------------------------------------
 	let reloadTimer: ReturnType<typeof setTimeout> | undefined;
 	const scheduleSync = () => {
 		clearTimeout(reloadTimer);

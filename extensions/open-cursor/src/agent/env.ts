@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Environment and settings helpers for the chat controller.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
