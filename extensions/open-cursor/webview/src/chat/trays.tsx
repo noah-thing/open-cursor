@@ -126,7 +126,7 @@ export const ReviewBar = memo(function ReviewBar({ files }: { readonly files: re
 			<div className="oc-review-head">
 				<button type="button" className="oc-tray-head" onClick={() => setOpen(o => !o)} aria-expanded={open}>
 					<Icon name="chevronRight" size={12} className={'oc-chev' + (open ? ' is-open' : '')} />
-					<span className="oc-tray-title">{files.length} {files.length === 1 ? 'file' : 'files'} changed</span>
+					<span className="oc-tray-title">{files.length} {files.length === 1 ? 'file' : 'files'}</span>
 					<span className="oc-added">+{added}</span>
 					<span className="oc-removed">&minus;{removed}</span>
 				</button>

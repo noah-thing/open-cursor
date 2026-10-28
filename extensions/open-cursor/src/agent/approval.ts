@@ -74,6 +74,20 @@ export function isDenied(cmd: string, denylist: readonly string[]): boolean {
 }
 
 /** True when the command should wait for the user. */
+/**
+ * `git -C <dir> diff` and `git --no-pager log` match allowlist entries as `git diff` / `git log`.
+ * Only these two options are dropped: `-c key=value` can point git at another program, so it still asks.
+ */
+export function stripGitGlobals(segment: string): string {
+	if (!segment.startsWith('git ')) { return segment; }
+	let s = segment;
+	for (;;) {
+		const next = s.replace(/^git (?:-C (?:"[^"]*"|'[^']*'|\S+)|--no-pager) /, 'git ');
+		if (next === s) { return s; }
+		s = next;
+	}
+}
+
 export function needsApproval(cmd: string, policy: ApprovalPolicy): boolean {
 	if (isDenied(cmd, policy.denylist)) { return true; }
 	if (policy.autoRun === 'always') { return false; }
@@ -81,7 +95,7 @@ export function needsApproval(cmd: string, policy: ApprovalPolicy): boolean {
 	const segments = splitSegments(cmd);
 	if (!segments || segments.length === 0) { return true; }
 	return !segments.every(raw => {
-		const seg = raw;
+		const seg = stripGitGlobals(raw);
 		// `FOO=1 cmd` can change what cmd does (LD_PRELOAD, GIT_EXTERNAL_DIFF, PATH): always ask
 		if (ENV_ASSIGN.test(seg)) { return false; }
 		if (/^cd(\s|$)/.test(seg)) { return true; }

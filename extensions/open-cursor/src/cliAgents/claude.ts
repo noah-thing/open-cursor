@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { diffLines } from 'diff';
 import type { ToolPart } from '../shared/protocol';
 import { ApprovalBroker, type ApprovalDecision, type ApprovalRequest } from './approvalBroker';
 import { GitTracker } from './fileTracker';
@@ -97,23 +98,35 @@ export function claudeToolView(rawName: string, input: Record<string, unknown>, 
 	}
 }
 
+/** Lines added and removed going from `before` to `after`, the way a diff view counts them. */
+function lineDelta(before: string, after: string): { added: number; removed: number } {
+	let added = 0;
+	let removed = 0;
+	for (const part of diffLines(before, after)) {
+		if (part.added) { added += part.count ?? countLines(part.value); }
+		else if (part.removed) { removed += part.count ?? countLines(part.value); }
+	}
+	return { added, removed };
+}
+
 /** Added/removed line counts straight from the tool input (the edit is not on disk yet when we see it). */
 export function editStats(rawName: string, input: Record<string, unknown>, original: string | undefined): { added: number; removed: number } {
 	switch (rawName) {
 		case 'Edit':
-			return { added: countLines(str(input.new_string) ?? ''), removed: countLines(str(input.old_string) ?? '') };
+			return lineDelta(str(input.old_string) ?? '', str(input.new_string) ?? '');
 		case 'MultiEdit': {
 			let added = 0;
 			let removed = 0;
 			for (const e of arr(input.edits)) {
 				const r = rec(e);
-				added += countLines(str(r?.new_string) ?? '');
-				removed += countLines(str(r?.old_string) ?? '');
+				const d = lineDelta(str(r?.old_string) ?? '', str(r?.new_string) ?? '');
+				added += d.added;
+				removed += d.removed;
 			}
 			return { added, removed };
 		}
 		case 'Write':
-			return { added: countLines(str(input.content) ?? ''), removed: original ? countLines(original) : 0 };
+			return original ? lineDelta(original, str(input.content) ?? '') : { added: countLines(str(input.content) ?? ''), removed: 0 };
 		case 'NotebookEdit':
 			return { added: countLines(str(input.new_source) ?? ''), removed: 0 };
 		default:
