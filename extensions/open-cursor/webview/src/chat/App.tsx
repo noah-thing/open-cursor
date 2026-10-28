@@ -6,7 +6,8 @@ import { memo, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useS
 import type { Chat, ChatMode, ContextItem } from '../../../src/shared/protocol';
 import { Icon } from '../common/icons';
 import { Composer } from './composer';
-import { EmptyState, Header, History } from './header';
+import { Header, History } from './header';
+import { HomeBottom, HomeTop, buildStarters } from './home';
 import { onHostMessage, post, saveUiState } from './host';
 import { AssistantBlock, UserBubble } from './messages';
 import { QueueTray, ReviewBar, TodoTray } from './trays';
@@ -143,6 +144,68 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 let persistState: () => void = () => undefined;
 function persist(): void { persistState(); }
 
+/** Wide enough for the chat list beside the conversation, as when the chat fills the window. */
+const WIDE = '(min-width: 880px)';
+
+function useWide(): boolean {
+	const [wide, setWide] = useState(() => window.matchMedia(WIDE).matches);
+	useEffect(() => {
+		const q = window.matchMedia(WIDE);
+		const h = (): void => setWide(q.matches);
+		q.addEventListener('change', h);
+		return () => q.removeEventListener('change', h);
+	}, []);
+	return wide;
+}
+
+const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
+
+interface Ghost { readonly el: HTMLElement; readonly top: number; readonly left: number; readonly width: number; readonly below: boolean }
+
+/**
+ * Moves between the start screen and a conversation without a cut. The composer is one node in both
+ * layouts, so after React lays out the new one it is played back from where it was (FLIP). The start
+ * screen pieces are already detached by then; they are put back where they stood and faded out.
+ */
+function useStageMotion(home: boolean): { stageRef: React.RefObject<HTMLDivElement | null>; dockRef: React.RefObject<HTMLDivElement | null> } {
+	const stageRef = useRef<HTMLDivElement>(null);
+	const dockRef = useRef<HTMLDivElement>(null);
+	const last = useRef<{ home: boolean; dockTop: number; ghosts: Ghost[] } | undefined>(undefined);
+	useLayoutEffect(() => {
+		const stage = stageRef.current;
+		const dock = dockRef.current;
+		if (!stage || !dock) { last.current = undefined; return; }
+		const box = stage.getBoundingClientRect();
+		const dockRect = dock.getBoundingClientRect();
+		const prev = last.current;
+		if (prev && prev.home !== home && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			const dy = prev.dockTop - dockRect.top;
+			if (Math.abs(dy) > 2) {
+				dock.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: home ? 300 : 460, easing: GLIDE });
+			}
+			for (const g of home ? [] : prev.ghosts) {
+				const el = g.el;
+				el.classList.add('oc-leaving');
+				el.style.cssText = `position:absolute;top:${g.top}px;left:${g.left}px;width:${g.width}px;margin:0;pointer-events:none;`;
+				stage.appendChild(el);
+				el.animate(
+					[{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: `translateY(${g.below ? 14 : -8}px) scale(0.985)`, filter: 'blur(3px)' }],
+					{ duration: 220, easing: EASE_OUT, fill: 'forwards' },
+				).onfinish = () => el.remove();
+			}
+		}
+		const ghosts: Ghost[] = home
+			? [...stage.querySelectorAll<HTMLElement>(':scope > .oc-home-top, :scope > .oc-home-bottom')].map(el => {
+				const r = el.getBoundingClientRect();
+				return { el, top: r.top - box.top, left: r.left - box.left, width: r.width, below: r.top > dockRect.top };
+			})
+			: [];
+		last.current = { home, dockTop: dockRect.top, ghosts };
+	});
+	return { stageRef, dockRef };
+}
+
 export function App(): ReactElement {
 	const [state, dispatch] = useReducer(reducer, undefined, initialState);
 	const [editingId, setEditingId] = useState<string | undefined>(undefined);
@@ -175,6 +238,8 @@ export function App(): ReactElement {
 	useEffect(() => { setEditingId(undefined); }, [state.activeId]);
 
 	const chat = state.activeId ? state.chats[state.activeId] : undefined;
+	const wide = useWide();
+	const { stageRef, dockRef } = useStageMotion(!!chat && chat.messages.length === 0);
 
 	const onEditLast = useCallback((): boolean => {
 		const s = stateRef.current;
@@ -212,23 +277,51 @@ export function App(): ReactElement {
 		dispatch({ kind: 'view', view: 'chat' });
 	};
 	const contexts: ContextItem[] = state.contexts[chat.id] ?? [];
-	const incomplete = chat.messages.length === 0;
+	const home = chat.messages.length === 0;
 	const recent = state.summaries.filter(s => s.id !== chat.id && s.updatedAt > 0).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 4);
 	const effectiveChat: Chat = chat.mode === mode ? chat : { ...chat, mode };
+	const hasModel = state.models.some(m => m.hasKey);
+	const starters = buildStarters({
+		hasFolder: !!state.workspaceName,
+		hasModel,
+		recent: recent[0],
+		onPick: pickChat,
+		onMode: (m, text) => {
+			setMode(m);
+			dispatch({ kind: 'host', m: { type: 'focusInput', text } });
+		},
+	});
 
 	return (
-		<div className="oc-app" style={{ ['--oc-font-size' as string]: state.settings.fontSize ? state.settings.fontSize + 'px' : undefined }}>
-			<Header summaries={state.summaries} openIds={state.openIds} activeId={state.activeId} view={state.view} onView={v => dispatch({ kind: 'view', view: v })} />
-			{state.view === 'history' ? (
+		<div className={'oc-app' + (wide ? ' is-wide' : '')} style={{ ['--oc-font-size' as string]: state.settings.fontSize ? state.settings.fontSize + 'px' : undefined }}>
+			{wide ? null : <Header summaries={state.summaries} openIds={state.openIds} activeId={state.activeId} view={state.view} onView={v => dispatch({ kind: 'view', view: v })} />}
+			<div className="oc-body">
+			{wide ? (
+				<aside className="oc-rail" aria-label="Chats">
+					<button type="button" className="oc-rail-new" onClick={() => { post({ type: 'newChat' }); dispatch({ kind: 'view', view: 'chat' }); }}>
+						<Icon name="plus" size={14} /> New chat
+					</button>
+					<History summaries={state.summaries} activeId={state.activeId} onPick={pickChat} autoFocus={false} />
+					<footer className="oc-rail-foot">
+						<button type="button" className="oc-rail-link" onClick={() => post({ type: 'workbench', action: 'showEditor' })} title="Bring back the editor and files">
+							<Icon name="code" size={14} /> Show editor
+						</button>
+						<button type="button" className="oc-iconbtn" title="Open Cursor settings" aria-label="Settings" onClick={() => post({ type: 'openSettings' })}>
+							<Icon name="gear" size={15} />
+						</button>
+					</footer>
+				</aside>
+			) : null}
+			{state.view === 'history' && !wide ? (
 				<History summaries={state.summaries} activeId={state.activeId} onPick={pickChat} />
 			) : (
-				<>
-					{incomplete ? (
-						<EmptyState chat={effectiveChat} recent={recent} workspaceName={state.workspaceName} onPick={pickChat} submitWithModEnter={state.settings.submitWithModEnter} hasUsableModel={state.models.some(m => m.hasKey)} />
+				<div className={'oc-stage' + (home ? ' is-home' : '')} ref={stageRef}>
+					{home ? (
+						<HomeTop workspaceName={state.workspaceName} />
 					) : (
 						<MessageList chat={chat} showThinking={state.settings.showThinking} editingId={editingId} setEditingId={setEditingId} scrollTo={editingId} />
 					)}
-					<div className="oc-dock">
+					<div className="oc-dock" ref={dockRef}>
 						{chat.todos.length > 0 ? <TodoTray todos={chat.todos} /> : null}
 						{chat.queued.length > 0 ? <QueueTray chat={chat} /> : null}
 						{state.pendingEdits.length > 0 ? <ReviewBar files={state.pendingEdits} /> : null}
@@ -255,8 +348,10 @@ export function App(): ReactElement {
 							onNewChat={() => post({ type: 'newChat' })}
 						/>
 					</div>
-				</>
+					{home ? <HomeBottom starters={starters} recent={recent.slice(1)} onPick={pickChat} /> : null}
+				</div>
 			)}
+			</div>
 		</div>
 	);
 }

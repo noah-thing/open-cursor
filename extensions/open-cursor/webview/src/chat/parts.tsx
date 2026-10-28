@@ -52,13 +52,24 @@ function Chevron({ open }: { readonly open: boolean }): ReactElement {
 	return <Icon name="chevronRight" size={12} className={'oc-chev' + (open ? ' is-open' : '')} />;
 }
 
+/** The sentence being thought right now, without markdown marks. */
+function lastLine(text: string): string {
+	const lines = text.replace(/[*_`#>]/g, '').split(/\n+/).map(l => l.trim()).filter(Boolean);
+	const last = lines[lines.length - 1] ?? '';
+	const sentences = last.split(/(?<=[.!?])\s+/);
+	const line = sentences[sentences.length - 1].length > 12 ? sentences[sentences.length - 1] : last;
+	return line.length > 110 ? '…' + line.slice(-110) : line;
+}
+
 export const Thinking = memo(function Thinking({ part, show }: { readonly part: Extract<MessagePart, { type: 'thinking' }>; readonly show: boolean }): ReactElement {
 	const [userOpen, setUserOpen] = useState<boolean | undefined>(undefined);
 	const canOpen = show && part.text.trim().length > 0;
 	const open = canOpen && (userOpen ?? false);
 	const secs = formatDuration(part.durationMs);
+	// While it thinks, the newest line of thought drifts past under the title, so the wait reads as work.
+	const live = !part.done && show && !open ? lastLine(part.text) : '';
 	return (
-		<div className="oc-thinking">
+		<div className={'oc-thinking' + (part.done ? '' : ' is-live')}>
 			<button type="button" className="oc-row-head" disabled={!canOpen} onClick={() => setUserOpen(!open)} aria-expanded={open}>
 				<Icon name="brain" size={14} className="oc-row-icon" />
 				<span className={'oc-row-title' + (part.done ? '' : ' is-shimmer')}>
@@ -66,6 +77,7 @@ export const Thinking = memo(function Thinking({ part, show }: { readonly part: 
 				</span>
 				{canOpen ? <Chevron open={open} /> : null}
 			</button>
+			{live ? <div className="oc-think-live"><span key={live.slice(0, 24)}>{live}</span></div> : null}
 			{open ? (
 				<div className="oc-thinking-body">
 					<Markdown text={part.text} />
@@ -138,8 +150,8 @@ const EditRow = memo(function EditRow({ part }: { readonly part: ToolPart }): Re
 				<span className="oc-spacer" />
 				{e.isNew ? <span className="oc-badge">New</span> : null}
 				{e.deleted ? <span className="oc-badge">Deleted</span> : null}
-				{e.added > 0 ? <span className="oc-added">+{e.added}</span> : null}
-				{e.removed > 0 ? <span className="oc-removed">&minus;{e.removed}</span> : null}
+				{e.added > 0 ? <span key={'a' + e.added} className="oc-added oc-tick">+{e.added}</span> : null}
+				{e.removed > 0 ? <span key={'r' + e.removed} className="oc-removed oc-tick">&minus;{e.removed}</span> : null}
 				<StatusTail part={part} />
 			</button>
 		</div>

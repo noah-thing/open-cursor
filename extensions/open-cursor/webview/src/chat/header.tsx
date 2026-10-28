@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
-import type { Chat, ChatSummary } from '../../../src/shared/protocol';
+import type { ChatSummary } from '../../../src/shared/protocol';
 import { Icon, Spinner } from '../common/icons';
 import { MOD, Popover, useDismiss } from './menus';
 import { post } from './host';
@@ -154,10 +154,11 @@ function HistoryItem({ chat, active, onPick }: { readonly chat: ChatSummary; rea
 	);
 }
 
-export function History({ summaries, activeId, onPick }: {
+export function History({ summaries, activeId, onPick, autoFocus = true }: {
 	readonly summaries: readonly ChatSummary[];
 	readonly activeId: string | undefined;
 	readonly onPick: (id: string) => void;
+	readonly autoFocus?: boolean;
 }): ReactElement {
 	const [query, setQuery] = useState('');
 	const filtered = useMemo(() => {
@@ -170,7 +171,7 @@ export function History({ summaries, activeId, onPick }: {
 		<div className="oc-history">
 			<div className="oc-hist-search">
 				<Icon name="search" size={13} />
-				<input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search chats" aria-label="Search chats" spellCheck={false} />
+				<input autoFocus={autoFocus} value={query} onChange={e => setQuery(e.target.value)} placeholder="Search chats" aria-label="Search chats" spellCheck={false} />
 				{query ? <button type="button" className="oc-iconbtn" aria-label="Clear search" onClick={() => setQuery('')}><Icon name="x" size={12} /></button> : null}
 			</div>
 			<div className="oc-hist-scroll">
@@ -184,78 +185,6 @@ export function History({ summaries, activeId, onPick }: {
 					</section>
 				))}
 			</div>
-		</div>
-	);
-}
-
-export function EmptyState({ chat, recent, workspaceName, onPick, submitWithModEnter, hasUsableModel }: {
-	readonly hasUsableModel: boolean;
-	readonly chat: Chat;
-	readonly recent: readonly ChatSummary[];
-	readonly workspaceName: string | undefined;
-	readonly onPick: (id: string) => void;
-	readonly submitWithModEnter: boolean;
-}): ReactElement {
-	const hints: { keys: string[]; label: string }[] = [
-		{ keys: ['@'], label: 'Add files, code, docs or git as context' },
-		{ keys: ['/'], label: 'Run a command' },
-		{ keys: [MOD + '.'], label: 'Switch between ' + Object.values(MODE_META).map(m => m.label).join(', ') },
-		{ keys: [submitWithModEnter ? MOD + 'Enter' : 'Enter'], label: 'Send. ' + (submitWithModEnter ? 'Enter' : 'Shift+Enter') + ' for a new line' },
-		{ keys: ['Esc'], label: 'Stop the agent' },
-	];
-	return (
-		<div className="oc-empty">
-			<div className="oc-empty-top">
-				<div className="oc-empty-mark" aria-hidden="true">
-					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
-						<path d="M12 2.75l8.25 4.75v9L12 21.25 3.75 16.5v-9z" />
-						<path d="M12 2.75v9.5m0 0l8.25-4.75M12 12.25L3.75 7.5" opacity="0.55" />
-					</svg>
-				</div>
-				<div className="oc-empty-title">{workspaceName ? workspaceName : 'New chat'}</div>
-				<div className="oc-empty-sub">{MODE_META[chat.mode].hint}</div>
-			</div>
-			{!hasUsableModel ? (
-				<div className="oc-setup">
-					<div className="oc-empty-label">Connect a model</div>
-					<button type="button" className="oc-setup-item" onClick={() => post({ type: 'openSettings', section: 'subscriptions' })}>
-						<span className="oc-setup-title">Use a subscription you already have</span>
-						<span className="oc-setup-sub">Claude Code, Codex or Gemini CLI, signed in on this machine</span>
-					</button>
-					<button type="button" className="oc-setup-item" onClick={() => post({ type: 'openSettings', section: 'models' })}>
-						<span className="oc-setup-title">Add an API key</span>
-						<span className="oc-setup-sub">Anthropic, OpenAI, Gemini, OpenRouter, DeepSeek and more</span>
-					</button>
-					<button type="button" className="oc-setup-item" onClick={() => post({ type: 'openSettings', section: 'models' })}>
-						<span className="oc-setup-title">Run a model locally</span>
-						<span className="oc-setup-sub">Start Ollama or LM Studio and it shows up here, free and offline</span>
-					</button>
-				</div>
-			) : null}
-			<ul className="oc-hints">
-				{hints.map(h => (
-					<li key={h.label}>
-						<span className="oc-kbd-group">{h.keys.map(k => <kbd key={k}>{k}</kbd>)}</span>
-						<span>{h.label}</span>
-					</li>
-				))}
-			</ul>
-			{recent.length ? (
-				<div className="oc-empty-recent">
-					<div className="oc-empty-label">Recent</div>
-					<ul>
-						{recent.map(c => (
-							<li key={c.id}>
-								<button type="button" className="oc-recent-item" onClick={() => onPick(c.id)}>
-									<Icon name={MODE_META[c.mode].icon} size={13} className="oc-row-icon" />
-									<span className="oc-hist-title">{c.title || 'New chat'}</span>
-									<span className="oc-hist-time">{relativeTime(c.updatedAt)}</span>
-								</button>
-							</li>
-						))}
-					</ul>
-				</div>
-			) : null}
 		</div>
 	);
 }

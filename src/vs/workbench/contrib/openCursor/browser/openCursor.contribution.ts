@@ -14,6 +14,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		// The built-in Copilot chat stack is replaced by Open Cursor's own agent.
 		'chat.disableAIFeatures': true,
 		'workbench.activityBar.location': 'top',
+		// The chat is the only thing in the secondary side bar, so its one-icon tab strip goes away.
+		'workbench.activityBar.autoHide': true,
+		// Motion everywhere the workbench offers it: lists, the terminal and the caret glide instead of jumping.
+		'workbench.list.smoothScrolling': true,
+		'terminal.integrated.smoothScrolling': true,
+		'editor.cursorBlinking': 'smooth',
 		// Flat, edge to edge panels instead of floating cards.
 		'window.density.layout': 'compact',
 		'workbench.secondarySideBar.defaultVisibility': 'visible',

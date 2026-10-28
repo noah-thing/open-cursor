@@ -36,6 +36,8 @@
 	--oc-font: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif);
 	--oc-mono: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
 	--oc-ease: cubic-bezier(0.2, 0, 0, 1);
+	--oc-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--oc-glide: cubic-bezier(0.32, 0.72, 0, 1);
 	--oc-dur: 150ms;
 }
 
@@ -86,10 +88,10 @@ button:disabled { cursor: default; }
 	flex: none;
 	border-radius: 6px;
 	color: var(--oc-fg-2);
-	transition: background-color 100ms ease-in-out, color 100ms ease-in-out;
+	transition: background-color 100ms ease-in-out, color 100ms ease-in-out, transform 120ms var(--oc-ease-out);
 }
 .oc-iconbtn:hover:not(:disabled) { background: var(--oc-ink-8); color: var(--oc-fg); }
-.oc-iconbtn:active:not(:disabled) { background: var(--oc-ink-12); }
+.oc-iconbtn:active:not(:disabled) { background: var(--oc-ink-12); transform: scale(0.92); }
 .oc-iconbtn:disabled { opacity: 0.4; }
 .oc-iconbtn.is-on { background: var(--oc-ink-8); color: var(--oc-fg); }
 .oc-iconbtn.is-danger { color: var(--oc-error); background: color-mix(in srgb, var(--oc-error) 14%, transparent); }
@@ -111,10 +113,10 @@ button:disabled { cursor: default; }
 	color: var(--oc-fg);
 	background: var(--oc-ink-8);
 	border: 1px solid transparent;
-	transition: background-color 100ms ease-in-out, border-color 100ms ease-in-out, opacity 100ms;
+	transition: background-color 100ms ease-in-out, border-color 100ms ease-in-out, opacity 100ms, transform 120ms var(--oc-ease-out);
 }
 .oc-btn:hover:not(:disabled) { background: var(--oc-ink-12); }
-.oc-btn:active:not(:disabled) { transform: translateY(0.5px); }
+.oc-btn:active:not(:disabled) { transform: scale(0.97); }
 .oc-btn:disabled { opacity: 0.45; }
 .oc-btn.is-primary { background: var(--oc-accent); color: var(--oc-accent-fg); }
 .oc-btn.is-primary:hover:not(:disabled) { background: var(--oc-accent-hover); filter: brightness(1.06); }
@@ -183,7 +185,19 @@ kbd {
 @keyframes oc-spin { to { transform: rotate(360deg); } }
 
 @keyframes oc-rise { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-@keyframes oc-pop { from { opacity: 0; transform: translateY(4px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes oc-pop { from { opacity: 0; transform: translateY(4px) scale(0.97); } to { opacity: 1; transform: none; } }
+/* Arrivals: things that appear because work happened. A little travel and a little blur, then still. */
+@keyframes oc-enter { from { opacity: 0; transform: translateY(6px); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes oc-swap { from { opacity: 0; transform: translateY(5px); filter: blur(1.5px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes oc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes oc-send { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes oc-tick { from { opacity: 0.25; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+@keyframes oc-check { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes oc-reveal { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0); } }
+@keyframes oc-slide-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+@keyframes oc-mark { from { opacity: 0; transform: scaleY(0.3); } to { opacity: 1; transform: none; } }
+@keyframes oc-breathe { from { opacity: 0.45; } to { opacity: 1; } }
+@keyframes oc-scan { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 
 @media (prefers-reduced-motion: reduce) {
 	*, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }

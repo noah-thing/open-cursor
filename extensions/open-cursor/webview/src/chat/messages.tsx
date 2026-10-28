@@ -8,6 +8,7 @@ import { Icon } from '../common/icons';
 import { Markdown } from './markdown';
 import { post } from './host';
 import { ContextPill, ErrorCard, ExploreGroup, Thinking, ToolPartView, isExploreTool } from './parts';
+import { basename } from './util';
 
 type Node =
 	| { kind: 'part'; part: MessagePart; key: string }
@@ -36,6 +37,68 @@ function buildNodes(parts: readonly MessagePart[]): Node[] {
 	return out;
 }
 
+/** Ticks once a second while `on`, for live elapsed times. */
+export function useNow(on: boolean): number {
+	const [now, setNow] = useState(() => Date.now());
+	useEffect(() => {
+		if (!on) { return; }
+		setNow(Date.now());
+		const t = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(t);
+	}, [on]);
+	return now;
+}
+
+function phase(message: AssistantMessage): { label: string; waiting: boolean } {
+	const last = message.parts[message.parts.length - 1];
+	if (!last) { return { label: 'Thinking', waiting: false }; }
+	// A live thinking row already says so; the status line speaks for the run as a whole.
+	if (last.type === 'thinking' && !last.done) { return { label: message.parts.length > 1 ? 'Working' : 'Reasoning', waiting: false }; }
+	if (last.type === 'text') { return { label: 'Writing', waiting: false }; }
+	if (last.type === 'tool') {
+		if (last.status === 'awaiting-approval') { return { label: 'Waiting for your approval', waiting: true }; }
+		if (last.status === 'running' || last.status === 'streaming') {
+			if (last.edit) { return { label: 'Editing ' + basename(last.edit.path), waiting: false }; }
+			if (last.command || last.name === 'run_terminal_cmd') { return { label: 'Running a command', waiting: false }; }
+			if (isExploreTool(last)) { return { label: 'Exploring', waiting: false }; }
+			return { label: 'Working', waiting: false };
+		}
+	}
+	return { label: 'Deciding the next step', waiting: false };
+}
+
+/**
+ * The run's status line: what is happening now, for how long, and one mark per step taken. Marks
+ * arrive as steps start, the live one carries a sweep of light, failures stay red in the record.
+ */
+const WorkingLine = memo(function WorkingLine({ message }: { readonly message: AssistantMessage }): ReactElement {
+	const now = useNow(true);
+	const { label, waiting } = phase(message);
+	const steps = message.parts.filter((p): p is ToolPart => p.type === 'tool');
+	const secs = Math.max(0, Math.round((now - message.createdAt) / 1000));
+	return (
+		<div className={'oc-working' + (waiting ? ' is-waiting' : '')} aria-live="polite">
+			<span key={label} className={'oc-working-label' + (waiting ? '' : ' is-shimmer')}>{label}</span>
+			{steps.length ? (
+				<span className="oc-trace" aria-hidden="true">
+					{steps.slice(-32).map(t => <i key={t.id} className={'is-' + t.status} />)}
+				</span>
+			) : null}
+			<span className="oc-working-time">{secs >= 60 ? Math.floor(secs / 60) + 'm ' + (secs % 60) + 's' : secs + 's'}</span>
+		</div>
+	);
+});
+
+/** After a run: a quiet line saying what it did. */
+function RunSummary({ message }: { readonly message: AssistantMessage }): ReactElement | null {
+	const steps = message.parts.filter((p): p is ToolPart => p.type === 'tool');
+	if (steps.length < 2) { return null; }
+	const files = new Set(steps.filter(t => t.edit && t.status === 'done').map(t => t.edit!.path)).size;
+	const bits = [steps.length + ' steps'];
+	if (files) { bits.push(files + (files === 1 ? ' file changed' : ' files changed')); }
+	return <span className="oc-run-summary">{bits.join(', ')}</span>;
+}
+
 export const AssistantBlock = memo(function AssistantBlock({ message, chatId, showThinking, onRetry }: {
 	readonly message: AssistantMessage;
 	readonly chatId: string;
@@ -43,14 +106,10 @@ export const AssistantBlock = memo(function AssistantBlock({ message, chatId, sh
 	readonly onRetry: () => void;
 }): ReactElement {
 	const nodes = useMemo(() => buildNodes(message.parts), [message.parts]);
-	const last = message.parts[message.parts.length - 1];
-	const busyTail =
-		!message.done &&
-		(!last || (last.type === 'tool' && last.status !== 'running' && last.status !== 'streaming' && last.status !== 'awaiting-approval') || (last.type === 'thinking' && last.done));
 	const fullText = useMemo(() => message.parts.filter((p): p is Extract<MessagePart, { type: 'text' }> => p.type === 'text').map(p => p.text).join('\n\n'), [message.parts]);
 	const [copied, setCopied] = useState(false);
 	return (
-		<div className="oc-assistant" data-done={message.done}>
+		<div className={'oc-assistant' + (message.done ? '' : ' is-running')} data-done={message.done}>
 			{nodes.map(n => {
 				if (n.kind === 'explore') { return <ExploreGroup key={n.key} tools={n.tools} chatId={chatId} />; }
 				const p = n.part;
@@ -65,13 +124,10 @@ export const AssistantBlock = memo(function AssistantBlock({ message, chatId, sh
 						return <ErrorCard key={n.key} message={p.message} action={p.action} onRetry={onRetry} />;
 				}
 			})}
-			{busyTail ? (
-				<div className="oc-working" aria-live="polite">
-					<span className="is-shimmer">{message.parts.length === 0 ? 'Thinking' : 'Working'}</span>
-				</div>
-			) : null}
+			{message.done ? null : <WorkingLine message={message} />}
 			{message.done && fullText ? (
 				<div className="oc-assistant-foot">
+					<RunSummary message={message} />
 					<button
 						type="button"
 						className="oc-iconbtn"

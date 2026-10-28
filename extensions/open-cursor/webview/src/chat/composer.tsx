@@ -332,6 +332,7 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 				onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) { setDragging(false); } }}
 				onDrop={onDrop}
 			>
+				{dragging ? <div className="oc-drop-hint" aria-hidden="true"><Icon name="plus" size={13} /> Drop to add as context</div> : null}
 				{popupOpen ? (
 					<div className="oc-popup" ref={popupRef} role="listbox" aria-label={mention ? 'Add context' : 'Commands'}>
 						{mention ? (

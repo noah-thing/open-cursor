@@ -234,13 +234,22 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	 */
 	private async showOnStartup(): Promise<void> {
 		await new Promise(r => setTimeout(r, 1500));
-		if (this.view || this.disposed || this.ctx.globalState.get<boolean>(CHAT_VISIBLE_KEY) === false) {
+		if (this.disposed) {
 			return;
 		}
-		const hadEditor = !!vscode.window.activeTextEditor;
-		await vscode.commands.executeCommand('workbench.view.extension.openCursor');
-		if (hadEditor) {
-			await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+		if (!this.view && this.ctx.globalState.get<boolean>(CHAT_VISIBLE_KEY) !== false) {
+			const hadEditor = !!vscode.window.activeTextEditor;
+			await vscode.commands.executeCommand('workbench.view.extension.openCursor');
+			if (hadEditor) {
+				await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+			}
+		}
+		// An empty window has nothing to edit yet, so the chat takes the whole window, like Cursor's agent view.
+		for (let i = 0; i < 30 && !this.view && !this.disposed; i++) {
+			await new Promise(r => setTimeout(r, 100));
+		}
+		if (this.view &&!vscode.workspace.workspaceFolders?.length && !vscode.window.visibleTextEditors.length) {
+			await vscode.commands.executeCommand('workbench.action.maximizeAuxiliaryBar');
 		}
 	}
 
@@ -260,6 +269,11 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		switch (m.type) {
 			case 'requestSlashCommands': return this.postSlashCommands();
 			case 'requestActiveEditor': return this.postActiveEditor();
+			case 'workbench': {
+				const command = { openFolder: 'workbench.action.files.openFolder', openRecent: 'workbench.action.openRecent', cloneRepo: 'git.clone', showEditor: 'workbench.action.restoreAuxiliaryBar' }[m.action];
+				await vscode.commands.executeCommand(command);
+				return;
+			}
 			case 'ready': return this.onReady();
 			case 'send': return this.onSend(m.chatId, { text: m.text, context: m.context, mode: m.mode, modelId: m.modelId });
 			case 'resend': return this.onResend(m.chatId, m.messageId, m.text, m.context, m.revert);

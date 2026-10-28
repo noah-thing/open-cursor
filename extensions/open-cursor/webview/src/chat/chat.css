@@ -7,6 +7,7 @@
 	height: 100%;
 	min-width: 0;
 	font-size: var(--oc-text);
+	--oc-col: 760px;
 }
 
 /* ---------- Header ---------- */
@@ -34,7 +35,7 @@
 	align-items: center;
 	gap: 5px;
 	flex: 0 1 auto;
-	min-width: 56px;
+	min-width: 84px;
 	max-width: 190px;
 	height: 26px;
 	padding: 0 6px 0 9px;
@@ -146,11 +147,12 @@
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
-	max-width: 840px;
+	max-width: var(--oc-col);
 	margin: 0 auto;
 	padding: 14px 12px 28px;
 }
 .oc-msg { min-width: 0; animation: oc-rise 180ms var(--oc-ease); }
+.oc-msg.is-user { animation: oc-send 360ms var(--oc-ease-out) both; transform-origin: 100% 100%; }
 .oc-jump {
 	position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
 	width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%;
@@ -159,7 +161,7 @@
 	animation: oc-pop 140ms var(--oc-ease);
 }
 .oc-jump:hover { color: var(--oc-fg); }
-.oc-loading { flex: 1; display: grid; place-items: center; font-size: 12px; }
+.oc-loading { flex: 1; display: grid; place-items: center; font-size: 12px; animation: oc-fade 200ms 160ms ease-out both; }
 
 /* ---------- User bubble ---------- */
 .oc-user { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
@@ -373,7 +375,7 @@ button.oc-row-head:hover:not(:disabled) { background: var(--oc-ink-6); color: va
 .oc-build-text { flex: 1; font-size: 12.5px; color: var(--oc-fg-2); }
 
 /* ---------- Dock (trays + composer) ---------- */
-.oc-dock { flex: none; padding: 0 10px 10px; display: flex; flex-direction: column; max-width: 860px; width: 100%; margin: 0 auto; position: relative; }
+.oc-dock { flex: none; padding: 0 10px 10px; display: flex; flex-direction: column; max-width: calc(var(--oc-col) + 20px); width: 100%; margin: 0 auto; position: relative; }
 .oc-dock::before {
 	content: ''; position: absolute; left: 0; right: 0; top: -22px; height: 22px; pointer-events: none;
 	background: linear-gradient(transparent, var(--oc-bg));
@@ -495,23 +497,8 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-hist-rename { flex: 1; min-width: 0; height: 22px; padding: 0 6px; border-radius: 5px; background: var(--oc-input-bg); border: 1px solid var(--oc-focus); outline: 0; font-size: 12.5px; }
 .oc-hist-empty { padding: 28px 12px; text-align: center; color: var(--oc-fg-3); font-size: 12px; }
 
-/* ---------- Empty state ---------- */
-.oc-empty { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 20px 22px; max-width: 520px; width: 100%; margin: 0 auto; }
-.oc-empty-top { text-align: left; }
-.oc-empty-mark { color: var(--oc-fg-3); margin-bottom: 10px; }
-.oc-empty-title { font-size: 15px; font-weight: 600; letter-spacing: -0.005em; }
-.oc-empty-sub { margin-top: 2px; font-size: 12.5px; color: var(--oc-fg-2); }
-.oc-hints { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-.oc-hints li { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--oc-fg-2); }
-.oc-kbd-group { display: inline-flex; gap: 3px; min-width: 62px; }
-.oc-empty-label { font-size: 11px; color: var(--oc-fg-3); margin-bottom: 4px; }
-.oc-empty-recent ul { list-style: none; margin: 0 -8px; padding: 0; }
-.oc-recent-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 28px; padding: 0 8px; border-radius: 6px; font-size: 12.5px; color: var(--oc-fg-2); }
-.oc-recent-item:hover { background: var(--oc-ink-6); color: var(--oc-fg); }
-
 @media (max-width: 340px) {
 	.oc-chip-text { max-width: 90px; }
-	.oc-empty { padding: 14px; }
 }
 
 /* Keep the review summary on one line; the title truncates before the actions wrap. */
@@ -531,3 +518,167 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-setup-title { font-size: 12.5px; font-weight: 500; }
 .oc-setup-sub { font-size: 11.5px; color: var(--vscode-descriptionForeground); }
 .oc-review-head .oc-tray-title { flex: none; }
+
+/* ======================================================================================
+   Layout: header, then a body holding the chat list (wide only) and the stage.
+   ====================================================================================== */
+.oc-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.oc-body > .oc-history { flex: 1 1 auto; min-width: 0; animation: oc-fade 160ms ease-out both; }
+.oc-stage { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; container: stage / inline-size; }
+
+/* Wide: the chat list sits on the left, as in Cursor's agent window. The tabs step aside for it. */
+.oc-rail {
+	width: 244px; flex: none; display: flex; flex-direction: column; min-height: 0; padding-top: 8px;
+	border-right: 1px solid var(--oc-stroke-2);
+	animation: oc-slide-in 280ms var(--oc-ease-out) both;
+}
+.oc-rail > .oc-history { flex: 1 1 auto; min-height: 0; }
+.oc-rail .oc-hist-search { margin: 6px 8px 2px; height: 28px; }
+.oc-rail-new {
+	display: flex; align-items: center; gap: 8px; margin: 0 8px 2px; height: 30px; padding: 0 10px; border-radius: 8px;
+	font-size: 12.5px; color: var(--oc-fg); background: var(--oc-ink-6);
+	transition: background-color 120ms ease, transform 120ms var(--oc-ease-out);
+}
+.oc-rail-new:hover { background: var(--oc-ink-8); }
+.oc-rail-new:active { transform: scale(0.98); }
+.oc-app.is-wide .oc-tabs { visibility: hidden; }
+.oc-app.is-wide .oc-header-actions > [aria-label='Past chats'] { display: none; }
+
+/* ======================================================================================
+   Start screen. Spacers above and below hold the composer a little above the middle;
+   the pieces around it arrive in a short cascade and leave as ghosts (see useStageMotion).
+   ====================================================================================== */
+.oc-stage.is-home { overflow-y: auto; overflow-x: hidden; }
+.oc-stage.is-home::before { content: ''; flex: 1 1 0; min-height: 18px; }
+.oc-stage.is-home::after { content: ''; flex: 1.5 1 0; min-height: 18px; }
+.oc-stage.is-home .oc-dock::before { display: none; }
+.oc-stage.is-home .oc-composer { box-shadow: inset 0 0 0 1px var(--oc-stroke), 0 10px 32px -14px var(--oc-shadow); transition: box-shadow 220ms ease; }
+.oc-stage.is-home .oc-composer:focus-within { box-shadow: inset 0 0 0 1px var(--oc-focus), 0 14px 40px -16px var(--oc-shadow); }
+
+.oc-home-top, .oc-home-bottom { width: 100%; max-width: calc(var(--oc-col) + 20px); margin: 0 auto; padding: 0 10px; }
+.oc-home-top { display: flex; align-items: center; padding-bottom: 6px; animation: oc-enter 320ms var(--oc-ease-out) both; }
+.oc-place {
+	display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; margin-left: -2px; border-radius: 7px;
+	font-size: 12.5px; color: var(--oc-fg-2); max-width: 100%;
+	transition: background-color 120ms ease, color 120ms ease, transform 120ms var(--oc-ease-out);
+}
+.oc-place:hover { background: var(--oc-ink-6); color: var(--oc-fg); }
+.oc-place:active { transform: scale(0.98); }
+.oc-place-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.oc-starters { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.oc-starters > li, .oc-home-recent, .oc-home-keys { animation: oc-enter 340ms var(--oc-ease-out) both; animation-delay: calc(70ms + var(--i, 0) * 45ms); }
+.oc-starter {
+	display: grid; grid-template-columns: 16px auto minmax(0, 1fr) 12px; align-items: center; column-gap: 10px;
+	width: 100%; min-height: 34px; padding: 6px 10px; border-radius: 9px; text-align: left;
+	transition: background-color 120ms ease, transform 120ms var(--oc-ease-out);
+}
+.oc-starter:hover, .oc-starter:focus-visible { background: var(--oc-ink-6); }
+.oc-starter:active { transform: scale(0.985); }
+.oc-starter-icon { color: var(--oc-fg-3); transition: color 120ms ease; }
+.oc-starter:hover .oc-starter-icon { color: var(--oc-fg); }
+.oc-starter-title { font-size: 12.5px; color: var(--oc-fg); white-space: nowrap; }
+.oc-starter-detail { font-size: 12px; color: var(--oc-fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oc-starter-go { color: var(--oc-fg-3); opacity: 0; transform: translateX(-4px); transition: opacity 140ms ease-out, transform 200ms var(--oc-ease-out); }
+.oc-starter:hover .oc-starter-go, .oc-starter:focus-visible .oc-starter-go { opacity: 1; transform: none; }
+@container stage (max-width: 480px) {
+	.oc-starter { grid-template-columns: 16px minmax(0, 1fr) 12px; row-gap: 1px; }
+	.oc-starter-icon { grid-row: 1 / span 2; align-self: start; margin-top: 2px; }
+	.oc-starter-detail { grid-column: 2; grid-row: 2; }
+	.oc-starter-go { grid-column: 3; grid-row: 1 / span 2; }
+}
+.oc-home-recent { margin-top: 18px; }
+.oc-home-recent ul { list-style: none; margin: 0; padding: 0; }
+.oc-home-label { margin: 0 10px 4px; font-size: 11px; font-weight: 500; color: var(--oc-fg-3); }
+.oc-recent-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 28px; padding: 0 10px; border-radius: 7px; font-size: 12.5px; color: var(--oc-fg-2); transition: background-color 120ms ease, color 120ms ease, transform 120ms var(--oc-ease-out); }
+.oc-recent-item:hover { background: var(--oc-ink-6); color: var(--oc-fg); }
+.oc-recent-item:active { transform: scale(0.99); }
+.oc-home-keys { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 20px 10px 0; font-size: 11.5px; color: var(--oc-fg-3); }
+.oc-home-keys kbd { margin-right: 4px; }
+
+/* Ghosts keep their last frame; their own entrance must not replay when they are put back. */
+.oc-leaving, .oc-leaving * { animation: none !important; }
+
+/* ======================================================================================
+   A run in progress.
+   ====================================================================================== */
+.oc-assistant > .oc-tool, .oc-assistant > .oc-group, .oc-assistant > .oc-thinking, .oc-assistant > .oc-approval,
+.oc-assistant > .oc-error, .oc-group-body > *, .oc-md-block, .oc-code {
+	animation: oc-enter 260ms var(--oc-ease-out) both;
+}
+.oc-assistant > .oc-approval { animation: oc-pop 200ms var(--oc-ease-out) both; }
+
+/* The status line. Its label changes with the work; the record of steps grows to its right. */
+.oc-working {
+	position: relative; display: flex; align-items: center; gap: 10px; min-height: 26px; padding: 3px 2px 5px; overflow: hidden;
+	font-size: 12.5px; color: var(--oc-fg-2);
+	animation: oc-enter 240ms var(--oc-ease-out) both;
+}
+.oc-working::after {
+	content: ''; position: absolute; left: 0; bottom: 0; width: 40%; height: 1px;
+	background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--oc-fg) 38%, transparent), transparent);
+	animation: oc-scan 1.9s var(--oc-glide) infinite;
+}
+.oc-working.is-waiting::after { display: none; }
+.oc-working-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: oc-swap 260ms var(--oc-ease-out) both; }
+.oc-working-label.is-shimmer { animation: oc-swap 260ms var(--oc-ease-out) both, oc-shimmer 1.6s linear infinite; }
+.oc-working.is-waiting .oc-working-label { color: var(--oc-mode-plan); }
+.oc-working-time { margin-left: auto; flex: none; font-size: 11.5px; color: var(--oc-fg-3); font-variant-numeric: tabular-nums; }
+
+.oc-trace { display: flex; align-items: flex-end; gap: 2px; height: 11px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.oc-trace > i { width: 3px; height: 11px; flex: none; border-radius: 1.5px; background: var(--oc-ink-20); transform-origin: 50% 100%; animation: oc-mark 300ms var(--oc-ease-out) both; transition: background-color 300ms ease; }
+.oc-trace > i.is-running, .oc-trace > i.is-streaming { background: var(--oc-fg); animation: oc-mark 300ms var(--oc-ease-out) both, oc-breathe 700ms ease-in-out 300ms infinite alternate; }
+.oc-trace > i.is-done { background: color-mix(in srgb, var(--oc-fg) 34%, transparent); }
+.oc-trace > i.is-error { background: var(--oc-error); }
+.oc-trace > i.is-awaiting-approval { background: var(--oc-mode-plan); }
+.oc-trace > i.is-rejected, .oc-trace > i.is-cancelled { background: var(--oc-ink-12); }
+
+/* Thinking: the newest sentence slides through under the title. */
+.oc-think-live {
+	margin: -1px 0 3px 23px; height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+	font-size: 12px; line-height: 18px; color: var(--oc-fg-3);
+	-webkit-mask-image: linear-gradient(90deg, #000 80%, transparent); mask-image: linear-gradient(90deg, #000 80%, transparent);
+}
+.oc-think-live > span { display: inline-block; animation: oc-swap 300ms var(--oc-ease-out) both; }
+
+.oc-tick { display: inline-block; animation: oc-tick 260ms var(--oc-ease-out) both; }
+
+/* After a run: the summary stays, the actions wait for the pointer. */
+.oc-assistant-foot { opacity: 1; align-items: center; gap: 6px; min-height: 22px; }
+.oc-assistant-foot .oc-iconbtn { opacity: 0; transition: opacity 120ms ease, background-color 100ms, transform 120ms var(--oc-ease-out); }
+.oc-assistant:hover .oc-assistant-foot .oc-iconbtn, .oc-assistant-foot:focus-within .oc-iconbtn { opacity: 1; }
+.oc-run-summary { font-size: 11.5px; color: var(--oc-fg-3); animation: oc-fade 400ms ease-out both; }
+
+/* ======================================================================================
+   Context going in: pills, pasted images, drag and drop.
+   ====================================================================================== */
+.oc-composer .oc-pill { animation: oc-pop 200ms var(--oc-ease-out) both; transform-origin: 0 50%; }
+.oc-pill-thumb { animation: oc-reveal 360ms var(--oc-ease-out) both; }
+.oc-drop-hint {
+	position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; gap: 6px;
+	border-radius: inherit; pointer-events: none; font-size: 12.5px; color: var(--oc-fg);
+	background: color-mix(in srgb, var(--oc-input-bg) 84%, var(--oc-accent));
+	animation: oc-fade 140ms ease-out both;
+}
+
+/* ======================================================================================
+   Small arrivals: tabs, todos, menus that open from where they were asked for.
+   ====================================================================================== */
+.oc-tab { animation: oc-enter 200ms var(--oc-ease-out) both; }
+.oc-todo-text { text-decoration: line-through; text-decoration-color: transparent; transition: text-decoration-color 320ms ease, color 320ms ease; }
+.oc-todo-icon.is-done, .oc-todo-icon.is-active { animation: oc-check 260ms var(--oc-ease-out) both; }
+.oc-popover.is-up.is-start { transform-origin: 0 100%; }
+.oc-popover.is-up.is-end { transform-origin: 100% 100%; }
+.oc-popover.is-down.is-start { transform-origin: 0 0; }
+.oc-popover.is-down.is-end { transform-origin: 100% 0; }
+.oc-popup { transform-origin: 50% 100%; }
+.oc-chip { transition: background-color 100ms ease-in-out, color 100ms ease-in-out, transform 120ms var(--oc-ease-out); }
+.oc-chip:active { transform: scale(0.96); }
+.oc-composer { transition: box-shadow 160ms ease; }
+.oc-rail-foot { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-top: 1px solid var(--oc-stroke-2); }
+.oc-rail-link {
+	display: inline-flex; align-items: center; gap: 7px; flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: 7px;
+	font-size: 12.5px; color: var(--oc-fg-2); transition: background-color 120ms ease, color 120ms ease, transform 120ms var(--oc-ease-out);
+}
+.oc-rail-link:hover { background: var(--oc-ink-6); color: var(--oc-fg); }
+.oc-rail-link:active { transform: scale(0.98); }

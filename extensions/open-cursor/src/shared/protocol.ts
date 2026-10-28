@@ -215,4 +215,6 @@ export type HostMessageExt =
 export type WebviewMessageExt =
 	| WebviewMessage
 	| { readonly type: 'requestSlashCommands' }
-	| { readonly type: 'requestActiveEditor' };
+	| { readonly type: 'requestActiveEditor' }
+	/** Start screen actions that hand off to the workbench. */
+	| { readonly type: 'workbench'; readonly action: 'openFolder' | 'openRecent' | 'cloneRepo' | 'showEditor' };
