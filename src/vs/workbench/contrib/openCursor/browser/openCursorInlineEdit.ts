@@ -260,7 +260,7 @@ export class OpenCursorInlineEditController extends Disposable implements IEdito
 
 	async pickModel(): Promise<void> {
 		const models = await this._commandService.executeCommand<IModelOption[]>('openCursor.models.list') ?? [];
-		const pick = await this._quickInputService.pick(models.map(m => ({ id: m.id, label: m.label, description: m.hasKey === false ? 'no key' : undefined })), { placeHolder: 'Model for Cmd+K' });
+		const pick = await this._quickInputService.pick(models.map(m => ({ id: m.id, label: m.label, description: m.hasKey === false ? 'no key' : undefined })), { placeHolder: isMacintosh ? 'Model for Cmd+K' : 'Model for Ctrl+K' });
 		if (pick) {
 			lastModelId = pick.id;
 			this._zone?.setModelLabel(pick.label);
@@ -340,7 +340,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'openCursor.inline.open',
-			title: localize2('openCursor.inline.open', "Edit Inline (Cmd+K)"),
+			title: isMacintosh ? localize2('openCursor.inline.open', "Edit Inline (Cmd+K)") : localize2('openCursor.inline.openCtrl', "Edit Inline (Ctrl+K)"),
 			category: localize2('openCursor', "Open Cursor"),
 			f1: true,
 			precondition: EditorContextKeys.writable,
