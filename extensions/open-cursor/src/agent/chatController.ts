@@ -322,6 +322,11 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	}
 
 	private defaultModelId(): string {
+		// A CLI subscription (`cli:<agent>/<model>`) can be the default too; the registry only knows API models.
+		const configured = vscode.workspace.getConfiguration('openCursor').get<string>('models.default');
+		if (configured?.startsWith('cli:')) {
+			return configured;
+		}
 		return this.services.registry.getDefaultModel('chat')?.id ?? this.modelOptions.find(m => m.hasKey)?.id ?? this.modelOptions[0]?.id ?? '';
 	}
 
