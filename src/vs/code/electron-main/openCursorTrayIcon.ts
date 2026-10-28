@@ -1,7 +1,8 @@
 /*---------------------------------------------------------------------------------------------
  *  Open Cursor. MIT License.
- *  Menu bar template glyph (black on transparent; macOS tints it). 18 pt and @2x.
+ *  Menu bar template glyph (black on transparent; macOS tints it), traced from the app icon's
+ *  pointer. 18 pt and @2x.
  *--------------------------------------------------------------------------------------------*/
 
-export const TRAY_ICON_1X = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAAOUlEQVR4nGNgGGyAEYf4f1L1MDHQEfwn4EKKXfQfmcNCiWaahBHTqEH0M4iFRPWMuJLC0MxrDHQFAFmoBxlZXTw9AAAAAElFTkSuQmCC';
-export const TRAY_ICON_2X = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAAYklEQVR4nO2XQQrAMAgEVfr/L9t7D91WaLRh5mqCQ1aQmAFshr84myv6hA0j7MeRPYnSt3uhaOiZd8VjgsQqoaxcYoYUCCkQUiCkQEiBUOdy9WnbviTXEZmXixf4BgGAfcAJ4eoIOK2vKSYAAAAASUVORK5CYII=';
+export const TRAY_ICON_1X = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAA9UlEQVR4nM3Svy5FQRDH8c+9V1BJCA+gpLheQyN4AZ03EI1Gr9GKUncrrUavVRK1REEp8eccuclsstYlZ0Nhks1MZna+O7/J8t+th0H4P7PBb5oOcIr5LN+rAU2FP0OLO2xk9X4taA+vARufY8wUdzpJ2wrAC94jvsJKV1gafYgmAE023RO2i0cnWlroQjQlUIu3TOp+8fCPwOtoStLaiBPwMO59C0sjn0+YpC3OYqHk0/JS8iZ8k+X6IfkSIzxGbQz9Ygm6G1JKafeY67KjVFyL5mfs4CQDXmC25oOuYzXiJTxksOUuU5U2HX4TtziKFVRBquwDqcFD3DgVD6UAAAAASUVORK5CYII=';
+export const TRAY_ICON_2X = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAACE0lEQVR4nO2Yv0scQRTHP7N7YKIImjIkRSCVoBYhELGxsQlWgbRCinSBgIUWVtrYiEL+gHQ2QRARbAwIgdSikiZFEDFdktYfp7ey8B48hr29PW/mTHEPhrd7Ozvz2e97b2Y46Fn75ro4vivrFBukyEqBenYXZRyQyvUNkPGfWXrfyg0A68Ac8MBAuftS4rWEKW9HwHRBn64D1YELA/YJGJTntW4BJeJHgYaAXJvE/gFMSR9n+kczzZFh4K9AKFjd3C8ZmK6o5SR3MqOOXivgPvDcQLnYebRtQpZ5TdX6A7yNHUINwao3ud8s6KqBSWMBvW8BpPmkYF+Bx94YQUy/cKogh5o1hT4BJkNDqfTPgEuv0sqaKpWvXbPm4zpOdh0g3zJO21DJ77dooAgF9a2k0qrk1ZqM03H11cR/rpDYzaCuQipVE79wRyANX13y8EkrpVpVQCb+p/h2ErMhTefJQoQsET9escKatd+m4jqCcuIfAf8qlr5W2IFsvjPAkDdex+aA44KS1kqykFpZm94YwbaSVPyWN6G/JhVBfYyxhdTEL8uk56ba8tX4HbDigTQEOO87Ju8HOwEk4l94ihwCL+XZQ+CXAbFw30XloEeSRHyuxg4wD/TLb33i3xSsVQr3KsaRxJWA6kS7AnApMKrSRAwgHTAtOKomcv8UOPNCuxEjZFVMJxwBvgB7wAcD3vtDgxB2C9wsCT3FK5+QAAAAAElFTkSuQmCC';
