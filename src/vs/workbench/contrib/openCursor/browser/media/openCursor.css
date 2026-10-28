@@ -133,3 +133,29 @@
 	vertical-align: 1px;
 }
 @keyframes oc-pulse { 50% { opacity: 0.25; } }
+
+/* Help's question mark in the chat title: the glyph carries Help's nacre sheen, so it reads as the way in.
+   While Help is open the same button (now "Leave Help") sits on a lit pearl pill. */
+@keyframes oc-nacre-drift { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
+.monaco-workbench .monaco-action-bar .action-label.codicon-question[aria-label^="Get Help"]::before,
+.monaco-workbench .monaco-action-bar .action-label.codicon-question[aria-label^="Leave Help"]::before {
+	background-image: linear-gradient(115deg, #ffc9df, #fff0bf 20%, #bff3df 40%, #c3d8ff 60%, #ecccff 80%, #ffc9df);
+	background-size: 300% 100%;
+	-webkit-background-clip: text; background-clip: text; color: transparent;
+	animation: oc-nacre-drift 10s linear infinite;
+}
+.monaco-workbench.vs .monaco-action-bar .action-label.codicon-question[aria-label^="Get Help"]::before,
+.monaco-workbench.vs .monaco-action-bar .action-label.codicon-question[aria-label^="Leave Help"]::before,
+.monaco-workbench.hc-light .monaco-action-bar .action-label.codicon-question[aria-label^="Get Help"]::before,
+.monaco-workbench.hc-light .monaco-action-bar .action-label.codicon-question[aria-label^="Leave Help"]::before {
+	background-image: linear-gradient(115deg, #d9568f, #c99a1c 20%, #2f9d74 40%, #4b78d6 60%, #9a56d4 80%, #d9568f);
+}
+.monaco-workbench .monaco-action-bar .action-label.codicon-question[aria-label^="Leave Help"] {
+	background-color: rgba(221, 211, 194, 0.12);
+	box-shadow: inset 0 0 0 1px rgba(195, 216, 255, 0.35);
+	border-radius: 6px;
+}
+.monaco-workbench .monaco-action-bar .action-label.codicon-question[aria-label^="Get Help"]:hover::before { animation-duration: 4s; }
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .monaco-action-bar .action-label.codicon-question[aria-label$="Help"]::before { animation: none; }
+}

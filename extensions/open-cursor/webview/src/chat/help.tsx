@@ -76,13 +76,26 @@ export function HelpBottom({ hasModel, onAsk }: { readonly hasModel: boolean; re
 	);
 }
 
+/** Always at the top of a Help chat: the plain way out, back to the chat you came from. */
+export function HelpBar(): ReactElement {
+	return (
+		<div className="oc-help-bar">
+			<button type="button" className="oc-help-back" onClick={() => post({ type: 'leaveHelp' })}>
+				<Icon name="arrowLeft" size={12} />
+				<span>Leave Help</span>
+				<kbd>esc</kbd>
+			</button>
+		</div>
+	);
+}
+
 /** Stands where the mode menu is: a Help chat stays Help, and the x leaves for a normal chat. */
 export function HelpChip(): ReactElement {
 	return (
 		<span className="oc-chip oc-mode-chip is-help oc-help-chip" title="Help explains OpenCursor and opens the right place">
 			<Icon name="help" size={13} />
 			<span>Help</span>
-			<button type="button" className="oc-help-leave" title="Leave Help for a normal chat" aria-label="Leave Help" onClick={() => post({ type: 'newChat' })}>
+			<button type="button" className="oc-help-leave" title="Leave Help (Esc)" aria-label="Leave Help" onClick={() => post({ type: 'leaveHelp' })}>
 				<Icon name="x" size={9} />
 			</button>
 		</span>

@@ -31,7 +31,8 @@ export const CLAUDE_BASE_PROMPT =
 export function claudeModeArgs(o: Pick<RunOptions, 'mode'>): string[] {
 	if (o.mode === 'help') {
 		// Help answers from the manual alone: no tools at all, not even reading.
-		return ['--append-system-prompt', cliModeGuidance('help'), '--permission-mode', 'plan', '--tools', ''];
+		// A lookup with the manual in hand: the fast model at low effort answers it as well, in a fraction of the time.
+		return ['--append-system-prompt', cliModeGuidance('help'), '--permission-mode', 'plan', '--tools', '', '--model', 'haiku', '--effort', 'low'];
 	}
 	const readonly = MODE_READONLY(o.mode);
 	// Always pass a mode: a defaultMode set at user level (e.g. bypassPermissions) would otherwise skip our prompts.
@@ -55,6 +56,7 @@ export function codexModeArgs(o: ModeOpts & Pick<RunOptions, 'sessionId'>): stri
 		args.push('-s', sandbox);
 	}
 	args.push('-c', 'approval_policy="never"');
+	if (o.mode === 'help') { args.push('-c', 'model_reasoning_effort="low"'); }
 	// a JSON string is a valid TOML basic string
 	args.push('-c', `developer_instructions=${JSON.stringify(cliModeGuidance(o.mode))}`);
 	return args;

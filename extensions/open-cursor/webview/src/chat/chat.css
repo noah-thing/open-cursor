@@ -139,6 +139,7 @@
 
 .oc-scroll-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
 .oc-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+.oc-scroll { -webkit-mask-image: linear-gradient(#000 calc(100% - 22px), transparent); mask-image: linear-gradient(#000 calc(100% - 22px), transparent); }
 .oc-messages {
 	display: flex;
 	flex-direction: column;
@@ -362,10 +363,7 @@ button.oc-row-head:hover:not(:disabled) { background: var(--oc-ink-6); color: va
 .oc-build-text { flex: 1; font-size: 12.5px; color: var(--oc-fg-2); }
 
 .oc-dock { flex: none; padding: 0 10px 10px; display: flex; flex-direction: column; max-width: calc(var(--oc-col) + 20px); width: 100%; margin: 0 auto; position: relative; }
-.oc-dock::before {
-	content: ''; position: absolute; left: 0; right: 0; top: -22px; height: 22px; pointer-events: none;
-	background: linear-gradient(transparent, var(--oc-bg));
-}
+/* Messages fade out as they reach the box; a mask, so it matches any background beneath (Help's glow too). */
 .oc-tray {
 	margin: 0 10px -1px; border: 1px solid var(--oc-stroke-2); border-bottom: 0; border-radius: 10px 10px 0 0;
 	background: var(--oc-ink-4); position: relative; z-index: 1; animation: oc-rise 160ms var(--oc-ease);
@@ -473,9 +471,13 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-hist-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; height: 28px; padding: 0 8px; font-size: 12.5px; }
 .oc-hist-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .oc-hist-time { flex: none; font-size: 11px; color: var(--oc-fg-3); }
-.oc-hist-actions { position: absolute; right: 2px; display: none; gap: 1px; padding-left: 14px; background: linear-gradient(90deg, transparent, var(--oc-bg) 14px); }
+.oc-hist-actions { position: absolute; right: 2px; display: none; gap: 1px; }
 .oc-hist-item:hover .oc-hist-actions, .oc-hist-item:focus-within .oc-hist-actions { display: flex; }
-.oc-hist-item.is-active .oc-hist-actions { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--oc-bg) 92%, var(--oc-fg)) 14px); }
+/* The title fades out under the buttons instead of a painted strip, so it matches every row color. */
+.oc-hist-item:hover .oc-hist-title, .oc-hist-item:focus-within .oc-hist-title {
+	-webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 64px), transparent calc(100% - 44px));
+	mask-image: linear-gradient(90deg, #000 calc(100% - 64px), transparent calc(100% - 44px));
+}
 .oc-hist-item:hover .oc-hist-time { visibility: hidden; }
 .oc-hist-rename { flex: 1; min-width: 0; height: 22px; padding: 0 6px; border-radius: 5px; background: var(--oc-input-bg); border: 1px solid var(--oc-focus); outline: 0; font-size: 12.5px; }
 .oc-hist-empty { padding: 28px 12px; text-align: center; color: var(--oc-fg-3); font-size: 12px; }
@@ -528,7 +530,6 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
    recent chats) never push it around. */
 .oc-stage.is-home::before { content: ''; flex: 0 0 clamp(18px, 26vh, 280px); }
 .oc-stage.is-home::after { content: ''; flex: 1 1 0; min-height: 18px; }
-.oc-stage.is-home .oc-dock::before { display: none; }
 .oc-stage.is-home .oc-composer { box-shadow: inset 0 0 0 1px var(--oc-stroke), 0 10px 32px -14px var(--oc-shadow); transition: box-shadow 220ms ease; }
 .oc-stage.is-home .oc-composer:focus-within { box-shadow: inset 0 0 0 1px var(--oc-focus), 0 14px 40px -16px var(--oc-shadow); }
 
@@ -906,3 +907,34 @@ body.vscode-light .oc-app.is-help::before { opacity: 0.12; }
 	.oc-composer.is-help::after, .oc-help-mark::before, .oc-go::before, .oc-mode-chip.is-help::before, .oc-help-jumped-dot { animation: none; }
 }
 
+
+/* Into and out of Help: the old look dissolves, the new one settles in, the box glides between places. */
+.oc-composer { view-transition-name: oc-composer; }
+::view-transition-old(root) { animation: oc-vt-out 240ms var(--oc-ease) both; }
+::view-transition-new(root) { animation: oc-vt-in 460ms var(--oc-ease-out) 70ms both; }
+::view-transition-group(oc-composer) { animation-duration: 460ms; animation-timing-function: var(--oc-glide); }
+::view-transition-old(oc-composer), ::view-transition-new(oc-composer) { animation-duration: 360ms; height: 100%; }
+@keyframes oc-vt-out { to { opacity: 0; filter: blur(5px); transform: scale(0.992); } }
+@keyframes oc-vt-in { from { opacity: 0; filter: blur(7px); transform: scale(1.008); } }
+/* When Help is opened without a transition (a reload), the ring still arrives softly. */
+.oc-composer.is-help::after { animation: oc-nacre-turn 16s linear infinite, oc-ring-in 900ms var(--oc-ease-out) backwards; }
+@keyframes oc-ring-in { from { opacity: 0; } }
+
+/* The way out of Help */
+.oc-help-bar { order: -1; position: sticky; top: 0; z-index: 2; display: flex; padding: 10px 12px 0; pointer-events: none; }
+.oc-help-back {
+	pointer-events: auto; display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 6px 0 9px; border: 0; border-radius: 999px;
+	font: inherit; font-size: 12px; color: var(--oc-fg-2); cursor: pointer;
+	background: color-mix(in srgb, var(--oc-bg) 70%, transparent); backdrop-filter: blur(8px);
+	box-shadow: inset 0 0 0 1px var(--oc-stroke);
+	transition: color 120ms ease, background-color 120ms ease, box-shadow 160ms ease, transform 120ms var(--oc-ease-out);
+	animation: oc-enter 360ms var(--oc-ease-out) 120ms both;
+}
+.oc-help-back svg { transition: transform 200ms var(--oc-ease-out); }
+.oc-help-back:hover, .oc-help-back:focus-visible { color: var(--oc-fg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oc-help) 32%, transparent); }
+.oc-help-back:hover svg { transform: translateX(-2px); }
+.oc-help-back:active { transform: scale(0.97); }
+.oc-help-back kbd { margin-left: 2px; padding: 0 5px; height: 16px; line-height: 16px; border-radius: 4px; font-size: 10.5px; color: var(--oc-fg-3); background: var(--oc-ink-6); box-shadow: none; }
+/* In a conversation the bar takes its own row, so it never sits on a message. */
+.oc-stage:not(.is-home) > .oc-help-bar { position: static; padding-bottom: 2px; }
+@media (prefers-reduced-motion: reduce) { .oc-help-back { animation: none; } }

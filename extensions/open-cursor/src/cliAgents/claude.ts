@@ -417,7 +417,7 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 	let broker: ApprovalBroker | undefined;
 	let tracker: GitTracker | undefined;
 	const args = ['-p', '--output-format', 'stream-json', '--input-format', 'stream-json', '--verbose', '--include-partial-messages'];
-	if (o.model && o.model !== 'default') {
+	if (o.model && o.model !== 'default' && o.mode !== 'help') {
 		args.push('--model', o.model);
 	}
 	if (o.sessionId) {

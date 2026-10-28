@@ -20,7 +20,8 @@ import { ConnectService } from '../connect/connect';
 import { FREE_AUTO_ID, isFreeModel } from '../providers/free';
 import { HelpNavigator } from '../help/navigator';
 import { buildHelpSystemPrompt } from '../help/prompt';
-import { firstInPlaceLink, parseHelpLink } from '../help/targets';
+import { instantAnswer } from '../help/answers';
+import { actionLabel, firstInPlaceLink, parseHelpLink } from '../help/targets';
 import { suggestAllowPrefix } from './approval';
 import { applyCodeToFile } from './applyCode';
 import {
@@ -121,6 +122,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private readonly connect: ConnectService;
 	private readonly help: HelpNavigator;
+	/** The last chat that was not Help, so leaving Help goes back to it. */
+	private lastWorkChatId: string | undefined;
 
 	constructor(private readonly ctx: vscode.ExtensionContext, private readonly services: Services) {
 		this.connect = new ConnectService(services, () => this.modelOptions, () => this.refreshModels());
@@ -324,6 +327,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'unqueue': return this.unqueue(m.chatId, m.queuedId);
 			case 'newChat': await this.newChat(); return;
 			case 'openHelp': await this.openHelp(m.text); return;
+			case 'leaveHelp': await this.leaveHelp(); return;
 			case 'helpAction': {
 				const a = parseHelpLink(m.href);
 				if (a) { await this.help.run(a).catch(e => console.warn('[open-cursor] help action failed', m.href, e)); }
@@ -588,6 +592,16 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.post({ type: 'chat', chat: sc.chat });
 		this.postChats();
 		this.post({ type: 'activeChat', chatId: sc.chat.id });
+		if (sc.chat.mode !== 'help') { this.lastWorkChatId = sc.chat.id; }
+		void vscode.commands.executeCommand('setContext', 'openCursor.helpActive', sc.chat.mode === 'help');
+	}
+
+	/** Back to the chat the user was in before Help, or a fresh one. */
+	async leaveHelp(): Promise<void> {
+		await this.ready;
+		const back = this.lastWorkChatId ? await this.store.get(this.lastWorkChatId) : undefined;
+		if (back && back.chat.mode !== 'help') { await this.activate(back); } else { await this.newChat(); }
+		this.post({ type: 'focusInput' });
 	}
 
 	async newChat(): Promise<StoredChat> {
@@ -649,6 +663,30 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			`- Free models usable: ${ready.some(m => m.free || isFreeModel(m.id)) ? 'yes' : 'none yet'}`,
 			`- Workspace: ${vscode.workspace.workspaceFolders?.length ? 'a folder is open' : 'no folder open'}`,
 		].join('\n');
+	}
+
+	/**
+	 * The common Help questions have hand written answers: shown at once, the page opened at once,
+	 * and kept in the model's history so a follow up question still has the context.
+	 */
+	private async answerInstantly(turn: TurnState, userMsg: UserMessage, text: string): Promise<boolean> {
+		const hit = instantAnswer(text);
+		if (!hit) { return false; }
+		if (hit.open) {
+			const id = newId('t');
+			const args = { target: hit.open.target, ...(hit.open.arg ? { argument: hit.open.arg } : {}) };
+			this.upsertTool(turn, { type: 'tool', id, name: 'open_in_app', args, status: 'running', title: `Opening ${actionLabel(hit.open)}` });
+			const ok = await this.help.run(hit.open).then(() => true, () => false);
+			this.upsertTool(turn, { type: 'tool', id, name: 'open_in_app', args, status: ok ? 'done' : 'error', title: `${ok ? 'Opened' : 'Could not open'} ${actionLabel(hit.open)}` });
+		}
+		this.appendText(turn, hit.text);
+		const sc = turn.sc;
+		sc.transcript.push(
+			{ turn: userMsg.id, msg: { role: 'user', content: [{ type: 'text', text }] } },
+			{ turn: userMsg.id, msg: { role: 'assistant', content: [{ type: 'text', text: hit.text }] } },
+		);
+		this.touch(sc);
+		return true;
 	}
 
 	/** Text only agents cannot call the tool, so the first link to a page in their answer opens on its own. */
@@ -1001,6 +1039,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 				});
 				turn.errored = true;
 				this.postChatNow(sc);
+			} else if (mode === 'help' && await this.answerInstantly(turn, userMsg, req.text)) {
+				// answered from the hand written answers, no model needed
 			} else if (modelId.startsWith('cli:')) {
 				await this.runCliTurn(turn, userMsg, req);
 			} else {
@@ -1222,7 +1262,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			},
 			settings: {
 				maxIterations: readMaxIterations(),
-				thinking: cfg().get<boolean>('agent.thinking', true),
+				// Help looks things up in the manual it was handed; thinking only adds seconds.
+				thinking: mode === 'help' ? false : cfg().get<boolean>('agent.thinking', true),
 				getPolicy: () => ({ autoRun: readAutoRun(), ...readLists(), sessionAllow: this.sessionAllow }),
 				addSessionAllow: prefix => { this.sessionAllow.add(prefix); },
 			},
@@ -1451,6 +1492,10 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			await this.ready;
 			await this.reveal();
 			await this.openHelp(typeof text === 'string' ? text : undefined);
+		});
+		reg('openCursor.help.leave', async () => {
+			await this.reveal();
+			await this.leaveHelp();
 		});
 		reg('openCursor.chat.newChat', async () => {
 			await this.ready;

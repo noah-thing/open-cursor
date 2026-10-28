@@ -4,11 +4,12 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactElement } from 'react';
 import type { Chat, ChatMode, ContextItem } from '../../../src/shared/protocol';
+import { flushSync } from 'react-dom';
 import { Icon } from '../common/icons';
 import { Loader } from '../common/loader';
 import { Composer } from './composer';
 import { Header, History } from './header';
-import { HelpBottom, HelpTop } from './help';
+import { HelpBar, HelpBottom, HelpTop } from './help';
 import { ConnectBlock, HomeBottom, HomeTop, buildStarters } from './home';
 import { onHostMessage, post, saveUiState } from './host';
 import { AssistantBlock, UserBubble } from './messages';
@@ -227,6 +228,12 @@ function useStageMotion(home: boolean): { stageRef: React.RefObject<HTMLDivEleme
 	return { stageRef, dockRef };
 }
 
+function crossesHelp(s: State, nextId: string): boolean {
+	const cur = s.activeId ? s.chats[s.activeId] : undefined;
+	const next = s.chats[nextId];
+	return !!cur && !!next && cur.id !== next.id && (cur.mode === 'help') !== (next.mode === 'help');
+}
+
 export function App(): ReactElement {
 	const [state, dispatch] = useReducer(reducer, undefined, initialState);
 	const [editingId, setEditingId] = useState<string | undefined>(undefined);
@@ -235,7 +242,17 @@ export function App(): ReactElement {
 
 	useEffect(() => {
 		persistState = () => saveUiState({ drafts: stateRef.current.drafts, scroll: scrollPositions, connectHidden: stateRef.current.connectHidden });
-		const off = onHostMessage(m => dispatch({ kind: 'host', m }));
+		const off = onHostMessage(m => {
+			// Into and out of Help the whole panel dissolves into the other look instead of cutting.
+			if (m.type === 'activeChat' && crossesHelp(stateRef.current, m.chatId)) {
+				const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+				if (doc.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+					doc.startViewTransition(() => flushSync(() => dispatch({ kind: 'host', m })));
+					return;
+				}
+			}
+			dispatch({ kind: 'host', m });
+		});
 		post({ type: 'ready' });
 		post({ type: 'requestSlashCommands' });
 		post({ type: 'requestActiveEditor' });
@@ -250,7 +267,9 @@ export function App(): ReactElement {
 			if (e.key !== 'Escape' || e.defaultPrevented) { return; }
 			const s = stateRef.current;
 			const chat = s.activeId ? s.chats[s.activeId] : undefined;
-			if (chat && (chat.status === 'running' || chat.status === 'awaiting-approval') && s.view === 'chat') { post({ type: 'stop', chatId: chat.id }); }
+			if (chat && (chat.status === 'running' || chat.status === 'awaiting-approval') && s.view === 'chat') { post({ type: 'stop', chatId: chat.id }); return; }
+			// Esc is also the way out of Help, once nothing else (a menu, a running answer) wanted it.
+			if (chat?.mode === 'help' && s.view === 'chat') { e.preventDefault(); post({ type: 'leaveHelp' }); }
 		};
 		window.addEventListener('keydown', h);
 		return () => window.removeEventListener('keydown', h);
@@ -355,6 +374,7 @@ export function App(): ReactElement {
 				<History summaries={listed} activeId={state.activeId} onPick={pickChat} />
 			) : (
 				<div className={'oc-stage' + (home ? ' is-home' : '')} ref={stageRef}>
+					{help ? <HelpBar /> : null}
 					{home && help ? <HelpTop /> : home ? (
 						<HomeTop workspaceName={state.workspaceName} />
 					) : (

@@ -269,5 +269,6 @@ export type WebviewMessageExt =
 	| { readonly type: 'localApp'; readonly id: 'ollama' | 'lmstudio' }
 	/** Open the Help chat; with text, ask it straight away. */
 	| { readonly type: 'openHelp'; readonly text?: string }
+	| { readonly type: 'leaveHelp' }
 	/** A clicked opencursor: link in a Help answer. The host checks it against the catalog. */
 	| { readonly type: 'helpAction'; readonly href: string };

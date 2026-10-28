@@ -104,6 +104,13 @@
 				"icon": "$(question)"
 			},
 			{
+				"command": "openCursor.help.leave",
+				"title": "Leave Help",
+				"category": "OpenCursor",
+				"icon": "$(question)",
+				"enablement": "openCursor.helpActive"
+			},
+			{
 				"command": "openCursor.diff.acceptHunk",
 				"title": "Keep Change",
 				"category": "OpenCursor"
@@ -352,7 +359,12 @@
 			"view/title": [
 				{
 					"command": "openCursor.help.open",
-					"when": "view == openCursor.chat",
+					"when": "view == openCursor.chat && !openCursor.helpActive",
+					"group": "navigation@1"
+				},
+				{
+					"command": "openCursor.help.leave",
+					"when": "view == openCursor.chat && openCursor.helpActive",
 					"group": "navigation@1"
 				}
 			],
