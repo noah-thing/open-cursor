@@ -686,44 +686,87 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-rail-link:active { transform: scale(0.98); }
 
 /* ======================================================================================
-   Connect a subscription (start screen). A short list, each row says where it stands and
-   offers exactly one next step.
+   Connect panel (start screen). Same surface as the composer above it, so the two read as
+   one tool. Tabs slide a pill, the body eases to each tab's height, rows arrive in a cascade.
    ====================================================================================== */
 .oc-connect {
-	margin: 12px 0 4px; padding: 12px 12px 8px; border-radius: 12px;
-	background: var(--oc-ink-4); box-shadow: inset 0 0 0 1px var(--oc-stroke-2);
+	margin: 14px 0 4px; padding: 12px 12px 10px; border-radius: 14px;
+	background: var(--oc-input-bg); box-shadow: inset 0 0 0 1px var(--oc-stroke);
 	animation: oc-enter 360ms var(--oc-ease-out) both; animation-delay: 60ms;
 }
-.oc-connect-head { display: flex; flex-direction: column; gap: 2px; padding: 0 2px 8px; }
+.oc-connect-head { display: flex; align-items: flex-start; gap: 8px; padding: 0 2px 10px; }
+.oc-connect-titles { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .oc-connect-title { font-size: 12.5px; font-weight: 600; color: var(--oc-fg); }
-.oc-connect-sub { font-size: 12px; color: var(--oc-fg-3); }
-.oc-connect-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.oc-connect-row {
-	display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px;
-	min-height: 36px; padding: 4px 4px 4px 2px; border-radius: 8px;
-	animation: oc-enter 320ms var(--oc-ease-out) both; animation-delay: calc(120ms + var(--i, 0) * 40ms);
-	transition: background-color 120ms ease;
+.oc-connect-sub { font-size: 12px; color: var(--oc-fg-3); line-height: 1.4; }
+
+.oc-seg { position: relative; display: flex; gap: 2px; padding: 2px; margin: 0 0 8px; border-radius: 9px; background: var(--oc-ink-4); box-shadow: inset 0 0 0 1px var(--oc-stroke-2); }
+.oc-seg-pill {
+	position: absolute; top: 2px; bottom: 2px; left: 0; border-radius: 7px;
+	background: var(--oc-bg-editor); box-shadow: 0 0 0 1px var(--oc-stroke), 0 1px 2px rgba(0, 0, 0, 0.18);
+	transition: transform 280ms var(--oc-glide), width 280ms var(--oc-glide);
 }
-.oc-connect-row:hover { background: var(--oc-ink-4); }
-.oc-connect-mark {
-	display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px;
-	font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--oc-fg-2);
-	background: var(--oc-ink-8); box-shadow: inset 0 0 0 1px var(--oc-stroke-2);
+.oc-seg-tab {
+	position: relative; z-index: 1; flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;
+	height: 26px; border-radius: 7px; font-size: 12px; color: var(--oc-fg-2);
+	transition: color 160ms ease;
 }
-.oc-connect-row.is-ready .oc-connect-mark { color: var(--oc-fg); }
-.oc-connect-name { font-size: 12.5px; color: var(--oc-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.oc-connect-status { font-size: 11.5px; color: var(--oc-fg-3); white-space: nowrap; }
-.oc-connect-status.is-ok { color: var(--oc-add); }
-.oc-connect-row.is-in-use .oc-connect-status { color: var(--oc-fg-2); }
-.oc-connect-check { color: var(--oc-add); margin: 0 8px 0 6px; animation: oc-check 260ms var(--oc-ease-out) both; }
-.oc-connect-row .oc-btn { min-width: 58px; justify-content: center; }
-.oc-connect-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 8px 2px 2px; margin-top: 6px; border-top: 1px solid var(--oc-stroke-2); font-size: 11.5px; color: var(--oc-fg-3); }
-.oc-connect-foot .oc-linkbtn { font-size: 11.5px; }
-.oc-connect-hide { margin-left: auto; color: var(--oc-fg-3); }
-@container stage (max-width: 380px) {
-	.oc-connect-row { grid-template-columns: 26px minmax(0, 1fr) auto; }
-	.oc-connect-status { grid-column: 2; grid-row: 2; }
-	.oc-connect-row > .oc-btn, .oc-connect-check { grid-column: 3; grid-row: 1 / span 2; }
+.oc-seg-tab:hover { color: var(--oc-fg); }
+.oc-seg-tab.is-on { color: var(--oc-fg); }
+.oc-seg-tab:active { transform: scale(0.98); }
+
+.oc-connect-body { overflow: hidden; transition: height 260ms var(--oc-glide); }
+.oc-connect-pane { animation: oc-swap 240ms var(--oc-ease-out) both; }
+
+.oc-conn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.oc-conn-list > li { animation: oc-enter 300ms var(--oc-ease-out) both; animation-delay: calc(var(--i, 0) * 35ms); }
+.oc-conn-row {
+	display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto auto; align-items: center; column-gap: 10px;
+	min-height: 38px; padding: 4px 6px 4px 4px; border-radius: 9px; transition: background-color 120ms ease;
+}
+.oc-conn-row:hover { background: var(--oc-ink-4); }
+.oc-conn-row.is-loading { grid-template-columns: 16px 1fr; color: var(--oc-fg-3); padding-left: 10px; }
+.oc-conn-logo {
+	display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px;
+	color: var(--oc-fg-2); background: var(--oc-ink-6); box-shadow: inset 0 0 0 1px var(--oc-stroke-2);
+	transition: color 200ms ease, background-color 200ms ease;
+}
+.oc-conn-row.is-ready .oc-conn-logo { color: var(--oc-fg); }
+.oc-conn-row:hover .oc-conn-logo { background: var(--oc-ink-8); }
+.oc-conn-name { font-size: 12.5px; color: var(--oc-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oc-conn-where { color: var(--oc-fg-3); }
+.oc-conn-status { font-size: 11.5px; color: var(--oc-fg-3); white-space: nowrap; }
+.oc-conn-status.is-ok { color: var(--oc-add); }
+.oc-conn-check { color: var(--oc-add); margin: 0 8px; animation: oc-check 260ms var(--oc-ease-out) both; }
+.oc-conn-row .oc-btn { min-width: 62px; }
+.oc-conn-x { width: 20px; height: 20px; color: var(--oc-fg-3); }
+.oc-conn-note { padding: 8px 10px 2px; font-size: 11.5px; color: var(--oc-fg-3); }
+.oc-conn-note .oc-linkbtn { font-size: 11.5px; }
+
+.oc-conn-remote { margin-top: 10px; padding: 10px 4px 0; border-top: 1px solid var(--oc-stroke-2); }
+.oc-conn-remote-label { padding: 0 2px 6px; font-size: 11.5px; font-weight: 500; color: var(--oc-fg-2); }
+.oc-conn-field {
+	display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 3px 0 10px; border-radius: 9px;
+	background: var(--oc-bg-editor); box-shadow: inset 0 0 0 1px var(--oc-stroke); color: var(--oc-fg-3);
+	transition: box-shadow 140ms ease;
+}
+.oc-conn-field:focus-within { box-shadow: inset 0 0 0 1px var(--oc-focus); }
+.oc-conn-field input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; font-size: 12.5px; color: var(--oc-fg); }
+.oc-conn-field input::placeholder { color: var(--oc-fg-3); }
+.oc-conn-field .oc-btn { height: 26px; }
+.oc-conn-hint, .oc-conn-result { padding: 6px 4px 0; font-size: 11.5px; line-height: 1.45; color: var(--oc-fg-3); }
+.oc-conn-result { animation: oc-swap 220ms var(--oc-ease-out) both; }
+.oc-conn-result.is-ok { color: var(--oc-add); }
+.oc-conn-result.is-err { color: color-mix(in srgb, var(--oc-error) 80%, var(--oc-fg)); }
+.oc-conn-item.is-open > .oc-conn-row { background: var(--oc-ink-4); }
+.oc-conn-keyform { padding: 6px 6px 8px 42px; animation: oc-enter 220ms var(--oc-ease-out) both; }
+.oc-btn .oc-spinner { margin-right: 2px; }
+
+@container stage (max-width: 400px) {
+	.oc-conn-row { grid-template-columns: 28px minmax(0, 1fr) auto auto; }
+	.oc-conn-status { grid-column: 2; grid-row: 2; margin-top: -2px; }
+	.oc-conn-row > .oc-btn, .oc-conn-check { grid-column: 3; grid-row: 1 / span 2; }
+	.oc-conn-x { grid-column: 4; grid-row: 1 / span 2; }
+	.oc-conn-keyform { padding-left: 6px; }
 }
 
 /* Model menu: sections, connect rows, a chip that warns when its model cannot run. */

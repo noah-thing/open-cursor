@@ -12,6 +12,9 @@ import { transcriptMessages, type TranscriptEntry } from './history';
 import {
 	applySummary, appendUserContent, capText, chooseSplit, estimateRequestTokens, pruneOldToolResults, renderForSummary,
 } from './tokens';
+import {
+	DEBUG_MARKER, cleanupReminder, formatTodoState, openTodos, toolBlockedReason, turnEndReminders, type MarkerHit,
+} from './modes';
 import type { ToolContext, ToolDef, ToolResult } from './tools/types';
 import type { ToolSet } from './tools';
 
@@ -169,6 +172,19 @@ function describeError(e: unknown, provider: string): { message: string; action?
 	return { kind: 'other', message: m || `Request to ${provider} failed`, action: 'retry' };
 }
 
+/** What happened this turn, for the checks that decide whether the turn may end. */
+export interface TurnTracking {
+	readonly edited: Set<string>;
+	/** Debug: marker lines per file before this turn first touched it. */
+	readonly baseline: Map<string, number>;
+	lintsRun: boolean;
+	todoWritten: boolean;
+	readonly sent: Set<string>;
+	cleanupAttempts: number;
+}
+
+export const MAX_CLEANUP_REMINDERS = 3;
+
 interface PendingCall { id: string; name: string; argsText: string; input?: unknown; finished: boolean; shown: boolean }
 
 export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
@@ -216,6 +232,14 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 			hooks.onContextUsage(est, limit);
 		}
 	};
+
+	const tracking: TurnTracking = { edited: new Set(), baseline: new Map(), lintsRun: false, todoWritten: false, sent: new Set(), cleanupAttempts: 0 };
+
+	// A todo list left open (typically by a Plan turn the user just pressed Build on) is handed to the model with the message.
+	if (p.mode !== 'ask') {
+		const todos = p.toolCtx.getTodos();
+		if (openTodos(todos).length) { push({ role: 'user', content: [{ type: 'text', text: formatTodoState(todos, p.mode) }] }); }
+	}
 
 	// Small local reasoning models sometimes spend the whole budget thinking and never answer.
 	// When that happens the turn is retried once with thinking off.
@@ -361,6 +385,12 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 				hooks.onTranscript();
 				continue;
 			}
+			const reminder = await endOfTurnReminder(p, tracking, text);
+			if (reminder) {
+				push({ role: 'user', content: [{ type: 'text', text: reminder }] });
+				hooks.onTranscript();
+				continue;
+			}
 			return 'done';
 		}
 
@@ -369,7 +399,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 		const runCall = async (c: PendingCall): Promise<void> => {
 			results.set(c.id, await executeCall(c));
 		};
-		const executeCall = (c: PendingCall): Promise<LLMContent> => executeToolCall(p, c, recentCalls);
+		const executeCall = (c: PendingCall): Promise<LLMContent> => executeToolCall(p, c, recentCalls, tracking);
 		let i = 0;
 		while (i < finished.length) {
 			if (signal.aborted) { break; }
@@ -395,7 +425,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 	}
 }
 
-async function executeToolCall(p: LoopParams, c: PendingCall, recent: string[]): Promise<LLMContent> {
+async function executeToolCall(p: LoopParams, c: PendingCall, recent: string[], tracking: TurnTracking): Promise<LLMContent> {
 	const { hooks, signal } = p;
 	const tool = p.tools.byName.get(c.name);
 	const args = asArgs(c.input);
@@ -408,6 +438,9 @@ async function executeToolCall(p: LoopParams, c: PendingCall, recent: string[]):
 		return fail(`Unknown tool "${c.name}" in ${p.mode} mode. Available tools: ${available}.`, `Unknown tool ${c.name}`);
 	}
 	if (!args) { return fail(`Arguments for ${c.name} must be a JSON object.`); }
+	// the tool set already leaves write tools out of Plan and Ask; this is the second lock
+	const blocked = toolBlockedReason(p.mode, { name: c.name, readOnly: tool.readOnly }, args);
+	if (blocked) { return fail(blocked, `${c.name} blocked in ${p.mode} mode`); }
 
 	let part: ToolPart = toolPartBase(c, tool, args, 'running');
 	const isCommand = c.name === 'run_terminal_cmd';
@@ -440,12 +473,16 @@ async function executeToolCall(p: LoopParams, c: PendingCall, recent: string[]):
 	const started = Date.now();
 	let lastProgress = 0;
 	const ctx: ToolContext = {
-		...p.toolCtx, services: p.services, chatId: p.chatId, mode: p.mode, signal,
+		...toolContext(p),
 		onProgress: (output: string) => {
 			const now = Date.now();
 			if (now - lastProgress > 100) { lastProgress = now; hooks.onToolPart({ ...part, output }); }
 		},
 	};
+	const editedPath = (c.name === 'edit_file' || c.name === 'write_file') && typeof args.path === 'string' ? args.path : undefined;
+	if (p.mode === 'debug' && editedPath !== undefined && !tracking.baseline.has(editedPath)) {
+		tracking.baseline.set(editedPath, (await markerHits(p, editedPath)).length);
+	}
 	let res: ToolResult;
 	try {
 		res = await tool.run(args, ctx);
@@ -453,6 +490,11 @@ async function executeToolCall(p: LoopParams, c: PendingCall, recent: string[]):
 		res = { content: `Tool ${c.name} threw: ${e instanceof Error ? e.message : String(e)}`, isError: true };
 	}
 	const durationMs = Date.now() - started;
+	if (!res.isError) {
+		if (editedPath !== undefined) { tracking.edited.add(editedPath); }
+		if (c.name === 'read_lints') { tracking.lintsRun = true; }
+		if (c.name === 'todo_write') { tracking.todoWritten = true; }
+	}
 	if (signal.aborted && res.isError) {
 		hooks.onToolPart({ ...part, status: 'cancelled', title: safeTitle(tool, args, 'cancelled', res), output: res.output ?? res.content, durationMs });
 		return { type: 'tool_result', toolUseId: c.id, content: res.content, isError: true };
@@ -476,4 +518,57 @@ async function executeToolCall(p: LoopParams, c: PendingCall, recent: string[]):
 		output: capText(res.output ?? res.content, UI_OUTPUT_CHARS), edit: res.edit,
 	});
 	return { type: 'tool_result', toolUseId: c.id, content, isError: res.isError || undefined, images };
+}
+
+function toolContext(p: LoopParams): ToolContext {
+	return { ...p.toolCtx, services: p.services, chatId: p.chatId, mode: p.mode, signal: p.signal };
+}
+
+/** Lines holding the Debug marker in one file, found with the grep tool (so the loop needs no file system of its own). */
+async function markerHits(p: LoopParams, path: string): Promise<MarkerHit[]> {
+	const grep = p.tools.byName.get('grep');
+	if (!grep) { return []; }
+	try {
+		const r = await grep.run({ pattern: DEBUG_MARKER, path, output_mode: 'content' }, toolContext(p));
+		if (r.isError) { return []; }
+		const hits: MarkerHit[] = [];
+		for (const line of r.content.split('\n')) {
+			const m = /^(.+?):(\d+):/.exec(line);
+			if (m) { hits.push({ path: m[1], line: Number(m[2]) }); }
+		}
+		return hits;
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Called when the model wants to end the turn. Returns a message that sends it back to work, or
+ * undefined when the turn may end. Debug cannot end while marker lines it added are still there
+ * (up to MAX_CLEANUP_REMINDERS times, then the user is told); other modes get their one-time reminders.
+ */
+async function endOfTurnReminder(p: LoopParams, t: TurnTracking, finalText: string): Promise<string | undefined> {
+	if (p.signal.aborted) { return undefined; }
+	if (p.mode === 'debug' && t.edited.size > 0) {
+		const left: MarkerHit[] = [];
+		for (const path of t.edited) {
+			const hits = await markerHits(p, path);
+			if (hits.length > (t.baseline.get(path) ?? 0)) { left.push(...hits.map(h => ({ path, line: h.line }))); }
+		}
+		if (left.length) {
+			if (t.cleanupAttempts >= MAX_CLEANUP_REMINDERS) {
+				p.hooks.onError(`Debug instrumentation (${DEBUG_MARKER}) is still in ${[...new Set(left.map(h => h.path))].join(', ')}. Search for ${DEBUG_MARKER} and remove those lines.`);
+				return undefined;
+			}
+			t.cleanupAttempts++;
+			return cleanupReminder(left, t.cleanupAttempts);
+		}
+	}
+	const reminders = turnEndReminders({
+		mode: p.mode, toolNames: new Set(p.tools.byName.keys()), edited: t.edited, lintsRun: t.lintsRun, todoWritten: t.todoWritten,
+		todos: p.toolCtx.getTodos(), finalText, sent: t.sent,
+	});
+	if (!reminders.length) { return undefined; }
+	for (const r of reminders) { t.sent.add(r.key); }
+	return reminders.map(r => r.text).join('\n\n');
 }

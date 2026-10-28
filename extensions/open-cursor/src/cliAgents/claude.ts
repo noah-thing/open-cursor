@@ -12,6 +12,8 @@ import type { ToolPart } from '../shared/protocol';
 import { ApprovalBroker, type ApprovalDecision, type ApprovalRequest } from './approvalBroker';
 import { GitTracker } from './fileTracker';
 import { isDenied, DEFAULT_DENYLIST } from '../agent/approval';
+import { isReadOnlyCommand } from '../agent/modes';
+import { claudeModeArgs } from './modeArgs';
 import { commandAllowed } from './policy';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
 import { arr, countLines, displayPath, friendlyError, num, oneLine, parseJson, readTextFile, rec, resolveInCwd, spawnCli, str, truncate } from './util';
@@ -344,9 +346,6 @@ function toolResultText(content: unknown): string {
 		.join('\n');
 }
 
-const APPEND_PROMPT =
-	'You are running inside Open Cursor, a code editor. The user sees your replies and tool calls in its chat panel and reviews every file edit there (Keep or Undo), so edit files directly with your normal tools and keep chat replies concise. Permission requests are answered in the editor. Do not use interactive terminal-only features.';
-const PLAN_APPEND = ' This turn is read only: investigate the code, then reply with a concrete plan. Do not modify any file.';
 
 export async function runClaude(o: RunOptions): Promise<RunResult> {
 	const host = o.host;
@@ -366,6 +365,9 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 		}
 		if (toolName === 'AskUserQuestion') {
 			return { behavior: 'deny', message: 'Interactive questions are not available in Open Cursor. Ask your question as plain text in your reply and stop.' };
+		}
+		if (readonly && (EDIT_TOOLS.has(toolName) || (toolName === 'Bash' && !isReadOnlyCommand(str(input.command) ?? '').ok))) {
+			return { behavior: 'deny', message: `${o.mode === 'plan' ? 'Plan' : 'Ask'} mode in Open Cursor is read only: ${toolName} is not allowed. Use read-only tools and inspection commands, or tell the user to switch to Agent mode.` };
 		}
 		if (EDIT_TOOLS.has(toolName)) {
 			const p = filePathOf(input);
@@ -421,9 +423,7 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 	if (o.sessionId) {
 		args.push('--resume', o.sessionId);
 	}
-	args.push('--append-system-prompt', APPEND_PROMPT + (readonly ? PLAN_APPEND : ''));
-	// Always pass a mode: a user-level defaultMode (e.g. bypassPermissions) would otherwise skip our prompts.
-	args.push('--permission-mode', readonly ? 'plan' : 'default');
+	args.push(...claudeModeArgs(o));
 	if (useServer) {
 		try {
 			broker = await ApprovalBroker.start(handle);

@@ -58,7 +58,7 @@ function ContextRing({ usage }: { readonly usage: NonNullable<Chat['contextUsage
 	);
 }
 
-export function Composer({ chat, models, settings, mode, modelId, text, contexts, activeFile, suggestDismissed, slash, hasUsableModel, focusNonce, onText, onContexts, onMode, onModel, onEditLast, onDismissSuggest, onOpenHistory, onNewChat }: {
+export function Composer({ chat, models, settings, mode, modelId, text, contexts, activeFile, suggestDismissed, slash, hasUsableModel, focusNonce, onText, onContexts, onMode, onModel, onEditLast, onDismissSuggest, onOpenHistory, onNewChat, onConnect }: {
 	readonly chat: Chat;
 	readonly models: readonly ModelOption[];
 	readonly settings: UiSettings;
@@ -79,6 +79,8 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 	readonly onDismissSuggest: (id: string) => void;
 	readonly onOpenHistory: () => void;
 	readonly onNewChat: () => void;
+	/** Show every way to connect a model (the start screen panel). */
+	readonly onConnect: () => void;
 }): ReactElement {
 	const ref = useRef<HTMLTextAreaElement>(null);
 	const [caret, setCaret] = useState(0);
@@ -404,7 +406,7 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 
 				<div className="oc-composer-bar">
 					<ModeMenu mode={mode} onSelect={onMode} />
-					<ModelMenu models={models} modelId={modelId} onSelect={onModel} />
+					<ModelMenu models={models} modelId={modelId} onSelect={onModel} onConnect={onConnect} />
 					<span className="oc-spacer" />
 					{chat.contextUsage ? <ContextRing usage={chat.contextUsage} /> : null}
 					<button

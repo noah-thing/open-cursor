@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nodePath from 'path';
+import * as cp from 'child_process';
 import type { LLMContent, ModelInfo } from '../providers/types';
 import type { Services } from '../services';
 import type {
@@ -14,6 +15,7 @@ import type { IContextServiceEx } from '../context/service';
 import { toDisplayPath } from '../context/paths';
 import type { CliAgentInfo } from '../services';
 import { cliHint } from '../shared/cliHints';
+import { ConnectService } from '../connect/connect';
 import { suggestAllowPrefix } from './approval';
 import { applyCodeToFile } from './applyCode';
 import {
@@ -107,7 +109,10 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	private viewPromise: Promise<void> | undefined;
 	private chatFocused = false;
 
+	private readonly connect: ConnectService;
+
 	constructor(private readonly ctx: vscode.ExtensionContext, private readonly services: Services) {
+		this.connect = new ConnectService(services, () => this.modelOptions, () => this.refreshModels());
 		const base = ctx.storageUri ?? ctx.globalStorageUri;
 		this.store = new ChatStore(nodePath.join(base.fsPath, 'chats'));
 		this.ready = this.store.init();
@@ -282,6 +287,19 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'requestSlashCommands': return this.postSlashCommands();
 			case 'requestActiveEditor': return this.postActiveEditor();
 			case 'agentAction': return this.onAgentAction(m.id, m.action);
+			case 'requestConnect': return this.postConnectState();
+			case 'connectKey': {
+				const r = await this.connect.setKey(m.provider, m.key);
+				this.post({ type: 'connectResult', target: m.provider, ok: r.ok, message: r.message });
+				return this.postConnectState();
+			}
+			case 'connectServer': {
+				const r = await this.connect.connectServer(m.address);
+				this.post({ type: 'connectResult', target: 'server', ok: r.ok, message: r.message });
+				return this.postConnectState();
+			}
+			case 'resetServer': await this.connect.resetServer(m.id); return this.postConnectState();
+			case 'localApp': return this.openLocalApp(m.id);
 			case 'workbench': {
 				const command = { openFolder: 'workbench.action.files.openFolder', openRecent: 'workbench.action.openRecent', cloneRepo: 'git.clone', showEditor: 'workbench.action.restoreAuxiliaryBar' }[m.action];
 				await vscode.commands.executeCommand(command).then(undefined, e => console.warn('[open-cursor] workbench action failed', m.action, e));
@@ -372,6 +390,36 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.repairEmptyChats();
 	}
 
+	// ---------------------------------------------------------------- local servers and API keys on the start screen
+
+	private async postConnectState(): Promise<void> {
+		const [local, providers] = await Promise.all([this.connect.localServers(), this.connect.apiProviders()]);
+		this.post({ type: 'connectState', local, providers });
+	}
+
+	/** Starts Ollama if it is installed (in a terminal, so its output is visible), otherwise opens its download page. */
+	private async openLocalApp(id: 'ollama' | 'lmstudio'): Promise<void> {
+		const which = (bin: string): Promise<boolean> => new Promise(res => {
+			const cmd = process.platform === 'win32' ? `where ${bin}` : `command -v ${bin}`;
+			cp.exec(cmd, { shell: process.platform === 'win32' ? undefined : process.env.SHELL || '/bin/sh' }, err => res(!err));
+		});
+		if (id === 'ollama' && await which('ollama')) {
+			await vscode.commands.executeCommand('workbench.action.restoreAuxiliaryBar').then(undefined, () => undefined);
+			const term = vscode.window.createTerminal({ name: 'Ollama' });
+			term.show(true);
+			term.sendText('ollama serve');
+		} else if (id === 'lmstudio' && process.platform === 'darwin' && await which('lms')) {
+			const term = vscode.window.createTerminal({ name: 'LM Studio' });
+			term.sendText('lms server start');
+			term.show(true);
+		} else {
+			await vscode.env.openExternal(vscode.Uri.parse(id === 'ollama' ? 'https://ollama.com/download' : 'https://lmstudio.ai'));
+			return;
+		}
+		// Give the server a moment, then look again.
+		setTimeout(() => { void this.refreshModels().then(() => this.postConnectState()); }, 2500);
+	}
+
 	// ---------------------------------------------------------------- agent CLIs on the start screen
 
 	private async postAgents(fresh = false): Promise<void> {
@@ -454,7 +502,10 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	private defaultModelId(): string {
 		// A CLI subscription (`cli:<agent>/<model>`) can be the default too; the registry only knows API models.
 		const configured = vscode.workspace.getConfiguration('openCursor').get<string>('models.default');
-		if (configured && (this.usable(configured) || !this.modelOptions.length)) {
+		// The user's own default stands unless it is known not to run (listed, but without a key or sign-in).
+		// A local model that has not been listed yet (Ollama still starting) keeps its place.
+		const listed = configured ? this.modelOptions.find(m => m.id === configured) : undefined;
+		if (configured && (!listed || listed.hasKey)) {
 			return configured;
 		}
 		const api = this.services.registry.getDefaultModel('chat');
@@ -474,7 +525,9 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	}
 
 	private repairChat(sc: StoredChat): boolean {
-		if (sc.chat.messages.length > 0 || !this.modelOptions.length || this.usable(sc.chat.modelId)) { return false; }
+		// Only a model known not to run moves; one missing from the list for a moment (a server reloading) stays.
+		const known = this.modelOptions.find(m => m.id === sc.chat.modelId);
+		if (sc.chat.messages.length > 0 || !known || known.hasKey) { return false; }
 		const next = this.defaultModelId();
 		if (!this.usable(next) || next === sc.chat.modelId) { return false; }
 		sc.chat.modelId = next;
@@ -866,7 +919,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 				const who = isCli ? blocked.label.split(':')[0] : PROVIDER_NAMES[blocked.provider] ?? blocked.provider;
 				const agentId = isCli ? blocked.id.slice(4, blocked.id.indexOf('/')) : '';
 				const message = isCli
-					? `${who} is not signed in on this Mac.` + (alt && !alt.id.startsWith(`cli:${agentId}/`) ? ` You are signed in to ${alt.label.split(':')[0]}.` : '')
+					? `${who} is not signed in on this computer.` + (alt && !alt.id.startsWith(`cli:${agentId}/`) ? ` You are signed in to ${alt.label.split(':')[0]}.` : '')
 					: `${who} needs an API key, and none is added.` + (alt ? ` You are signed in to ${alt.label.split(':')[0]}, which needs no key.` : ' Add a key, or connect a subscription you already have.');
 				turn.parts.push({
 					type: 'error', message,
@@ -1319,6 +1372,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			await this.reveal();
 			await this.newChat();
 			this.post({ type: 'focusInput' });
+		});
+		// From the menu bar panel: a new chat that starts on the task straight away.
+		reg('openCursor.chat.startTask', async (text?: unknown, mode?: unknown) => {
+			if (typeof text !== 'string' || !text.trim()) { await vscode.commands.executeCommand('openCursor.chat.newChat'); return; }
+			const m = typeof mode === 'string' && ['agent', 'plan', 'debug', 'ask'].includes(mode) ? mode as ChatMode : undefined;
+			await this.submit({ text, newChat: true, mode: m });
 		});
 		reg('openCursor.chat.addSelectionToNewChat', async () => {
 			const sel = editorSelection();

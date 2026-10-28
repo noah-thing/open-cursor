@@ -11,7 +11,8 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
+import { cliPromptPrefix, geminiModeArgs } from './modeArgs';
+import type { RunOptions, RunResult, TurnHost } from './types';
 import { TurnTracker } from './tracking';
 import { displayPath, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, runQuick, spawnCli, str, truncate } from './util';
 
@@ -165,12 +166,9 @@ async function findSessionIndex(o: RunOptions, id: string): Promise<string | und
 	return undefined;
 }
 
-const PLAN_PREFIX = 'Open Cursor note: this turn is read only. Investigate the code and answer or propose a concrete plan; do not modify any file.\n\n';
-
 export async function runGemini(o: RunOptions): Promise<RunResult> {
-	const readonly = MODE_READONLY(o.mode);
 	const args: string[] = ['--output-format', 'stream-json', '--skip-trust'];
-	args.push('--approval-mode', readonly ? 'plan' : o.autoRun === 'always' ? 'yolo' : 'auto_edit');
+	args.push(...geminiModeArgs(o));
 	if (o.model && o.model !== 'default') {
 		args.push('-m', o.model);
 	}
@@ -191,7 +189,7 @@ export async function runGemini(o: RunOptions): Promise<RunResult> {
 
 	// Images: the CLI reads `@path` references in the prompt.
 	let tmpDir: string | undefined;
-	let prompt = (readonly ? PLAN_PREFIX : '') + o.prompt;
+	let prompt = cliPromptPrefix(o.mode) + o.prompt;
 	if (o.images?.length) {
 		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-gemini-'));
 		const refs = o.images.map((img, i) => {

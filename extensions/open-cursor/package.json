@@ -88,6 +88,11 @@
 				"category": "Open Cursor"
 			},
 			{
+				"command": "openCursor.chat.startTask",
+				"title": "Start a Task in a New Chat",
+				"category": "Open Cursor"
+			},
+			{
 				"command": "openCursor.diff.acceptHunk",
 				"title": "Keep Change",
 				"category": "Open Cursor"
@@ -371,6 +376,10 @@
 				},
 				{
 					"command": "openCursor.chat.addFileToChat",
+					"when": "false"
+				},
+				{
+					"command": "openCursor.chat.startTask",
 					"when": "false"
 				}
 			],

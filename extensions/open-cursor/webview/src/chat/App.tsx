@@ -367,6 +367,10 @@ export function App(): ReactElement {
 							onDismissSuggest={id => dispatch({ kind: 'dismissSuggest', chatId: chat.id, id })}
 							onOpenHistory={() => dispatch({ kind: 'view', view: 'history' })}
 							onNewChat={() => post({ type: 'newChat' })}
+							onConnect={() => {
+								dispatch({ kind: 'connectHidden', hidden: false });
+								if (!home) { post({ type: 'newChat' }); }
+							}}
 						/>
 					</div>
 					{home ? (
@@ -374,9 +378,12 @@ export function App(): ReactElement {
 							starters={starters}
 							recent={recent.slice(1)}
 							onPick={pickChat}
-							connect={state.agents.length > 0 && (!hasModel || !state.connectHidden) ? (
+							connect={!hasModel || !state.connectHidden ? (
 								<ConnectBlock
 									agents={state.agents}
+									local={state.local}
+									providers={state.providers}
+									results={state.connectResults}
 									modelId={modelId}
 									needed={!hasModel}
 									onUse={setModel}

@@ -5,7 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	AgentStatus, Chat, ChatMessage, ChatMode, ChatSummary, ContextItem, HostMessageExt, ModelOption, PendingFileEdit, SlashCommandInfo, UiSettings,
+	AgentStatus, ApiProviderStatus, Chat, ChatMessage, LocalServerStatus, ChatMode, ChatSummary, ContextItem, HostMessageExt, ModelOption, PendingFileEdit, SlashCommandInfo, UiSettings,
 } from '../../../src/shared/protocol';
 import { loadUiState } from './host';
 
@@ -41,6 +41,11 @@ export interface State {
 	/** Agent CLIs on this machine, for connecting subscriptions on the start screen. */
 	agents: AgentStatus[];
 	connectHidden: boolean;
+	/** Local model servers and API providers; undefined until the connect panel asks for them. */
+	local: LocalServerStatus[] | undefined;
+	providers: ApiProviderStatus[] | undefined;
+	/** Last outcome per connect target (a provider id, or 'server'). */
+	connectResults: Record<string, { ok: boolean; message: string }>;
 }
 
 export type Action =
@@ -78,6 +83,9 @@ export function initialState(): State {
 		dismissedSuggest: {},
 		agents: [],
 		connectHidden: !!saved.connectHidden,
+		local: undefined,
+		providers: undefined,
+		connectResults: {},
 	};
 }
 
@@ -210,6 +218,10 @@ function hostReducer(s: State, m: HostMessageExt): State {
 			return { ...s, activeFile: m.item };
 		case 'agents':
 			return { ...s, agents: m.agents };
+		case 'connectState':
+			return { ...s, local: m.local, providers: m.providers };
+		case 'connectResult':
+			return { ...s, connectResults: { ...s.connectResults, [m.target]: { ok: m.ok, message: m.message } } };
 		case 'addContext': {
 			const id = s.activeId;
 			if (m.newChat || !id) { return { ...s, carry: [...s.carry, m.item], view: 'chat' }; }

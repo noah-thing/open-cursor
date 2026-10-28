@@ -218,7 +218,31 @@ export type HostMessageExt =
 	/** The file in the active editor, shown as a suggested context pill. `null` when there is none. */
 	| { readonly type: 'activeEditor'; readonly item: ContextItem | null }
 	/** Agent CLIs on this machine and whether they are signed in, for the start screen. */
-	| { readonly type: 'agents'; readonly agents: AgentStatus[] };
+	| { readonly type: 'agents'; readonly agents: AgentStatus[] }
+	/** Local model servers and API providers, for the start screen's connect panel. */
+	| { readonly type: 'connectState'; readonly local: LocalServerStatus[]; readonly providers: ApiProviderStatus[] }
+	/** Outcome of a key or server the user just tried to connect. */
+	| { readonly type: 'connectResult'; readonly target: string; readonly ok: boolean; readonly message: string };
+
+export interface LocalServerStatus {
+	readonly id: 'ollama' | 'lmstudio' | 'custom';
+	readonly label: string;
+	readonly baseUrl: string;
+	/** Not this computer: a server elsewhere on the network. */
+	readonly remote: boolean;
+	/** The address was set by the user rather than the default. */
+	readonly configured: boolean;
+	readonly reachable: boolean;
+	readonly models: number;
+	readonly modelId?: string;
+}
+
+export interface ApiProviderStatus {
+	readonly id: string;
+	readonly label: string;
+	readonly hasKey: boolean;
+	readonly modelId?: string;
+}
 
 export interface AgentStatus {
 	readonly id: string;
@@ -237,4 +261,10 @@ export type WebviewMessageExt =
 	/** Start screen actions that hand off to the workbench. */
 	| { readonly type: 'workbench'; readonly action: 'openFolder' | 'openRecent' | 'cloneRepo' | 'showEditor' }
 	/** Start screen: install or sign in to an agent CLI in a terminal, or look again after doing so. */
-	| { readonly type: 'agentAction'; readonly id: string; readonly action: 'install' | 'signIn' | 'refresh' };
+	| { readonly type: 'agentAction'; readonly id: string; readonly action: 'install' | 'signIn' | 'refresh' }
+	| { readonly type: 'requestConnect' }
+	| { readonly type: 'connectKey'; readonly provider: string; readonly key: string }
+	| { readonly type: 'connectServer'; readonly address: string }
+	| { readonly type: 'resetServer'; readonly id: LocalServerStatus['id'] }
+	/** Start or download a local model app on this computer. */
+	| { readonly type: 'localApp'; readonly id: 'ollama' | 'lmstudio' };

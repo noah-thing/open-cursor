@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { commandAllowed } from './policy';
+import { cliPromptPrefix } from './modeArgs';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
 import { TurnTracker } from './tracking';
 import { arr, displayPath, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, spawnCli, str, truncate } from './util';
@@ -213,8 +214,6 @@ export class GrokParser {
 	}
 }
 
-const PLAN_PREFIX = 'Open Cursor note: this turn is read only. Investigate the code and answer or propose a concrete plan; do not modify any file.\n\n';
-
 /** Permission and sandbox flags for a turn (see the header comment). */
 export function grokPermissionArgs(o: Pick<RunOptions, 'mode' | 'autoRun' | 'commandAllowlist'>): string[] {
 	if (MODE_READONLY(o.mode)) {
@@ -236,7 +235,6 @@ export function grokPermissionArgs(o: Pick<RunOptions, 'mode' | 'autoRun' | 'com
 }
 
 export async function runGrok(o: RunOptions): Promise<RunResult> {
-	const readonly = MODE_READONLY(o.mode);
 	const args: string[] = ['--output-format', 'streaming-json', '--cwd', o.cwd, ...grokPermissionArgs(o)];
 	if (o.model && o.model !== 'default') {
 		args.push('-m', o.model);
@@ -247,7 +245,7 @@ export async function runGrok(o: RunOptions): Promise<RunResult> {
 
 	// Images: written to a private temp dir and referenced by path in the prompt.
 	let tmpDir: string | undefined;
-	let prompt = (readonly ? PLAN_PREFIX : '') + o.prompt;
+	let prompt = cliPromptPrefix(o.mode) + o.prompt;
 	if (o.images?.length) {
 		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-grok-'));
 		const files = o.images.map((img, i) => {

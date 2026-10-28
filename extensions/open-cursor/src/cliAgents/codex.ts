@@ -9,7 +9,8 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
+import { codexModeArgs } from './modeArgs';
+import type { RunOptions, RunResult, TurnHost } from './types';
 import { TurnTracker } from './tracking';
 import { arr, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, spawnCli, str, truncate } from './util';
 
@@ -142,11 +143,7 @@ export class CodexParser {
 	}
 }
 
-const PLAN_PREFIX = 'Open Cursor note: this turn is read only. Investigate the code and answer or propose a concrete plan; do not modify any file.\n\n';
-
 export async function runCodex(o: RunOptions): Promise<RunResult> {
-	const readonly = MODE_READONLY(o.mode);
-	const sandbox = readonly ? 'read-only' : 'workspace-write';
 	const args: string[] = ['exec'];
 	if (o.sessionId) {
 		args.push('resume');
@@ -155,14 +152,7 @@ export async function runCodex(o: RunOptions): Promise<RunResult> {
 	if (!o.sessionId) {
 		args.push('-C', o.cwd);
 	}
-	if (o.autoRun === 'always' && !readonly) {
-		args.push('--dangerously-bypass-approvals-and-sandbox');
-	} else if (o.sessionId) {
-		args.push('-c', `sandbox_mode="${sandbox}"`);
-	} else {
-		args.push('-s', sandbox);
-	}
-	args.push('-c', 'approval_policy="never"');
+	args.push(...codexModeArgs(o));
 	if (o.model && o.model !== 'default') {
 		args.push('-m', o.model);
 	}
@@ -194,7 +184,7 @@ export async function runCodex(o: RunOptions): Promise<RunResult> {
 	const proc = spawnCli(o.binary, args, {
 		cwd: o.cwd,
 		env: o.env,
-		stdin: (readonly ? PLAN_PREFIX : '') + o.prompt,
+		stdin: o.prompt, // the mode guidance rides in developer_instructions
 		signal: o.signal,
 		onLine: line => {
 			o.rawLog?.(line);

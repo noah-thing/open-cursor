@@ -18,6 +18,8 @@ export interface IProviderRegistry {
 	getProvider(id: ProviderId): LLMProvider;
 	hasKey(id: ProviderId): Promise<boolean>;
 	setKey(id: ProviderId, key: string | undefined): Promise<void>;
+	/** Calls the provider with the stored key to confirm it works. */
+	verify(id: ProviderId): Promise<{ ok: boolean; message: string }>;
 	/** Convenience: resolve provider for model and stream. */
 	stream(req: ChatRequest): AsyncIterable<StreamEvent>;
 	fim(req: FimRequest): AsyncIterable<string>;

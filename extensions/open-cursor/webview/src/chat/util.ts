@@ -79,10 +79,10 @@ export function fuzzyScore(query: string, text: string): number {
 }
 
 export const MODE_META: Record<ChatMode, { label: string; icon: IconName; hint: string; placeholder: string }> = {
-	agent: { label: 'Agent', icon: 'infinity', hint: 'Plan, search, make edits, run commands', placeholder: 'Plan, search, build anything' },
-	plan: { label: 'Plan', icon: 'todos', hint: 'Read-only. Writes a plan you can build', placeholder: 'Describe what you want to plan' },
-	debug: { label: 'Debug', icon: 'bug', hint: 'Diagnose and fix bugs step by step', placeholder: 'Describe the bug' },
-	ask: { label: 'Ask', icon: 'chat', hint: 'Ask questions about your code. Read-only', placeholder: 'Ask, learn, brainstorm' },
+	agent: { label: 'Agent', icon: 'infinity', hint: 'Edits and runs code, keeps a todo list, checks its work', placeholder: 'Plan, search, build anything' },
+	plan: { label: 'Plan', icon: 'todos', hint: 'Read-only. Researches, writes a plan, then you press Build', placeholder: 'Describe what you want to plan' },
+	debug: { label: 'Debug', icon: 'bug', hint: 'Reproduces, tests hypotheses, fixes, removes its logging', placeholder: 'Describe the bug' },
+	ask: { label: 'Ask', icon: 'chat', hint: 'Read-only. Answers about your code with file links', placeholder: 'Ask about your code' },
 };
 
 export const MODE_ORDER: ChatMode[] = ['agent', 'plan', 'debug', 'ask'];

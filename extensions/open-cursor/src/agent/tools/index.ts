@@ -6,6 +6,7 @@
 import type { ToolSchema } from '../../providers/types';
 import type { Services } from '../../services';
 import type { ChatMode } from '../../shared/protocol';
+import { isReadOnlyMode, toolBlockedReason } from '../modes';
 import { clip } from './types';
 import type { ToolDef } from './types';
 import { codebaseSearch } from './codebase_search';
@@ -55,13 +56,43 @@ export interface ToolSet {
 	readonly schemas: ToolSchema[];
 }
 
-/** Tools available for a mode. ask/plan get read-only tools only; MCP tools need agent or debug mode. */
+/**
+ * Read-only variant of the shell tool for Plan and Ask: same runner, but every command is checked
+ * against the read-only allowlist first and background processes are not offered.
+ */
+export function readOnlyTerminal(base: ToolDef): ToolDef {
+	const props = { ...(base.schema.parameters as { properties: Record<string, unknown> }).properties };
+	delete props.is_background;
+	return {
+		...base,
+		// stays false: commands share one shell session, so they run one at a time
+		readOnly: false,
+		schema: {
+			name: base.schema.name,
+			description: 'Run a read-only shell command (ls, cat, rg, grep, find, git status/diff/log/show/blame, jq, wc, npm ls and similar inspection commands) and return its output. This mode cannot change anything: commands that write files, install, build, run tests, start processes, redirect output (>) or use command substitution are refused. Prefer read_file, grep, glob_file_search and list_dir when they fit.',
+			parameters: { ...base.schema.parameters, properties: props },
+		},
+		async run(args, ctx) {
+			const blocked = toolBlockedReason(ctx.mode, { name: base.schema.name, readOnly: false }, args as Record<string, unknown>);
+			if (blocked) { return { content: blocked, isError: true }; }
+			return base.run(args, ctx);
+		},
+	};
+}
+
+/**
+ * Tools offered for a mode. Plan and Ask get the read tools and the read-only shell, nothing that
+ * can change the workspace (the loop re-checks every call with toolBlockedReason). Ask has no todo
+ * list; MCP tools need agent or debug mode.
+ */
 export function getToolSet(mode: ChatMode, services: Services): ToolSet {
 	const byName = new Map<string, ToolDef>();
-	const readOnlyMode = mode === 'ask' || mode === 'plan';
+	const readOnlyMode = isReadOnlyMode(mode);
 	for (const t of BUILTIN_TOOLS) {
-		if (readOnlyMode && !t.readOnly) { continue; }
-		if (mode === 'ask' && t.schema.name === 'todo_write') { continue; }
+		if (readOnlyMode) {
+			if (t.schema.name === 'run_terminal_cmd') { byName.set(t.schema.name, readOnlyTerminal(t)); continue; }
+			if (toolBlockedReason(mode, { name: t.schema.name, readOnly: t.readOnly }, {})) { continue; }
+		}
 		byName.set(t.schema.name, t);
 	}
 	if (!readOnlyMode) {

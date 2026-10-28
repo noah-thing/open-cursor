@@ -143,7 +143,7 @@ function buildSections(models: readonly ModelOption[], query: string): Section[]
 	const api = ready.filter(m => !agentOf(m) && !LOCAL.has(m.provider));
 	const out: Section[] = [];
 	if (subs.length) { out.push({ title: 'Your subscriptions', groups: byGroup(subs, m => agentOf(m)!, k => AGENT_NAMES[k] ?? k) }); }
-	if (local.length) { out.push({ title: 'On this Mac', groups: byGroup(local, m => m.provider, providerLabel) }); }
+	if (local.length) { out.push({ title: 'Local models', groups: byGroup(local, m => m.provider, providerLabel) }); }
 	if (api.length) { out.push({ title: 'API keys', groups: byGroup(api, m => m.provider, providerLabel) }); }
 	const missing = new Map<string, Row>();
 	for (const m of hits.filter(x => !x.hasKey)) {
@@ -157,10 +157,11 @@ function buildSections(models: readonly ModelOption[], query: string): Section[]
 	return out;
 }
 
-export function ModelMenu({ models, modelId, onSelect }: {
+export function ModelMenu({ models, modelId, onSelect, onConnect }: {
 	readonly models: readonly ModelOption[];
 	readonly modelId: string;
 	readonly onSelect: (id: string) => void;
+	readonly onConnect: () => void;
 }): ReactElement {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState('');
@@ -248,7 +249,7 @@ export function ModelMenu({ models, modelId, onSelect }: {
 							</section>
 						))}
 					</div>
-					<button type="button" className="oc-menu-footer" onClick={() => { post({ type: 'openSettings', section: 'subscriptions' }); close(); }}>
+					<button type="button" className="oc-menu-footer" onClick={() => { onConnect(); close(); }}>
 						<Icon name="gear" size={13} />
 						<span>Connect models and subscriptions</span>
 					</button>
