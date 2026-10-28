@@ -11,6 +11,10 @@ on:
       only:
         description: 'Targets to build, comma separated, or "all" (macos-arm64, macos-x64, windows-x64, windows-arm64, linux-x64, linux-arm64)'
         default: all
+      smoke:
+        description: Install the fresh artifacts with install.sh / install.ps1 and run them
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -222,3 +226,147 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/open-cursor/upload-draft.sh "${{ inputs.tag }}" dist-out/*
+
+  # ---- Smoke tests: the shipped installers, unchanged, against the artifacts just built. ----
+  # curl (install.sh) and Invoke-RestMethod/Invoke-WebRequest (install.ps1) are replaced by stand-ins
+  # that answer the GitHub API call from a mock release and serve downloads from the artifact folder.
+  smoke-linux:
+    needs: [linux]
+    if: ${{ !cancelled() && inputs.smoke && needs.linux.result == 'success' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-x64
+          path: assets
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: linux-arm64
+          path: assets-arm64
+      - name: Package metadata (name, desktop entry, icon)
+        run: |
+          set -e
+          sudo apt-get install -y rpm >/dev/null
+          for d in assets assets-arm64; do
+            [ -d "$d" ] || continue
+            echo "== $d"
+            ls -l "$d"
+            deb=$(ls $d/*.deb); rpm=$(ls $d/*.rpm)
+            dpkg-deb -I "$deb" | grep -E "Package:|Architecture:|Maintainer:|Description:"
+            dpkg-deb -I "$deb" | grep -q "Package: open-cursor"
+            dpkg-deb -c "$deb" | grep -E "applications/.*desktop|pixmaps" 
+            dpkg-deb -x "$deb" "$d/deb-root"
+            grep -H -E "^(Name|Icon|Exec)=" "$d"/deb-root/usr/share/applications/*.desktop
+            grep -q "^Name=OpenCursor$" "$d/deb-root/usr/share/applications/open-cursor.desktop"
+            grep -q "^Icon=open-cursor$" "$d/deb-root/usr/share/applications/open-cursor.desktop"
+            test -s "$d/deb-root/usr/share/pixmaps/open-cursor.png"
+            ! grep -rqi "packages.microsoft.com" "$d/deb-root" 2>/dev/null || true
+            rpm -qip "$rpm" | grep -E "Name|Architecture|Vendor|Summary"
+            rpm -qlp "$rpm" | grep -E "desktop|pixmaps"
+            echo "icon sha: $(sha256sum "$d/deb-root/usr/share/pixmaps/open-cursor.png" | cut -c1-16) repo: $(sha256sum resources/linux/code.png 2>/dev/null | cut -c1-16)"
+          done
+      - name: Install with install.sh (apt path)
+        run: |
+          set -e
+          export MOCK_ASSET_DIR="$PWD/assets" MOCK_RELEASE_JSON="$PWD/release.json"
+          sh scripts/open-cursor/mock-release.sh assets > release.json
+          mkdir -p "$RUNNER_TEMP/mockbin" && cp scripts/open-cursor/smoke-curl.sh "$RUNNER_TEMP/mockbin/curl"
+          PATH="$RUNNER_TEMP/mockbin:$PATH" sh install.sh
+          command -v open-cursor
+          open-cursor --version | tee version.txt
+          grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' version.txt
+          dpkg -s open-cursor | grep -E "Status|Version"
+          ! ls /etc/apt/sources.list.d | grep -i vscode
+          sudo apt-get remove -y open-cursor
+      - name: Install with install.sh (tar.gz fallback)
+        run: |
+          set -e
+          export MOCK_ASSET_DIR="$PWD/assets" MOCK_RELEASE_JSON="$PWD/release-tar.json"
+          sh scripts/open-cursor/mock-release.sh assets '\.(deb|rpm)$' > release-tar.json
+          PATH="$RUNNER_TEMP/mockbin:$PATH" sh install.sh
+          test -x "$HOME/.local/bin/open-cursor"
+          "$HOME/.local/bin/open-cursor" --version | tee version2.txt
+          grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' version2.txt
+
+  smoke-windows:
+    needs: [windows]
+    if: ${{ !cancelled() && inputs.smoke && needs.windows.result == 'success' }}
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-x64
+          path: assets
+      - name: Install with install.ps1
+        run: |
+          $assets = (Resolve-Path assets).Path
+          Get-ChildItem $assets | Format-Table Name, Length
+          # Stand-ins win over the cmdlets of the same name for the unchanged script.
+          function Invoke-RestMethod {
+            param($Uri, $Headers)
+            [pscustomobject]@{
+              tag_name = 'v0.1.0'
+              assets = @(Get-ChildItem $assets | ForEach-Object { [pscustomobject]@{ name = $_.Name; browser_download_url = $_.FullName } })
+            }
+          }
+          function Invoke-WebRequest {
+            param($Uri, $OutFile, [switch]$UseBasicParsing)
+            Copy-Item $Uri $OutFile
+          }
+          . "$PWD/install.ps1"
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\OpenCursor'
+          Get-ChildItem $dir | Select-Object -First 30 | Format-Table Name
+          if (-not (Test-Path "$dir\OpenCursor.exe")) { throw 'OpenCursor.exe was not installed' }
+          $v = & "$dir\bin\open-cursor.cmd" --version
+          $v
+          if (($v | Select-Object -First 1) -notmatch '^\d+\.\d+\.\d+') { throw 'open-cursor --version printed no version' }
+          $lnk = Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Recurse -Filter '*.lnk' | Where-Object { $_.FullName -match 'OpenCursor' }
+          $lnk | ForEach-Object FullName
+          if (-not $lnk) { throw 'no Start menu shortcut named OpenCursor' }
+          $reg = Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' | Get-ItemProperty | Where-Object { $_.DisplayName -like '*OpenCursor*' }
+          $reg | Select-Object DisplayName, DisplayVersion, Publisher | Format-List
+          if (-not $reg) { throw 'not registered for uninstall' }
+
+  smoke-macos:
+    needs: [macos]
+    if: ${{ !cancelled() && inputs.smoke && needs.macos.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: macos-arm64, runner: macos-15 }
+          - { id: macos-x64, runner: macos-15-intel }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        id: dl
+        continue-on-error: true
+        with:
+          name: ${{ matrix.id }}
+          path: assets
+      - name: Install with install.sh
+        if: steps.dl.outcome == 'success'
+        run: |
+          set -e
+          export MOCK_ASSET_DIR="$PWD/assets" MOCK_RELEASE_JSON="$PWD/release.json"
+          sh scripts/open-cursor/mock-release.sh assets > release.json
+          mkdir -p "$RUNNER_TEMP/mockbin" && cp scripts/open-cursor/smoke-curl.sh "$RUNNER_TEMP/mockbin/curl"
+          export OPENCURSOR_DIR="$RUNNER_TEMP/Apps"
+          PATH="$RUNNER_TEMP/mockbin:$PATH" sh install.sh
+          APP="$OPENCURSOR_DIR/OpenCursor.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleName" -c "Print :CFBundleIdentifier" -c "Print :CFBundleIconFile" "$APP/Contents/Info.plist"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          lipo -archs "$APP/Contents/MacOS/OpenCursor"
+          "$APP/Contents/Resources/app/bin/open-cursor" --version | tee version.txt
+          grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' version.txt
