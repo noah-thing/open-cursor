@@ -769,8 +769,6 @@ body.vscode-light .oc-app, body.vscode-high-contrast-light .oc-app {
 .oc-app.is-help::before { opacity: 0.075; animation-play-state: running; }
 body.vscode-light .oc-app.is-help::before { opacity: 0.12; }
 
-.oc-help-btn.is-on { color: var(--oc-help-ink); background: color-mix(in srgb, var(--oc-help) 12%, transparent); }
-.oc-help-btn:active { transform: scale(0.94); }
 .oc-tab-help { flex: none; color: var(--oc-help-ink); }
 .oc-tab.is-help.is-active { background: color-mix(in srgb, var(--oc-help) 10%, var(--oc-ink-6)); }
 
@@ -907,3 +905,4 @@ body.vscode-light .oc-app.is-help::before { opacity: 0.12; }
 	.oc-help-mark::after { display: none; }
 	.oc-composer.is-help::after, .oc-help-mark::before, .oc-go::before, .oc-mode-chip.is-help::before, .oc-help-jumped-dot { animation: none; }
 }
+

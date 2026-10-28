@@ -345,9 +345,6 @@ export function App(): ReactElement {
 						<button type="button" className="oc-rail-link" onClick={() => post({ type: 'workbench', action: 'showEditor' })} title="Bring back the editor and files">
 							<Icon name="code" size={14} /> Show editor
 						</button>
-						<button type="button" className={'oc-iconbtn oc-help-btn' + (help ? ' is-on' : '')} title="Get Help" aria-label="Get Help" onClick={() => { post({ type: 'openHelp' }); dispatch({ kind: 'view', view: 'chat' }); }}>
-							<Icon name="lifebuoy" size={15} />
-						</button>
 						<button type="button" className="oc-iconbtn" title="OpenCursor settings" aria-label="Settings" onClick={() => post({ type: 'openSettings' })}>
 							<Icon name="gear" size={15} />
 						</button>

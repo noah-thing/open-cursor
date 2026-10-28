@@ -121,6 +121,9 @@
 		}
 	],
 	"menus": {
+		"view/title": [
+			{ "command": "openCursor.help.open", "when": "view == openCursor.chat", "group": "navigation@1" }
+		],
 		"explorer/context": [
 			{
 				"command": "openCursor.chat.addFileToChat",

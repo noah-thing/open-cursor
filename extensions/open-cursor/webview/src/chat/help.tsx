@@ -32,7 +32,7 @@ export function openHelpLink(href: string): void {
 export function HelpTop(): ReactElement {
 	return (
 		<div className="oc-help-top">
-			<span className="oc-help-mark" aria-hidden="true"><Icon name="lifebuoy" size={18} /></span>
+			<span className="oc-help-mark" aria-hidden="true"><Icon name="help" size={18} /></span>
 			<h2 className="oc-help-title">How can I help?</h2>
 			<p className="oc-help-lead">Ask about anything in OpenCursor, and I will take you to the right place.</p>
 		</div>
@@ -80,7 +80,7 @@ export function HelpBottom({ hasModel, onAsk }: { readonly hasModel: boolean; re
 export function HelpChip(): ReactElement {
 	return (
 		<span className="oc-chip oc-mode-chip is-help oc-help-chip" title="Help explains OpenCursor and opens the right place">
-			<Icon name="lifebuoy" size={13} />
+			<Icon name="help" size={13} />
 			<span>Help</span>
 			<button type="button" className="oc-help-leave" title="Leave Help for a normal chat" aria-label="Leave Help" onClick={() => post({ type: 'newChat' })}>
 				<Icon name="x" size={9} />

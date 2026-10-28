@@ -7,6 +7,15 @@ import './openCursorDiff.js';
 import './openCursorInlineEdit.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
+
+// Help > Get Help opens OpenCursor's Help chat (the command lives in the extension), first in the menu.
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: '0_opencursor',
+	command: { id: 'openCursor.help.open', title: localize({ key: 'miOpenCursorHelp', comment: ['&& denotes a mnemonic'] }, "&&Get Help") },
+	order: 1
+});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerDefaultConfigurations([{
 	overrides: {

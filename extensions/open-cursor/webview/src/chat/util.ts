@@ -82,7 +82,7 @@ export const MODE_META: Record<ChatMode, { label: string; icon: IconName; hint: 
 	plan: { label: 'Plan', icon: 'todos', hint: 'Read-only. Researches, writes a plan, then you press Build', placeholder: 'Describe what you want to plan' },
 	debug: { label: 'Debug', icon: 'bug', hint: 'Reproduces, tests hypotheses, fixes, removes its logging', placeholder: 'Describe the bug' },
 	ask: { label: 'Ask', icon: 'chat', hint: 'Read-only. Answers about your code with file links', placeholder: 'Ask about your code' },
-	help: { label: 'Help', icon: 'lifebuoy', hint: 'Explains OpenCursor and opens the right place. Changes nothing', placeholder: 'Ask how to do anything in OpenCursor' },
+	help: { label: 'Help', icon: 'help', hint: 'Explains OpenCursor and opens the right place. Changes nothing', placeholder: 'Ask how to do anything in OpenCursor' },
 };
 
 export const MODE_ORDER: ChatMode[] = ['agent', 'plan', 'debug', 'ask'];

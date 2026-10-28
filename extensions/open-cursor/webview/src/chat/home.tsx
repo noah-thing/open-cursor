@@ -36,6 +36,8 @@ export function HomeTop({ workspaceName }: { readonly workspaceName: string | un
 	);
 }
 
+const HELP_STARTER: Starter = { key: 'help', icon: 'help', title: 'Get help', detail: 'Ask how anything in OpenCursor works', run: () => post({ type: 'openHelp' }) };
+
 export function buildStarters({ hasFolder, hasModel, recent, onMode, onPick }: {
 	readonly hasFolder: boolean;
 	readonly hasModel: boolean;
@@ -55,6 +57,7 @@ export function buildStarters({ hasFolder, hasModel, recent, onMode, onPick }: {
 		rows.push(
 			{ key: 'open', icon: 'folder', title: 'Open a folder', detail: 'Work on a project on this computer', run: () => post({ type: 'workbench', action: 'openFolder' }) },
 			{ key: 'clone', icon: 'git', title: 'Clone a repository', detail: 'From GitHub or any git URL', run: () => post({ type: 'workbench', action: 'cloneRepo' }) },
+			HELP_STARTER,
 		);
 		return rows;
 	}
@@ -62,6 +65,7 @@ export function buildStarters({ hasFolder, hasModel, recent, onMode, onPick }: {
 		{ key: 'plan', icon: MODE_META.plan.icon, title: 'Start with a plan', detail: 'Agree on the approach before any code changes', run: () => onMode('plan') },
 		{ key: 'debug', icon: MODE_META.debug.icon, title: 'Fix a bug', detail: 'Find the cause, then fix it step by step', run: () => onMode('debug') },
 		{ key: 'tour', icon: MODE_META.ask.icon, title: 'Explain this codebase', detail: 'A short tour of how the project fits together', run: () => onMode('ask', 'Give me a short tour of this codebase: what it does, how it is laid out, and where to start reading.') },
+		HELP_STARTER,
 	);
 	return rows;
 }
