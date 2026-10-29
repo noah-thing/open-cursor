@@ -247,6 +247,16 @@
 				"title": "Generate Commit Message",
 				"category": "OpenCursor",
 				"icon": "$(sparkle)"
+			},
+			{
+				"command": "openCursor.update.check",
+				"title": "Check for Updates",
+				"category": "OpenCursor"
+			},
+			{
+				"command": "openCursor.update.restart",
+				"title": "Restart to Update",
+				"category": "OpenCursor"
 			}
 		],
 		"keybindings": [
@@ -466,7 +476,7 @@
 						"enumDescriptions": [
 							"Ask before every terminal command.",
 							"Run commands on the allowlist automatically, ask for the rest.",
-							"Run the allowlist; for other commands the agent decides whether to ask. Commands that delete, publish, install or reach the network always ask.",
+							"Run the allowlist; for other commands the agent decides whether to ask. Commands that delete, install, publish, go online or leave the project always ask.",
 							"Full access: run every command and tool without asking (denylisted commands still ask)."
 						],
 						"default": "allowlist",
@@ -539,7 +549,7 @@
 							"make test",
 							"make build"
 						],
-						"markdownDescription": "Command prefixes the agent may run without asking when `#openCursor.agent.autoRun#` is `allowlist`. Chained commands (`&&`, `|`, `;`) must all match; redirects to files and command substitution always ask."
+						"markdownDescription": "Command prefixes the agent may run without asking when `#openCursor.agent.autoRun#` is `allowlist` or `auto`. Chained commands (`&&`, `|`, `;`) must all match; redirects to files and command substitution always ask."
 					},
 					"openCursor.agent.commandDenylist": {
 						"type": "array",
@@ -844,6 +854,31 @@
 						"type": "boolean",
 						"default": false,
 						"markdownDescription": "Experimental. After you accept a suggestion, ask the inline model whether a related edit is needed further down the file and offer it (needs the `inlineCompletionsAdditions` proposal)."
+					}
+				}
+			},
+			{
+				"title": "OpenCursor: Updates",
+				"properties": {
+					"openCursor.update.mode": {
+						"type": "string",
+						"enum": [
+							"notify",
+							"off"
+						],
+						"enumDescriptions": [
+							"Check GitHub for a new version at startup and every six hours, and offer it.",
+							"Never check on its own. Check for Updates still works."
+						],
+						"default": "notify",
+						"scope": "application",
+						"description": "Whether OpenCursor looks for new versions."
+					},
+					"openCursor.update.feedUrl": {
+						"type": "string",
+						"default": "",
+						"scope": "application",
+						"description": "Advanced: a different release feed in the GitHub releases/latest format. Leave empty for OpenCursor's releases."
 					}
 				}
 			}

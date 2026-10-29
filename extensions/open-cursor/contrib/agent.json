@@ -204,12 +204,14 @@
 				"enum": [
 					"ask",
 					"allowlist",
+					"auto",
 					"always"
 				],
 				"enumDescriptions": [
 					"Ask before every terminal command.",
 					"Run commands on the allowlist automatically, ask for the rest.",
-					"Run every command without asking (denylisted commands still ask)."
+					"Run the allowlist; for other commands the agent decides whether to ask. Commands that delete, install, publish, go online or leave the project always ask.",
+					"Full access: run every command and tool without asking (denylisted commands still ask)."
 				],
 				"default": "allowlist",
 				"markdownDescription": "How the agent runs terminal commands. File edits never ask; they land as pending edits you can keep or undo."
@@ -281,7 +283,7 @@
 					"make test",
 					"make build"
 				],
-				"markdownDescription": "Command prefixes the agent may run without asking when `#openCursor.agent.autoRun#` is `allowlist`. Chained commands (`&&`, `|`, `;`) must all match; redirects to files and command substitution always ask."
+				"markdownDescription": "Command prefixes the agent may run without asking when `#openCursor.agent.autoRun#` is `allowlist` or `auto`. Chained commands (`&&`, `|`, `;`) must all match; redirects to files and command substitution always ask."
 			},
 			"openCursor.agent.commandDenylist": {
 				"type": "array",

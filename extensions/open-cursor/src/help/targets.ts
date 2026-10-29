@@ -12,7 +12,7 @@ export interface HelpAction {
 export type HelpTargetId =
 	| 'free-models' | 'settings' | 'editor-settings' | 'shortcuts' | 'color-theme' | 'icon-theme'
 	| 'command-palette' | 'extensions' | 'view' | 'mcp-config' | 'connect' | 'new-chat' | 'past-chats'
-	| 'import' | 'open-folder';
+	| 'import' | 'open-folder' | 'report-issue';
 
 export interface HelpTarget {
 	readonly id: HelpTargetId;
@@ -55,6 +55,7 @@ export const HELP_TARGETS: readonly HelpTarget[] = [
 	{ id: 'past-chats', label: 'Past chats', use: 'The list of earlier chats, with search.', inPlace: false },
 	{ id: 'import', label: 'Import from Cursor or VS Code', use: 'Starts the import of settings, keybindings and extensions. It asks the user before doing anything.', inPlace: false },
 	{ id: 'open-folder', label: 'Open a folder', use: 'The system dialog to open a project folder.', inPlace: false },
+	{ id: 'report-issue', label: 'Report on GitHub', use: 'A new GitHub issue in the browser, filled in with what the user wrote in this chat and the app details. The argument is a short issue title. The user reads it and submits it.', inPlace: false },
 ];
 
 const BY_ID = new Map(HELP_TARGETS.map(t => [t.id, t]));

@@ -99,6 +99,12 @@ The import brings settings, keybindings and extensions over from Cursor or VS Co
 - Views: Explorer (Cmd+Shift+E), Search (Cmd+Shift+F), Source Control (Ctrl+Shift+G), Run and Debug (Cmd+Shift+D), Terminal (Ctrl+backtick), Problems (Cmd+Shift+M).
 - Open a project: File > Open Folder, or the start screen when no folder is open. [Open a folder](opencursor:open-folder)
 
+## Updates
+OpenCursor checks GitHub for a new version at startup and every six hours. When one is out, a notice offers Update: it downloads the version for your system, checks it, and installs it when you restart (Restart now, or the Restart to update item in the status bar). Run "Check for Updates" from the command palette to check right away. Linux packages ask for your password once. Portable Windows copies get the download page instead. Turn the automatic check off with the openCursor.update.mode setting.
+
+## Reporting a problem
+Tell Help what went wrong. If it is a bug, Help offers a Report on GitHub link: it opens a new GitHub issue with your description from the Help chat and the app details (version, system, mode, kind of model) filled in. API keys and code are never included. Read it, add anything missing, and press Submit. [Report on GitHub](opencursor:report-issue)
+
 ## Privacy
 API keys stay in the system keychain and only go to the provider they belong to. Code is sent only to the model you chose for that chat. Subscriptions run on your own CLI login. Local models never leave your network.
 

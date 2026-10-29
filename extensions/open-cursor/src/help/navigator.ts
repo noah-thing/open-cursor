@@ -14,6 +14,8 @@ export interface HelpChatHooks {
 	/** A new chat with the connect panel showing. */
 	connect(): Promise<void>;
 	pastChats(): void;
+	/** Opens a prefilled GitHub issue for this Help chat. */
+	reportIssue(title?: string): Promise<void>;
 }
 
 const VIEW_COMMAND: Record<string, string> = {
@@ -52,6 +54,7 @@ export class HelpNavigator {
 			case 'past-chats': this.hooks.pastChats(); break;
 			case 'import': await cmd('openCursor.import'); break;
 			case 'open-folder': await cmd('workbench.action.files.openFolder'); break;
+			case 'report-issue': await this.hooks.reportIssue(a.arg); break;
 		}
 		return label;
 	}

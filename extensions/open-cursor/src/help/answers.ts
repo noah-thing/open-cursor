@@ -131,6 +131,12 @@ const INTENTS: readonly Intent[] = [
 		open: { target: 'settings', arg: 'indexing' },
 	},
 	{
+		id: 'update',
+		all: [/\b(update|updates|updating|upgrade|new version|latest version)\b/],
+		not: [/\b(extensions?|plugins?|settings?|models?)\b/],
+		text: 'OpenCursor checks for a new version at startup and every six hours, and offers it with an **Update** button. It downloads and checks the new version, and installs it when you restart. To check right away, run **Check for Updates** from the command palette (Cmd+Shift+P).',
+	},
+	{
 		id: 'extensions',
 		all: [/\b(extensions?|plugins?|marketplace|add-?ons?)\b/],
 		text: 'The Extensions view searches Open VSX: type a name, then **Install**. Extensions made for VS Code work here too.',

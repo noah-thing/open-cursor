@@ -20,6 +20,7 @@ import { registerCommitMessage } from './scm/commitMessage';
 import { registerSettings } from './settings/panel';
 import { registerImporter } from './migrate/importer';
 import { FreeModelsPanel } from './connect/freePanel';
+import { registerUpdater } from './update/updater';
 
 export function activate(ctx: vscode.ExtensionContext): void {
 	const registry = createProviderRegistry(ctx);
@@ -42,6 +43,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	registerCommitMessage(ctx, services);
 	registerSettings(ctx, services);
 	registerImporter(ctx);
+	registerUpdater(ctx);
 
 	const free = new FreeModelsPanel(ctx, services, { activeModel: () => chat.activeModelId(), useModel: id => chat.useModel(id) });
 	ctx.subscriptions.push(free, vscode.commands.registerCommand('openCursor.freeModels.open', (o?: { install?: boolean }) => free.open(o)));

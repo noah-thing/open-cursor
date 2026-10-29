@@ -1,0 +1,25 @@
+{
+	"commands": [
+		{ "command": "openCursor.update.check", "title": "Check for Updates", "category": "OpenCursor" },
+		{ "command": "openCursor.update.restart", "title": "Restart to Update", "category": "OpenCursor" }
+	],
+	"configuration": {
+		"title": "OpenCursor: Updates",
+		"properties": {
+			"openCursor.update.mode": {
+				"type": "string",
+				"enum": ["notify", "off"],
+				"enumDescriptions": ["Check GitHub for a new version at startup and every six hours, and offer it.", "Never check on its own. Check for Updates still works."],
+				"default": "notify",
+				"scope": "application",
+				"description": "Whether OpenCursor looks for new versions."
+			},
+			"openCursor.update.feedUrl": {
+				"type": "string",
+				"default": "",
+				"scope": "application",
+				"description": "Advanced: a different release feed in the GitHub releases/latest format. Leave empty for OpenCursor's releases."
+			}
+		}
+	}
+}

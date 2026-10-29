@@ -3,6 +3,7 @@ import { toolBlockedReason, isReadOnlyMode } from '../../agent/modes';
 import { buildSystemPrompt, cliModeGuidance } from '../../agent/prompts';
 import { claudeModeArgs } from '../../cliAgents/modeArgs';
 import { instantAnswer } from '../answers';
+import { issueBody, issueTitle, issueUrl, modelKind } from '../issue';
 import { MANUAL } from '../manual';
 import { buildHelpSystemPrompt } from '../prompt';
 import { actionLabel, firstInPlaceLink, formatHelpLink, HELP_TARGETS, parseHelpLink, validateAction } from '../targets';
@@ -121,4 +122,22 @@ test('Help on agent CLIs uses the fast model at low effort', () => {
 	assert.strictEqual(args[args.indexOf('--model') + 1], 'haiku');
 	assert.strictEqual(args[args.indexOf('--effort') + 1], 'low');
 });
+test('report issue: link, prefilled body, no keys, length cap', () => {
+	assert.deepStrictEqual(parseHelpLink('opencursor:report-issue/Chat%20freezes%20on%20long%20replies'), { target: 'report-issue', arg: 'Chat freezes on long replies' });
+	assert.strictEqual(firstInPlaceLink('[Report on GitHub](opencursor:report-issue/x)'), undefined, 'never opens on its own');
+	const f = { title: 'Chat freezes', userMessages: ['The chat freezes when the reply is long', 'my key sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX broke too'], version: '0.1.0', system: 'macOS 15.4 (arm64)', mode: 'Agent', model: modelKind('cli:claude-code/sonnet') };
+	const body = issueBody(f);
+	assert.ok(body.includes('The chat freezes when the reply is long'));
+	assert.ok(body.includes('- OpenCursor 0.1.0') && body.includes('- macOS 15.4 (arm64)') && body.includes('- Mode: Agent') && body.includes('- Model: Claude Code subscription'));
+	assert.ok(!body.includes('sk-ant') && body.includes('[removed]'));
+	assert.strictEqual(issueTitle({ ...f, title: '' }), 'The chat freezes when the reply is long');
+	assert.strictEqual(modelKind('ollama/qwen3:8b'), 'Ollama (local)');
+	assert.strictEqual(modelKind('anthropic/claude-sonnet-5-5'), 'Anthropic API');
+	const url = issueUrl(f);
+	assert.ok(url.startsWith('https://github.com/noah-thing/open-cursor/issues/new?title=Chat%20freezes&body='));
+	const long = issueUrl({ ...f, userMessages: ['x'.repeat(20000)] });
+	assert.ok(long.length <= 7000, String(long.length));
+	assert.ok(decodeURIComponent(long).includes('(cut short)'));
+});
+
 void done('help');

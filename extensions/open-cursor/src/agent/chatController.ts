@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as nodePath from 'path';
 import * as cp from 'child_process';
+import * as os from 'os';
 import type { LLMContent, ModelInfo } from '../providers/types';
 import { isAllowedExternalUrl } from '../shared/externalLink';
 import type { Services } from '../services';
@@ -20,6 +21,7 @@ import { cliHint } from '../shared/cliHints';
 import { ConnectService } from '../connect/connect';
 import { FREE_AUTO_ID, isFreeModel } from '../providers/free';
 import { HelpNavigator } from '../help/navigator';
+import { issueUrl, modelKind } from '../help/issue';
 import { buildHelpSystemPrompt } from '../help/prompt';
 import { instantAnswer } from '../help/answers';
 import { actionLabel, firstInPlaceLink, parseHelpLink } from '../help/targets';
@@ -108,6 +110,21 @@ export function createChatController(ctx: vscode.ExtensionContext, services: Ser
 	return controller;
 }
 
+/** `macOS 15.4 (arm64)`, `Windows 10.0.22631 (x64)`, `Ubuntu 24.04 LTS (x64)`: enough to reproduce a bug, nothing personal. */
+function systemDescription(): string {
+	const arch = process.arch;
+	try {
+		if (process.platform === 'darwin') { return `macOS ${cp.execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8', timeout: 2000 }).trim()} (${arch})`; }
+		if (process.platform === 'linux') {
+			const name = /^PRETTY_NAME="?([^"\n]+)"?/m.exec(fs.readFileSync('/etc/os-release', 'utf8'))?.[1];
+			if (name) { return `${name} (${arch})`; }
+		}
+	} catch {
+		// fall through to the kernel version
+	}
+	return `${process.platform === 'win32' ? 'Windows' : process.platform} ${os.release()} (${arch})`;
+}
+
 class ChatController implements IChatController, vscode.WebviewViewProvider {
 	private readonly store: ChatStore;
 	private readonly ready: Promise<void>;
@@ -133,10 +150,28 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			newChat: async text => { await this.newChat(); this.post({ type: 'focusInput', text }); },
 			connect: async () => { await this.newChat(); this.post({ type: 'showConnect' }); },
 			pastChats: () => this.post({ type: 'showHistory' }),
+			reportIssue: title => this.reportIssue(title),
 		});
 		const base = ctx.storageUri ?? ctx.globalStorageUri;
 		this.store = new ChatStore(nodePath.join(base.fsPath, 'chats'));
 		this.ready = this.store.init();
+	}
+
+	/** A GitHub issue prefilled from the Help chat on screen and the chat the user came from. */
+	private async reportIssue(title?: string): Promise<void> {
+		const help = this.store.activeChatId ? await this.store.get(this.store.activeChatId) : undefined;
+		const work = this.lastWorkChatId ? await this.store.get(this.lastWorkChatId) : undefined;
+		const userMessages = (help?.chat.mode === 'help' ? help.chat.messages : []).flatMap(m => (m.role === 'user' ? [m.text] : []));
+		const mode = work?.chat.mode;
+		const url = issueUrl({
+			title: title ?? '',
+			userMessages,
+			version: String(this.ctx.extension.packageJSON.version ?? ''),
+			system: systemDescription(),
+			mode: mode ? mode[0].toUpperCase() + mode.slice(1) : undefined,
+			model: modelKind(work?.chat.modelId),
+		});
+		await vscode.env.openExternal(vscode.Uri.parse(url, true));
 	}
 
 	private get contextEx(): Partial<IContextServiceEx> {
