@@ -17,6 +17,8 @@ export const DEFAULT_ALLOWLIST = [
 	'pnpm test', 'pnpm run test', 'pnpm lint', 'pnpm build', 'pnpm typecheck', 'pnpm ls',
 	'yarn test', 'yarn lint', 'yarn build', 'npx tsc', 'tsc', 'node --version', 'python --version', 'python3 --version',
 	'cargo check', 'cargo test', 'cargo build', 'cargo clippy', 'go build', 'go test', 'go vet', 'pytest', 'python -m pytest', 'python3 -m pytest', 'make test', 'make build',
+	// Windows: the same read only look around, in cmd and PowerShell
+	'dir', 'type', 'where', 'findstr', 'Get-ChildItem', 'Get-Content', 'Get-Location', 'Get-Item', 'Select-String', 'Test-Path',
 ];
 
 export const DEFAULT_DENYLIST = [

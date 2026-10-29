@@ -5,6 +5,8 @@ import { claudeModeArgs, cliPromptPrefix, codexModeArgs, geminiModeArgs, CLAUDE_
 import { grokPermissionArgs } from '../grok';
 import { openCodeArgs, openCodeEnv, openCodePermission } from '../opencode';
 import type { AutoRun } from '../types';
+import { effectiveAutoRun } from '../policy';
+import { DEFAULT_ALLOWLIST } from '../../agent/approval';
 import type { ChatMode } from '../../shared/protocol';
 
 const after = (args: string[], flag: string): string | undefined => { const i = args.indexOf(flag); return i === -1 ? undefined : args[i + 1]; };
@@ -107,6 +109,24 @@ test('codex: below Full access the user tools are off, and in Ask the shell too'
 	assert.strictEqual(after(auto, '-s'), 'workspace-write');
 	const full = codexModeArgs({ mode: 'agent', autoRun: 'always', configToml: toml });
 	assert.ok(full.includes('--dangerously-bypass-approvals-and-sandbox') && !full.some(a => a.includes('enabled=false') || a.includes('features.')));
+});
+
+test('tools that cannot ask run Allowlist like Auto; Ask, Auto, Full access and the asking tools are unchanged', () => {
+	for (const a of ['opencode', 'gemini-cli', 'grok'] as const) {
+		assert.strictEqual(effectiveAutoRun(a, 'allowlist'), 'auto');
+		assert.strictEqual(effectiveAutoRun(a, 'ask'), 'ask');
+		assert.strictEqual(effectiveAutoRun(a, 'always'), 'always');
+	}
+	assert.strictEqual(effectiveAutoRun('claude-code', 'allowlist'), 'allowlist');
+	assert.strictEqual(effectiveAutoRun('codex', 'allowlist'), 'allowlist');
+	// and through OpenCode's rules: Auto lets dir run but still refuses deleting
+	const rule = openCodePermission({ mode: 'agent', autoRun: effectiveAutoRun('opencode', 'allowlist'), commandAllowlist: DEFAULT_ALLOWLIST }) as { bash: Record<string, string> };
+	assert.strictEqual(rule.bash['*'], 'allow');
+	assert.strictEqual(rule.bash['rm *'], 'deny');
+});
+
+test('the default allowlist covers looking around on Windows', () => {
+	for (const c of ['dir', 'type', 'Get-ChildItem', 'Get-Content']) { assert.ok(DEFAULT_ALLOWLIST.includes(c), c); }
 });
 
 void done('cli modes');

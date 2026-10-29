@@ -17,6 +17,7 @@ import { runOpenCode } from './opencode';
 import { installOpenCodeCli, resetOpenCodeModelCache } from './opencodeSetup';
 import { cliHint } from '../shared/cliHints';
 import type { CliAgentId, RunOptions, RunResult, TurnHost } from './types';
+import { effectiveAutoRun } from './policy';
 
 const REDETECT_MS = 5 * 60_000;
 const RETRY_MISSING_MS = 30_000;
@@ -154,7 +155,7 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 				images: opts.images,
 				cwd: opts.cwd,
 				sessionId: opts.sessionId,
-				autoRun: opts.autoRun,
+				autoRun: effectiveAutoRun(opts.agent, opts.autoRun),
 				commandAllowlist: cfg.allowlist,
 				extraArgs: cfg.extraArgs[opts.agent],
 				env: await cliEnv(info.binaryPath),

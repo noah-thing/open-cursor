@@ -565,7 +565,17 @@
 							"python -m pytest",
 							"python3 -m pytest",
 							"make test",
-							"make build"
+							"make build",
+							"dir",
+							"type",
+							"where",
+							"findstr",
+							"Get-ChildItem",
+							"Get-Content",
+							"Get-Location",
+							"Get-Item",
+							"Select-String",
+							"Test-Path"
 						],
 						"markdownDescription": "Command prefixes the agent may run without asking when `#openCursor.agent.autoRun#` is `allowlist` or `auto`. Chained commands (`&&`, `|`, `;`) must all match; redirects to files and command substitution always ask."
 					},

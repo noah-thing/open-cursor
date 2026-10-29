@@ -136,7 +136,9 @@ function cliPermissionNote(modelId: string, autoRun: AutoRun): string | undefine
 	const agent = modelId.slice(4, modelId.indexOf('/'));
 	if (agent === 'claude-code') { return undefined; }
 	if (agent === 'codex') { return autoRun === 'ask' ? 'Codex cannot stop to ask, so in Ask it runs no commands.' : 'Codex cannot stop to ask, so its commands run in a sandbox that can only change this project and cannot go online. Deleted files show up for review.'; }
-	return `${AGENT_NAMES[agent] ?? 'This CLI'} cannot stop to ask, so a command that needs your approval is refused instead.`;
+	const name = AGENT_NAMES[agent] ?? 'This CLI';
+	if (autoRun === 'allowlist') { return `${name} cannot stop to ask, so here Allowlist works like Auto: it runs commands, but deleting, installing or going online is refused.`; }
+	return `${name} cannot stop to ask, so a command that needs your approval is refused instead.`;
 }
 
 export function PermissionMenu({ autoRun, modelId }: { readonly autoRun: AutoRun; readonly modelId: string }): ReactElement {

@@ -318,7 +318,7 @@ export async function runOpenCode(o: RunOptions): Promise<RunResult> {
 		o.host.text(
 			MODE_READONLY(o.mode)
 				? `\n\n> OpenCode tried to run \`${oneLine(parser.denied[0], 80)}\`, but ${o.mode} mode is read only. Switch to Agent mode to let it run commands.\n\n`
-				: `\n\n> OpenCode tried to run \`${oneLine(parser.denied[0], 80)}\`, which is not on the agent command allowlist, and OpenCode cannot ask for approval here. Add the command to the allowlist, or set auto-run to run everything, then send your message again.\n\n`,
+				: `\n\n> OpenCode tried to run \`${oneLine(parser.denied[0], 80)}\`, and OpenCode cannot stop to ask for approval. To let it run commands like this, click the shield next to the model name and choose Full access, or add the command to the allowlist in Settings, then send your message again.\n\n`,
 		);
 	}
 	return { sessionId: sid, stopReason: 'done' };
