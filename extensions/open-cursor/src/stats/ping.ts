@@ -16,3 +16,9 @@ export function pingBody(id: string, version: string, platform: NodeJS.Platform,
 	if (arch !== 'arm64' && arch !== 'x64') { return undefined; }
 	return { id, version, os: platform, arch };
 }
+
+/** The user's own telemetry choice. Not vscode.env.isTelemetryEnabled: built Code-OSS reports telemetry
+ *  as unsupported (only Microsoft's product enables it), so that flag is always false in a release. */
+export function telemetryOff(level: unknown, legacy: unknown): boolean {
+	return level === 'off' || legacy === false;
+}
