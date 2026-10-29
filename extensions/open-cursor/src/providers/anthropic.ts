@@ -2,6 +2,7 @@
  *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
+import { anthropicBudget } from '../agent/effort';
 import { ANTHROPIC_MODELS, guessModelInfo, isChatModelId } from './catalog';
 import { guarded, joinUrl, missingKey, parseArgs, request, resolveBase, sseFromBody, verifyByListing, errorKind, type BaseUrl, type KeyGetter, type Rec, type SseEvent } from './http';
 import { ProviderError, type ChatRequest, type LLMContent, type LLMMessage, type LLMProvider, type ModelInfo, type StreamEvent } from './types';
@@ -82,7 +83,7 @@ export function buildAnthropicBody(req: ChatRequest): Rec {
 		}));
 	}
 	if (req.thinking && m.supportsThinking && max > 2048 && canThink(req.messages)) {
-		body.thinking = { type: 'enabled', budget_tokens: Math.min(16_000, max - 1024) };
+		body.thinking = { type: 'enabled', budget_tokens: anthropicBudget(req.effort, max) };
 	} else if (req.temperature !== undefined) {
 		body.temperature = req.temperature;
 	}

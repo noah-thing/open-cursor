@@ -66,6 +66,8 @@ export interface ChatRequest {
 	readonly temperature?: number;
 	/** Ask for extended thinking / reasoning when the model supports it. */
 	readonly thinking?: boolean;
+	/** How much to think when `thinking` is on; high when unset. */
+	readonly effort?: import('../agent/effort').ApiEffort;
 	readonly signal: AbortSignal;
 	/** Waits on 429 before giving up; Free (auto) sets 0 to move on to the next model at once. */
 	readonly retries?: number;

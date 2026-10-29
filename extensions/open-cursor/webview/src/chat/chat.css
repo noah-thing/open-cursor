@@ -430,7 +430,8 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-composer-bar .oc-iconbtn { width: 24px; height: 24px; }
 /* Command permissions: quiet by default, the label drops first when the box is narrow, Full access is tinted so it is never forgotten */
 .oc-composer-bar { container-type: inline-size; }
-.oc-composer-bar > .oc-menu-wrap:has(.oc-perm-chip) { flex: none; }
+.oc-composer-bar > .oc-menu-wrap:has(.oc-perm-chip), .oc-composer-bar > .oc-menu-wrap:has(.oc-effort-chip) { flex: none; }
+.oc-effort-chip { color: var(--oc-fg-3); }
 .oc-perm-chip { color: var(--oc-fg-3); }
 .oc-perm-chip.is-always { color: var(--oc-warn); }
 .oc-perm-chip.is-always:hover, .oc-perm-chip.is-always[aria-expanded='true'] { color: var(--oc-warn); background: color-mix(in srgb, var(--oc-warn) 12%, transparent); }

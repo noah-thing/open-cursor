@@ -2,7 +2,7 @@
 	"name": "open-cursor",
 	"displayName": "OpenCursor",
 	"description": "Agent, Tab, inline edit and chat for OpenCursor.",
-	"version": "0.1.3",
+	"version": "0.1.4",
 	"publisher": "open-cursor",
 	"license": "MIT",
 	"author": "Noah",
@@ -263,6 +263,11 @@
 				"title": "Generate Commit Message",
 				"category": "OpenCursor",
 				"icon": "$(sparkle)"
+			},
+			{
+				"command": "openCursor.setEffort",
+				"title": "Set Thinking Effort",
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.update.check",
@@ -617,10 +622,32 @@
 						"maximum": 500,
 						"markdownDescription": "Maximum model steps (tool call rounds) in one agent turn."
 					},
+					"openCursor.agent.effort": {
+						"type": "string",
+						"enum": [
+							"auto",
+							"off",
+							"low",
+							"medium",
+							"high",
+							"max"
+						],
+						"enumDescriptions": [
+							"API models think at high; Claude Code and Codex keep their own default.",
+							"No thinking on API models. Lowest level for Claude Code and Codex.",
+							"Short thinking. Faster answers.",
+							"A middle amount of thinking.",
+							"Long thinking.",
+							"The most each model allows."
+						],
+						"default": "auto",
+						"markdownDescription": "How hard models think before answering. Also in the chat box, next to the model. Applies to models that can think, Claude Code and Codex."
+					},
 					"openCursor.agent.thinking": {
 						"type": "boolean",
 						"default": true,
-						"markdownDescription": "Ask models that support it to think before answering."
+						"markdownDescription": "Older switch for thinking. Use `#openCursor.agent.effort#` instead; Off there does the same.",
+						"deprecationMessage": "Use openCursor.agent.effort."
 					},
 					"openCursor.rules.user": {
 						"type": "string",
@@ -913,10 +940,12 @@
 					"openCursor.update.mode": {
 						"type": "string",
 						"enum": [
+							"auto",
 							"notify",
 							"off"
 						],
 						"enumDescriptions": [
+							"Download new versions in the background. They install the next time OpenCursor quits.",
 							"Check GitHub for a new version at startup and every six hours, and offer it.",
 							"Never check on its own. Check for Updates still works."
 						],

@@ -8,7 +8,7 @@
 
 import * as vscode from 'vscode';
 import { randomUUID } from 'crypto';
-import { pingBody, telemetryOff } from './ping';
+import { chosen, pingBody, telemetryOff } from './ping';
 
 const ENDPOINT = 'https://opencursor-stats.opencursor.workers.dev/v1/ping';
 const ID_KEY = 'openCursor.stats.installId';
@@ -19,7 +19,7 @@ const EVERY_MS = 60 * 60 * 1000;
 function enabled(): boolean {
 	const t = vscode.workspace.getConfiguration('telemetry');
 	return vscode.workspace.getConfiguration('openCursor').get<boolean>('privacy.anonymousCount', true)
-		&& !telemetryOff(t.get('telemetryLevel'), t.get('enableTelemetry'));
+		&& !telemetryOff(chosen(t.inspect('telemetryLevel')), chosen(t.inspect('enableTelemetry')));
 }
 
 export function registerInstallCount(ctx: vscode.ExtensionContext): void {

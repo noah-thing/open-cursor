@@ -22,6 +22,8 @@ import { registerImporter } from './migrate/importer';
 import { FreeModelsPanel } from './connect/freePanel';
 import { registerUpdater } from './update/updater';
 import { registerInstallCount } from './stats/installCount';
+import { readEffort, setEffort } from './agent/env';
+import type { Effort } from './shared/protocol';
 
 export function activate(ctx: vscode.ExtensionContext): void {
 	const registry = createProviderRegistry(ctx);
@@ -46,6 +48,19 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	registerImporter(ctx);
 	registerUpdater(ctx);
 	registerInstallCount(ctx);
+	ctx.subscriptions.push(vscode.commands.registerCommand('openCursor.setEffort', async () => {
+		const cur = readEffort();
+		const levels: { id: Effort; label: string; detail: string }[] = [
+			{ id: 'auto', label: 'Auto', detail: 'High on API models; Claude Code and Codex keep their own default' },
+			{ id: 'off', label: 'Off', detail: 'No thinking' },
+			{ id: 'low', label: 'Low', detail: 'Short thinking, faster answers' },
+			{ id: 'medium', label: 'Medium', detail: 'A middle amount of thinking' },
+			{ id: 'high', label: 'High', detail: 'Long thinking for harder work' },
+			{ id: 'max', label: 'Max', detail: 'The most the model allows' },
+		];
+		const pick = await vscode.window.showQuickPick(levels.map(l => ({ ...l, description: l.id === cur ? 'current' : undefined })), { title: 'Thinking effort', placeHolder: 'How hard models think before answering' });
+		if (pick) { await setEffort(pick.id); }
+	}));
 
 	const free = new FreeModelsPanel(ctx, services, { activeModel: () => chat.activeModelId(), useModel: id => chat.useModel(id) });
 	ctx.subscriptions.push(free, vscode.commands.registerCommand('openCursor.freeModels.open', (o?: { install?: boolean }) => free.open(o)));

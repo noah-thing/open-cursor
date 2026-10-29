@@ -7,7 +7,7 @@ import * as os from 'os';
 import * as nodePath from 'path';
 import { DEFAULT_ALLOWLIST, DEFAULT_DENYLIST, type AutoRun } from './approval';
 import { toDisplayPath } from '../context/paths';
-import type { ContextItem, ChatMode, UiSettings } from '../shared/protocol';
+import type { ContextItem, ChatMode, Effort, UiSettings } from '../shared/protocol';
 import type { PromptEnv, PromptRule } from './prompts';
 
 export function cfg(): vscode.WorkspaceConfiguration {
@@ -22,6 +22,17 @@ export function readAutoRun(): AutoRun {
 /** The chat's permission menu writes the same user setting as Settings > General. */
 export async function setAutoRun(v: AutoRun): Promise<void> {
 	await cfg().update('agent.autoRun', v === 'allowlist' ? undefined : v, vscode.ConfigurationTarget.Global);
+}
+
+/** Effort from the chat box. Someone who switched thinking off with the old setting starts at Off. */
+export function readEffort(): Effort {
+	const v = cfg().get<string>('agent.effort', 'auto');
+	if (v === 'off' || v === 'low' || v === 'medium' || v === 'high' || v === 'max') { return v; }
+	return cfg().get<boolean>('agent.thinking', true) === false ? 'off' : 'auto';
+}
+
+export async function setEffort(v: Effort): Promise<void> {
+	await cfg().update('agent.effort', v === 'auto' ? undefined : v, vscode.ConfigurationTarget.Global);
 }
 
 export function readLists(): { allowlist: string[]; denylist: string[] } {
@@ -40,6 +51,7 @@ export function readUiSettings(): UiSettings {
 	const c = cfg();
 	return {
 		autoRun: readAutoRun(),
+		effort: readEffort(),
 		showThinking: c.get<boolean>('chat.showThinking', true),
 		fontSize: c.get<number>('chat.fontSize', 13),
 		submitWithModEnter: c.get<boolean>('chat.submitWithModEnter', false),

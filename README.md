@@ -56,7 +56,7 @@ irm https://opencursor.org/install.ps1 | iex
 
 The script picks the build for your system and processor from the latest release and installs it: the app in Applications on macOS, the `.deb` or `.rpm` on Linux (or a portable copy in `~/.local` when neither fits), the per user setup on Windows. Set `OPENCURSOR_VERSION=v0.1.0` to install a specific release.
 
-Then open OpenCursor and pick a model on the start screen: a subscription you are signed in to, a local model, or an API key. New versions show up as a notice in the app; Update installs them on restart.
+Then open OpenCursor and pick a model on the start screen: a subscription you are signed in to, a local model, or an API key. New versions show up as a notice in the app; Update installs them on restart, and Enable auto updates lets later versions download in the background and install when you quit.
 
 ## Download
 
@@ -78,7 +78,7 @@ Builds are not signed yet, so the first launch of a downloaded file needs one ex
 <table>
   <tr>
     <td width="150"><b>Agent</b></td>
-    <td>Reads and searches your code, edits files and runs commands. Four modes: Agent, Plan, Debug and Ask. You choose how much it may run on its own: ask every time, an allowlist, Auto (it asks before deleting, installing or going online) or full access.</td>
+    <td>Reads and searches your code, edits files and runs commands. Four modes: Agent, Plan, Debug and Ask. You choose how much it may run on its own: ask every time, an allowlist, Auto (it asks before deleting, installing or going online) or full access, and how hard the model thinks, from Off to Max.</td>
   </tr>
   <tr>
     <td><b>Tab</b></td>

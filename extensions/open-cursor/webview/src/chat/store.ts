@@ -56,7 +56,7 @@ export type Action =
 	| { kind: 'dismissSuggest'; chatId: string; id: string }
 	| { kind: 'connectHidden'; hidden: boolean };
 
-export const DEFAULT_SETTINGS: UiSettings = { autoRun: 'ask', showThinking: true, fontSize: 13, submitWithModEnter: false };
+export const DEFAULT_SETTINGS: UiSettings = { autoRun: 'ask', effort: 'auto', showThinking: true, fontSize: 13, submitWithModEnter: false };
 
 export function initialState(): State {
 	const saved = loadUiState();

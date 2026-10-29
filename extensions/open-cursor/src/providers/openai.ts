@@ -2,6 +2,7 @@
  *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
+import { openaiEffort } from '../agent/effort';
 import { PROVIDER_LABELS, guessModelInfo, isChatModelId, isFimName, isReasoningName, modelId } from './catalog';
 import { guarded, joinUrl, missingKey, parseArgs, request, resolveBase, sseFromBody, verifyByListing, errorKind, type BaseUrl, type KeyGetter, type Rec, type SseEvent } from './http';
 import { ProviderError, type ChatRequest, type FimRequest, type LLMContent, type LLMMessage, type LLMProvider, type ModelInfo, type ProviderId, type StreamEvent } from './types';
@@ -86,8 +87,8 @@ export function buildOpenAIBody(req: ChatRequest, o: CompatOptions): Rec {
 		body.tools = req.tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
 	}
 	if (m.supportsThinking && req.thinking !== undefined) {
-		if (o.reasoning === 'openai') { body.reasoning_effort = req.thinking ? 'high' : 'low'; }
-		else if (o.reasoning === 'openrouter') { body.reasoning = req.thinking ? { effort: 'high' } : { enabled: false }; }
+		if (o.reasoning === 'openai') { body.reasoning_effort = req.thinking ? openaiEffort(req.effort) : 'low'; }
+		else if (o.reasoning === 'openrouter') { body.reasoning = req.thinking ? { effort: openaiEffort(req.effort) } : { enabled: false }; }
 	}
 	return body;
 }

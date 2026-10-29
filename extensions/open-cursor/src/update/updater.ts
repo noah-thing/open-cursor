@@ -3,6 +3,7 @@
  *  Update notice and one click install. Asks GitHub for the latest release at startup and every
  *  few hours; when it is newer, offers it. Update downloads the file for this install, checks it
  *  against GitHub's checksum, and hands it to a small script that installs it once the app quits.
+ *  With auto updates on, that download happens in the background and the notice is skipped.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
@@ -21,6 +22,7 @@ const FIRST_CHECK_MS = 20_000;
 const EVERY_MS = 6 * 60 * 60 * 1000;
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 const SNOOZE_KEY = 'openCursor.update.snoozed';
+const ENABLE_AUTO = 'Enable auto updates';
 
 interface Ready {
 	readonly version: string;
@@ -106,16 +108,33 @@ class Updater implements vscode.Disposable {
 			if (manual) { void vscode.window.showInformationMessage(`OpenCursor ${this.current} is the latest version.`); }
 			return;
 		}
+		if (!manual && this.auto() && this.silent(kind, release)) {
+			await this.install(release, true);
+			return;
+		}
 		const snoozed = this.ctx.globalState.get<{ version: string; until: number }>(SNOOZE_KEY);
 		if (!manual && snoozed && snoozed.version === release.version && Date.now() < snoozed.until) { return; }
-		const pick = await vscode.window.showInformationMessage(`OpenCursor ${release.version} is available. You have ${this.current}.`, 'Update', 'What\'s new', 'Later');
-		if (pick === 'Update') {
+		const actions = this.auto() ? ['Update', 'What\'s new', 'Later'] : [ENABLE_AUTO, 'Update', 'What\'s new', 'Later'];
+		const pick = await vscode.window.showInformationMessage(`OpenCursor ${release.version} is available. You have ${this.current}.`, ...actions);
+		if (pick === ENABLE_AUTO) {
+			await cfg().update('mode', 'auto', vscode.ConfigurationTarget.Global);
+			await this.install(release);
+		} else if (pick === 'Update') {
 			await this.install(release);
 		} else if (pick === 'What\'s new') {
 			void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || 'https://github.com/noah-thing/open-cursor/releases'));
 		} else {
 			await this.ctx.globalState.update(SNOOZE_KEY, { version: release.version, until: Date.now() + SNOOZE_MS });
 		}
+	}
+
+	private auto(): boolean {
+		return cfg().get<string>('mode', 'notify') === 'auto';
+	}
+
+	/** Installs that need no password or manual step can update in the background. */
+	private silent(kind: InstallKind, release: Release): boolean {
+		return (kind === 'mac-app' || kind === 'linux-tar' || kind === 'win-setup') && !!pickAsset(release, kind, process.arch);
 	}
 
 	private kind(): InstallKind {
@@ -129,7 +148,9 @@ class Updater implements vscode.Disposable {
 		return detectInstall({ platform: process.platform, appRoot, portable: !!process.env.VSCODE_PORTABLE, linuxPackage, writable: writable(path.dirname(root)) && writable(root) });
 	}
 
-	private async install(release: Release): Promise<void> {
+	/** `quiet` downloads in the status bar instead of a notification and does not ask to restart:
+	 *  the new version installs whenever the app next quits. */
+	private async install(release: Release, quiet = false): Promise<void> {
 		const kind = this.kind();
 		const asset = pickAsset(release, kind, process.arch);
 		if (!asset) {
@@ -141,15 +162,18 @@ class Updater implements vscode.Disposable {
 		}
 		this.busy = true;
 		try {
-			const ready = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Updating OpenCursor to ${release.version}`, cancellable: true }, (progress, token) => this.prepare(release, asset, kind, progress, token));
+			const location = quiet ? vscode.ProgressLocation.Window : vscode.ProgressLocation.Notification;
+			const ready = await vscode.window.withProgress({ location, title: `Updating OpenCursor to ${release.version}`, cancellable: !quiet }, (progress, token) => this.prepare(release, asset, kind, progress, token));
 			if (ready) {
 				this.ready = ready;
 				this.status.text = '$(sync) Restart to update';
-				this.status.tooltip = `OpenCursor ${ready.version} is ready. Restart to finish updating.`;
+				this.status.tooltip = `OpenCursor ${ready.version} is ready. It installs when you quit, or restart now.`;
 				this.status.show();
-				void this.offerRestart(ready);
+				if (!quiet) { void this.offerRestart(ready); }
 			}
 		} catch (e) {
+			// a background attempt fails quietly and tries again at the next check
+			if (quiet) { return; }
 			const go = await vscode.window.showErrorMessage(`The update did not finish: ${e instanceof Error ? e.message : String(e)}`, 'Open release page');
 			if (go) { void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || 'https://github.com/noah-thing/open-cursor/releases')); }
 		} finally {

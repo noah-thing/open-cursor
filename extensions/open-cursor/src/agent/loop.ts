@@ -17,10 +17,12 @@ import {
 } from './modes';
 import type { ToolContext, ToolDef, ToolResult } from './tools/types';
 import type { ToolSet } from './tools';
+import type { ApiEffort } from './effort';
 
 export interface LoopSettings {
 	readonly maxIterations: number;
 	readonly thinking: boolean;
+	readonly effort?: ApiEffort;
 	getPolicy(): ApprovalPolicy;
 	addSessionAllow(prefix: string): void;
 }
@@ -268,7 +270,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 			calls.clear(); text = ''; thinking = ''; signature = undefined; stopReason = undefined; failure = undefined;
 			const req: ChatRequest = {
 				model, system: p.system, messages: transcriptMessages(transcript), tools: p.tools.schemas.length ? p.tools.schemas : undefined,
-				maxTokens: Math.min(model.maxOutputTokens || 8192, 32000), thinking: !thinkingOff && settings.thinking && model.supportsThinking, signal,
+				maxTokens: Math.min(model.maxOutputTokens || 8192, 32000), thinking: !thinkingOff && settings.thinking && model.supportsThinking, effort: settings.effort, signal,
 			};
 			try {
 				for await (const ev of registry.stream(req)) {

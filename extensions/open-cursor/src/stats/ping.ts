@@ -22,3 +22,9 @@ export function pingBody(id: string, version: string, platform: NodeJS.Platform,
 export function telemetryOff(level: unknown, legacy: unknown): boolean {
 	return level === 'off' || legacy === false;
 }
+
+/** The value a person set themselves, ignoring defaults. OpenCursor ships telemetry.telemetryLevel
+ *  defaulting to off so Microsoft's telemetry never runs, and that default must not read as a choice. */
+export function chosen<T>(i: { globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } | undefined): T | undefined {
+	return i?.workspaceFolderValue ?? i?.workspaceValue ?? i?.globalValue;
+}

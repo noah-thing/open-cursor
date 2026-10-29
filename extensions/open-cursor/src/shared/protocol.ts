@@ -138,8 +138,12 @@ export interface PendingFileEdit {
 	readonly deleted?: boolean;
 }
 
+/** How hard models think. Auto: API models think at high, CLIs keep their own default. */
+export type Effort = 'auto' | 'off' | 'low' | 'medium' | 'high' | 'max';
+
 export interface UiSettings {
 	readonly autoRun: 'ask' | 'allowlist' | 'auto' | 'always';
+	readonly effort: Effort;
 	readonly showThinking: boolean;
 	readonly fontSize: number;
 	readonly submitWithModEnter: boolean;
@@ -187,6 +191,7 @@ export type WebviewMessage =
 	| { readonly type: 'setMode'; readonly chatId: string; readonly mode: ChatMode }
 	| { readonly type: 'setModel'; readonly chatId: string; readonly modelId: string }
 	| { readonly type: 'setAutoRun'; readonly autoRun: UiSettings['autoRun'] }
+	| { readonly type: 'setEffort'; readonly effort: Effort }
 	| { readonly type: 'approveTool'; readonly chatId: string; readonly toolCallId: string; readonly decision: 'run' | 'skip' | 'allowAlways' }
 	| { readonly type: 'restoreCheckpoint'; readonly chatId: string; readonly messageId: string }
 	| { readonly type: 'searchMentions'; readonly requestId: number; readonly query: string; readonly kind?: ContextKind }

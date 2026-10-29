@@ -3,6 +3,7 @@
  *  Chat controller: owns chats, runs turns (native loop or CLI agent), talks to the webview.
  *--------------------------------------------------------------------------------------------*/
 
+import { apiEffort } from './effort';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as nodePath from 'path';
@@ -31,7 +32,7 @@ import { actionLabel, firstInPlaceLink, parseHelpLink } from '../help/targets';
 import { suggestAllowPrefix } from './approval';
 import { applyCodeToFile } from './applyCode';
 import {
-	buildEnv, cfg, editorSnapshot, parseDataUrl, readAutoRun, readDefaultMode, readLists, readMaxIterations, readUiSettings, referencedFiles, selectionItem, setAutoRun,
+	buildEnv, editorSnapshot, parseDataUrl, readAutoRun, readDefaultMode, readLists, readMaxIterations, readUiSettings, referencedFiles, selectionItem, setAutoRun, readEffort, setEffort,
 } from './env';
 import { buildHistoryFromChat, truncateTranscript } from './history';
 import { compactTranscript, runAgentLoop, type LoopHooks } from './loop';
@@ -410,6 +411,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'rejectFile': await this.services.pendingEdits.rejectFile(vscode.Uri.parse(m.uri)); return;
 			case 'openSettings': return this.openSettings(m.section);
 			case 'setAutoRun': void setAutoRun(m.autoRun); return;
+			case 'setEffort': void setEffort(m.effort); return;
 			case 'copy': await vscode.env.clipboard.writeText(m.text); return;
 			case 'insertCode': return this.insertCode(m.code);
 			case 'applyCode': return this.applyCode(m.code, m.path);
@@ -1352,7 +1354,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			settings: {
 				maxIterations: readMaxIterations(),
 				// Help looks things up in the manual it was handed; thinking only adds seconds.
-				thinking: mode === 'help' ? false : cfg().get<boolean>('agent.thinking', true),
+				thinking: mode === 'help' ? false : apiEffort(readEffort()) !== undefined,
+				effort: apiEffort(readEffort()),
 				getPolicy: () => ({ autoRun: readAutoRun(), ...readLists(), sessionAllow: this.sessionAllow }),
 				addSessionAllow: prefix => { this.sessionAllow.add(prefix); },
 			},
@@ -1463,7 +1466,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const result = await this.services.cli.runTurn({
 			agent, model, mode: sc.chat.mode, prompt, images: images.length ? images : undefined, cwd,
 			sessionId: sc.cliSessionAgent === agent && sc.cliSessionCwd === cwd ? sc.cliSessionId : undefined,
-			autoRun: readAutoRun(), signal,
+			autoRun: readAutoRun(), effort: readEffort(), signal,
 			callbacks: {
 				onText: d => this.appendText(turn, d),
 				onThinking: d => this.appendThinking(turn, d),

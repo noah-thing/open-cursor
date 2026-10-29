@@ -33,6 +33,11 @@ export function General({ state, set, send }: SectionProps): ReactElement {
 				<Row label={'Send with ' + MOD + 'Enter'} desc="Enter inserts a new line instead of sending.">
 					<Toggle label="Send with modifier plus Enter" checked={c['chat.submitWithModEnter']} onChange={v => set('chat.submitWithModEnter', v)} />
 				</Row>
+				<Row label="Thinking effort" desc="How hard models think before answering. Auto thinks at high on API models and keeps the default of Claude Code and Codex. Also in the chat box, next to the model.">
+					<Select label="Thinking effort" value={c['agent.effort']} onChange={v => set('agent.effort', v)} options={[
+						{ value: 'auto', label: 'Auto' }, { value: 'off', label: 'Off' }, { value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }, { value: 'max', label: 'Max' },
+					]} />
+				</Row>
 				<Row label="Show thinking" desc="Let thinking rows expand to show the model's reasoning.">
 					<Toggle label="Show thinking" checked={c['chat.showThinking']} onChange={v => set('chat.showThinking', v)} />
 				</Row>
@@ -51,6 +56,13 @@ export function General({ state, set, send }: SectionProps): ReactElement {
 				</Row>
 				<Row stacked label="Denylist" desc="Commands starting with these always ask, whatever the policy.">
 					<ListEditor label="Command denylist" items={c['agent.commandDenylist']} onChange={v => set('agent.commandDenylist', v)} placeholder="git push" />
+				</Row>
+			</Group>
+			<Group title="Updates">
+				<Row label="Updates" desc="Automatic downloads new versions in the background; they install the next time OpenCursor quits.">
+					<Select label="Updates" value={c['update.mode']} onChange={v => set('update.mode', v)} options={[
+						{ value: 'auto', label: 'Automatic' }, { value: 'notify', label: 'Ask first' }, { value: 'off', label: 'Off' },
+					]} />
 				</Row>
 			</Group>
 			<Group title="Privacy" hint="OpenCursor has no account and no server between you and your models. API keys stay in the system keychain.">

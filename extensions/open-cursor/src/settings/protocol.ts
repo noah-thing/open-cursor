@@ -36,6 +36,8 @@ export interface ConfigValues {
 	'chat.submitWithModEnter': boolean;
 	'privacy.anonymousCount': boolean;
 	'chat.showThinking': boolean;
+	'agent.effort': 'auto' | 'off' | 'low' | 'medium' | 'high' | 'max';
+	'update.mode': 'auto' | 'notify' | 'off';
 	'chat.fontSize': number;
 	'models.default': string;
 	'models.inline': string;
@@ -65,6 +67,8 @@ export const CONFIG_DEFAULTS: ConfigValues = {
 	'chat.submitWithModEnter': false,
 	'privacy.anonymousCount': true,
 	'chat.showThinking': true,
+	'agent.effort': 'auto',
+	'update.mode': 'notify',
 	'chat.fontSize': 13,
 	'models.default': '',
 	'models.inline': '',

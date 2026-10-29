@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
-import type { ChatMode, ModelOption, UiSettings } from '../../../src/shared/protocol';
+import type { ChatMode, Effort, ModelOption, UiSettings } from '../../../src/shared/protocol';
 import { Icon } from '../common/icons';
 import { post } from './host';
 import { MODE_META, MODE_ORDER, fuzzyScore, providerLabel } from './util';
@@ -177,6 +177,60 @@ export function PermissionMenu({ autoRun, modelId }: { readonly autoRun: AutoRun
 						File edits never ask; you keep or undo them. The denylist always asks.{' '}
 						<button type="button" className="oc-linkbtn" onClick={() => { post({ type: 'openSettings', section: 'general' }); setOpen(false); }}>Edit lists</button>
 					</div>
+				</Popover>
+			) : null}
+		</div>
+	);
+}
+
+const EFFORTS: readonly { readonly id: Effort; readonly label: string; readonly hint: string }[] = [
+	{ id: 'auto', label: 'Auto', hint: 'High on API models; CLIs keep their own default' },
+	{ id: 'off', label: 'Off', hint: 'Answers straight away, no thinking' },
+	{ id: 'low', label: 'Low', hint: 'Short thinking, faster answers' },
+	{ id: 'medium', label: 'Medium', hint: 'A middle amount of thinking' },
+	{ id: 'high', label: 'High', hint: 'Long thinking for harder work' },
+	{ id: 'max', label: 'Max', hint: 'The most the model allows' },
+];
+
+/** CLIs that take a level from us; the others choose their own. */
+const EFFORT_AGENTS = new Set(['claude-code', 'codex']);
+
+/** Shown only for a model that can think, or a CLI that takes a level. One setting for every chat. */
+export function EffortMenu({ effort, model }: { readonly effort: Effort; readonly model: ModelOption | undefined }): ReactElement | null {
+	const [open, setOpen] = useState(false);
+	const ref = useRef<HTMLDivElement>(null);
+	useDismiss(ref, open, () => setOpen(false));
+	const agent = model ? agentOf(model) : undefined;
+	if (!model || (agent ? !EFFORT_AGENTS.has(agent) : !model.supportsThinking)) { return null; }
+	// a CLI cannot switch thinking off; its lowest level is Low
+	const options = agent ? EFFORTS.filter(e => e.id !== 'off') : EFFORTS;
+	const cur = options.find(e => e.id === effort) ?? (agent && effort === 'off' ? options.find(e => e.id === 'low')! : options[0]);
+	return (
+		<div className="oc-menu-wrap" ref={ref}>
+			<button type="button" className={'oc-chip oc-effort-chip is-' + cur.id} onClick={() => setOpen(o => !o)} aria-haspopup="menu" aria-expanded={open} title={'Thinking effort: ' + cur.label}>
+				<Icon name="gauge" size={13} />
+				<span className="oc-perm-label">{cur.label}</span>
+			</button>
+			{open ? (
+				<Popover className="oc-perm-menu" align="end" fit>
+					<div className="oc-menu-section-title">Thinking effort</div>
+					{options.map(e => (
+						<button
+							key={e.id}
+							type="button"
+							role="menuitemradio"
+							aria-checked={e.id === cur.id}
+							className={'oc-menu-item' + (e.id === cur.id ? ' is-active' : '')}
+							onClick={() => { post({ type: 'setEffort', effort: e.id }); setOpen(false); }}
+						>
+							<span className="oc-menu-main">
+								<span className="oc-menu-label">{e.label}</span>
+								<span className="oc-menu-hint">{e.hint}</span>
+							</span>
+							{e.id === cur.id ? <Icon name="check" size={13} className="oc-menu-check" /> : null}
+						</button>
+					))}
+					<div className="oc-menu-foot">More effort gives better answers on hard problems and takes longer. It applies to every chat.</div>
 				</Popover>
 			) : null}
 		</div>

@@ -156,6 +156,7 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 				cwd: opts.cwd,
 				sessionId: opts.sessionId,
 				autoRun: effectiveAutoRun(opts.agent, opts.autoRun),
+				effort: opts.effort,
 				commandAllowlist: cfg.allowlist,
 				extraArgs: cfg.extraArgs[opts.agent],
 				env: await cliEnv(info.binaryPath),

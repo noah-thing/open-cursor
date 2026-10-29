@@ -34,6 +34,8 @@ export interface RunOptions {
 	cwd: string;
 	sessionId?: string;
 	autoRun: AutoRun;
+	/** From the chat box; Auto leaves the CLI's own default. */
+	effort?: import('../shared/protocol').Effort;
 	commandAllowlist: string[];
 	extraArgs: string[];
 	/** Environment for the child (login shell PATH merged in). */

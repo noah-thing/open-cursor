@@ -159,6 +159,7 @@ export interface ICliAgents {
 		cwd: string;
 		sessionId?: string;
 		autoRun: 'ask' | 'allowlist' | 'auto' | 'always';
+		effort?: import('./shared/protocol').Effort;
 		signal: AbortSignal;
 		callbacks: CliTurnCallbacks;
 	}): Promise<{ sessionId?: string; stopReason: 'done' | 'aborted' | 'error'; error?: string }>;

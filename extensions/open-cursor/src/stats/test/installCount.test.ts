@@ -1,5 +1,5 @@
 import { assert, done, test } from '../../agent/test/harness';
-import { pingBody, telemetryOff } from '../ping';
+import { chosen, pingBody, telemetryOff } from '../ping';
 
 test('a ping carries exactly the random ID, version, OS and processor', () => {
 	const b = pingBody('7f3a9c2e-1b4d-4f6a-9c8e-2d5b7a1f3e90', '0.1.2', 'darwin', 'arm64');
@@ -15,6 +15,13 @@ test('the count follows the telemetry setting the user chose, on by default', ()
 	assert.strictEqual(telemetryOff('error', undefined), false);
 	assert.strictEqual(telemetryOff('off', undefined), true);
 	assert.strictEqual(telemetryOff('all', false), true);
+});
+
+test('only a value the person set counts, never the shipped default', () => {
+	assert.strictEqual(chosen({ defaultValue: 'off' } as never), undefined);
+	assert.strictEqual(chosen({ globalValue: 'off' }), 'off');
+	assert.strictEqual(chosen({ globalValue: 'all', workspaceValue: 'off' }), 'off');
+	assert.strictEqual(chosen(undefined), undefined);
 });
 
 void done('install count');

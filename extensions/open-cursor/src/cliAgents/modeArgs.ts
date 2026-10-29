@@ -15,12 +15,13 @@
  *  tested headless).
  *--------------------------------------------------------------------------------------------*/
 
+import { claudeEffortArgs, codexEffortArgs } from '../agent/effort';
 import { cliModeGuidance } from '../agent/prompts';
 import type { RunOptions } from './types';
 import { MODE_READONLY } from './types';
 import { commandAllowed } from './policy';
 
-type ModeOpts = Pick<RunOptions, 'mode' | 'autoRun'>;
+type ModeOpts = Pick<RunOptions, 'mode' | 'autoRun' | 'effort'>;
 
 /** Claude Code tools that change files; removed outright in ask and plan. */
 export const CLAUDE_EDIT_TOOLS = ['Edit', 'Write', 'NotebookEdit'];
@@ -29,7 +30,7 @@ export const CLAUDE_BASE_PROMPT =
 	'You are running inside OpenCursor, a code editor. The user sees your replies and tool calls in its chat panel and reviews every file edit there (Keep or Undo), so edit files directly with your normal tools and keep chat replies concise. Permission requests are answered in the editor. Do not use interactive terminal-only features.';
 
 /** System prompt and permission flags for Claude Code. `acceptEdits` is applied by the caller when there is no approval channel. */
-export function claudeModeArgs(o: Pick<RunOptions, 'mode'>): string[] {
+export function claudeModeArgs(o: Pick<RunOptions, 'mode' | 'effort'>): string[] {
 	if (o.mode === 'help') {
 		// Help answers from the manual alone: no tools at all, not even reading.
 		// A lookup with the manual in hand: the fast model at low effort answers it as well, in a fraction of the time.
@@ -41,6 +42,7 @@ export function claudeModeArgs(o: Pick<RunOptions, 'mode'>): string[] {
 	if (readonly) {
 		args.push('--disallowed-tools', CLAUDE_EDIT_TOOLS.join(','));
 	}
+	args.push(...claudeEffortArgs(o.effort));
 	return args;
 }
 
@@ -75,7 +77,7 @@ export function codexModeArgs(o: ModeOpts & Pick<RunOptions, 'sessionId'> & { re
 		args.push('-s', sandbox);
 	}
 	args.push('-c', 'approval_policy="never"');
-	if (o.mode === 'help') { args.push('-c', 'model_reasoning_effort="low"'); }
+	args.push(...(o.mode === 'help' ? ['-c', 'model_reasoning_effort="low"'] : codexEffortArgs(o.effort)));
 	// a JSON string is a valid TOML basic string
 	args.push('-c', `developer_instructions=${JSON.stringify(cliModeGuidance(o.mode))}`);
 	return args;
