@@ -25,7 +25,23 @@
 	],
 	"capabilities": {
 		"untrustedWorkspaces": {
-			"supported": "limited"
+			"supported": "limited",
+			"description": "In Restricted Mode, project MCP servers do not start and settings that change where requests go or what runs without asking are ignored.",
+			"restrictedConfigurations": [
+				"openCursor.agent.autoRun",
+				"openCursor.agent.commandAllowlist",
+				"openCursor.agent.commandDenylist",
+				"openCursor.cli.paths",
+				"openCursor.cli.claudeCode.extraArgs",
+				"openCursor.cli.codex.extraArgs",
+				"openCursor.cli.grok.extraArgs",
+				"openCursor.cli.gemini.extraArgs",
+				"openCursor.cli.opencode.extraArgs",
+				"openCursor.providers.ollama.baseUrl",
+				"openCursor.providers.lmstudio.baseUrl",
+				"openCursor.providers.custom.baseUrl",
+				"openCursor.providers.openai.baseUrl"
+			]
 		},
 		"virtualWorkspaces": false
 	},
@@ -467,6 +483,7 @@
 				"properties": {
 					"openCursor.agent.autoRun": {
 						"type": "string",
+						"scope": "machine",
 						"enum": [
 							"ask",
 							"allowlist",
@@ -484,6 +501,7 @@
 					},
 					"openCursor.agent.commandAllowlist": {
 						"type": "array",
+						"scope": "machine",
 						"items": {
 							"type": "string"
 						},
@@ -553,6 +571,7 @@
 					},
 					"openCursor.agent.commandDenylist": {
 						"type": "array",
+						"scope": "machine",
 						"items": {
 							"type": "string"
 						},
@@ -639,6 +658,7 @@
 					},
 					"openCursor.cli.paths": {
 						"type": "object",
+						"scope": "machine",
 						"default": {},
 						"markdownDescription": "Explicit binary paths when detection fails, e.g. `{ \"claude-code\": \"~/.local/bin/claude\", \"codex\": \"/opt/homebrew/bin/codex\", \"grok\": \"~/.local/bin/grok\", \"gemini-cli\": \"/opt/homebrew/bin/gemini\", \"opencode\": \"~/.opencode/bin/opencode\" }`.",
 						"properties": {
@@ -664,6 +684,7 @@
 					},
 					"openCursor.cli.claudeCode.extraArgs": {
 						"type": "array",
+						"scope": "machine",
 						"items": {
 							"type": "string"
 						},
@@ -672,6 +693,7 @@
 					},
 					"openCursor.cli.codex.extraArgs": {
 						"type": "array",
+						"scope": "machine",
 						"items": {
 							"type": "string"
 						},
@@ -680,6 +702,7 @@
 					},
 					"openCursor.cli.grok.extraArgs": {
 						"type": "array",
+						"scope": "machine",
 						"items": {
 							"type": "string"
 						},
@@ -688,6 +711,7 @@
 					},
 					"openCursor.cli.gemini.extraArgs": {
 						"type": "array",
+						"scope": "machine",
 						"items": {
 							"type": "string"
 						},
@@ -696,6 +720,7 @@
 					},
 					"openCursor.cli.opencode.extraArgs": {
 						"type": "array",
+						"scope": "machine",
 						"items": {
 							"type": "string"
 						},
@@ -803,6 +828,7 @@
 					},
 					"openCursor.providers.ollama.baseUrl": {
 						"type": "string",
+						"scope": "machine",
 						"default": "http://localhost:11434",
 						"description": "Ollama server URL."
 					},
@@ -813,16 +839,19 @@
 					},
 					"openCursor.providers.lmstudio.baseUrl": {
 						"type": "string",
+						"scope": "machine",
 						"default": "http://localhost:1234/v1",
 						"description": "LM Studio local server URL."
 					},
 					"openCursor.providers.custom.baseUrl": {
 						"type": "string",
+						"scope": "machine",
 						"default": "",
 						"markdownDescription": "Base URL of any OpenAI-compatible endpoint (vLLM, llama.cpp, LiteLLM, ...), e.g. `http://localhost:8000/v1`. Set a key with **OpenCursor: Set API Key** if it needs one."
 					},
 					"openCursor.providers.openai.baseUrl": {
 						"type": "string",
+						"scope": "machine",
 						"default": "",
 						"markdownDescription": "Override the OpenAI base URL, for Azure OpenAI or a proxy. Empty uses `https://api.openai.com/v1`."
 					}

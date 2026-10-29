@@ -3,6 +3,7 @@
  *  Pure MCP config helpers (no vscode import): parsing, merging, interpolation, tool naming.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 
 export interface StdioServerConfig {
@@ -139,4 +140,17 @@ export function prefixedToolName(server: string, tool: string): string {
 	if (full.length <= 64) { return full; }
 	const h = createHash('sha1').update(`${server}\u0000${tool}`).digest('hex').slice(0, 6);
 	return `${full.slice(0, 57)}_${h}`;
+}
+
+/** True when the config came from a file inside an open project folder rather than from the user's home. */
+export function isProjectSource(source: string, folders: readonly string[]): boolean {
+	const file = path.resolve(source);
+	return folders.some(f => file.startsWith(path.resolve(f) + path.sep));
+}
+
+/** What the server would do, in words the user can check: the exact command line or URL. */
+export function describeServer(cfg: ServerConfig): string {
+	if (isHttp(cfg)) { return `Connect to ${cfg.url}`; }
+	const quote = (a: string) => /^[\w@%+=:,./-]+$/.test(a) ? a : JSON.stringify(a);
+	return `Run ${[cfg.command, ...(cfg.args ?? [])].map(quote).join(' ')}`;
 }

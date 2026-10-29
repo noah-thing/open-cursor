@@ -9,6 +9,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -17,9 +18,11 @@ import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/typ
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { IMcpManager, McpServerState } from '../services';
 import type { ToolSchema } from '../providers/types';
-import { interpolateConfig, isHttp, mergeLayers, prefixedToolName, type ResolvedServer, type ServerConfig } from './config';
+import { describeServer, interpolateConfig, isHttp, isProjectSource, mergeLayers, prefixedToolName, type ResolvedServer, type ServerConfig } from './config';
 
 const DISABLED_KEY = 'openCursor.mcp.enabledOverrides';
+/** The user's answer per project server: a hash of the config file and the exact config -> allowed or not. */
+const APPROVAL_KEY = 'openCursor.mcp.projectApprovals';
 const CONNECT_TIMEOUT_MS = 30_000;
 const CALL_TIMEOUT_MS = 10 * 60_000;
 
@@ -98,6 +101,43 @@ export function createMcpManager(ctx: vscode.ExtensionContext): IMcpManager {
 	let disposed = false;
 
 	const overrides = (): Record<string, boolean> => ctx.globalState.get<Record<string, boolean>>(DISABLED_KEY) ?? {};
+
+	// A cloned repository can ship an mcp.json. Its servers run programs on this machine, so they only
+	// start in a trusted folder and after the user has seen the exact command and allowed it.
+	const folders = () => (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
+	const approvalId = (r: ResolvedServer) => createHash('sha256').update(r.source + '\0' + r.name + '\0' + JSON.stringify(r.config)).digest('hex');
+	const approvals = (): Record<string, boolean> => ctx.globalState.get<Record<string, boolean>>(APPROVAL_KEY) ?? {};
+	const asking = new Map<string, Promise<boolean | undefined>>();
+
+	function askApproval(r: ResolvedServer): Promise<boolean | undefined> {
+		const id = approvalId(r);
+		const known = approvals()[id];
+		if (known !== undefined) { return Promise.resolve(known); }
+		let p = asking.get(id);
+		if (!p) {
+			const where = vscode.workspace.asRelativePath(r.source, true);
+			p = (async () => {
+				const pick = await vscode.window.showWarningMessage(
+					`This project wants to start the MCP server "${r.name}"`,
+					{ modal: true, detail: `${describeServer(r.config)}\n\nFrom ${where}. Only allow it if you trust this project: the server runs with your user's permissions.` },
+					'Allow', 'Don\'t Allow');
+				if (pick === undefined) { return undefined; } // closed: ask again next time
+				await ctx.globalState.update(APPROVAL_KEY, { ...approvals(), [id]: pick === 'Allow' });
+				return pick === 'Allow';
+			})().finally(() => asking.delete(id));
+			asking.set(id, p);
+		}
+		return p;
+	}
+
+	/** Undefined when the server may start; otherwise why it may not. */
+	async function projectBlock(r: ResolvedServer): Promise<string | undefined> {
+		if (!isProjectSource(r.source, folders())) { return undefined; }
+		if (!vscode.workspace.isTrusted) { return 'Not started: this folder is not trusted. Trust it to use its MCP servers.'; }
+		const ok = await askApproval(r);
+		if (ok === true) { return undefined; }
+		return ok === false ? 'Not started: you chose not to allow this project server.' : 'Not started yet: waiting for your approval.';
+	}
 	const isEnabled = (r: ResolvedServer) => overrides()[r.name] ?? !(r.config.disabled === true);
 
 	function fire(): void {
@@ -186,6 +226,15 @@ export function createMcpManager(ctx: vscode.ExtensionContext): IMcpManager {
 		const gen = s.generation;
 		s.started = (async () => {
 			try {
+				const blocked = await projectBlock(s.resolved);
+				if (blocked) {
+					if (gen !== s.generation) { return; }
+					s.status = 'disabled';
+					s.error = blocked;
+					s.started = undefined;
+					fire();
+					return;
+				}
 				const { client, transport } = await connect(s.resolved.config);
 				if (gen !== s.generation || disposed) {
 					await client.close().catch(() => undefined);
@@ -281,6 +330,13 @@ export function createMcpManager(ctx: vscode.ExtensionContext): IMcpManager {
 		}
 	}
 
+	/** Shortly after launch, start the user's own servers so the first message has their tools. Project servers wait until the agent needs tools, then ask. */
+	function warmUserServers(): void {
+		for (const s of servers.values()) {
+			if (s.status !== 'disabled' && !isProjectSource(s.resolved.source, folders())) { void startServer(s); }
+		}
+	}
+
 	function getServers(): McpServerState[] {
 		return [...servers.values()].map(s => ({
 			name: s.name,
@@ -341,6 +397,12 @@ export function createMcpManager(ctx: vscode.ExtensionContext): IMcpManager {
 	}
 
 	async function setEnabled(name: string, enabled: boolean): Promise<void> {
+		const s = servers.get(name);
+		if (enabled && s && isProjectSource(s.resolved.source, folders())) {
+			const rest = { ...approvals() };
+			delete rest[approvalId(s.resolved)];
+			await ctx.globalState.update(APPROVAL_KEY, rest);
+		}
 		await ctx.globalState.update(DISABLED_KEY, { ...overrides(), [name]: enabled });
 		await syncOnce();
 	}
@@ -385,13 +447,14 @@ export function createMcpManager(ctx: vscode.ExtensionContext): IMcpManager {
 		return w;
 	});
 
-	const warmup = setTimeout(() => ensureStarted(), 3000);
+	const warmup = setTimeout(() => warmUserServers(), 3000);
 	void syncOnce();
 
 	ctx.subscriptions.push(
 		onDidChange,
 		...watchers,
 		vscode.workspace.onDidChangeWorkspaceFolders(scheduleSync),
+		vscode.workspace.onDidGrantWorkspaceTrust(() => void reload()),
 		vscode.commands.registerCommand('openCursor.mcp.reload', () => reload()),
 		vscode.commands.registerCommand('openCursor.mcp.openUserConfig', () => openConfig('user')),
 		vscode.commands.registerCommand('openCursor.mcp.openWorkspaceConfig', () => openConfig('workspace')),
