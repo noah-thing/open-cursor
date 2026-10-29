@@ -44,7 +44,7 @@ irm https://raw.githubusercontent.com/noah-thing/open-cursor/main/install.ps1 | 
 
 The script picks the build for your system and processor from the latest release and installs it: the app in Applications on macOS, the `.deb` or `.rpm` on Linux (or a portable copy in `~/.local` when neither fits), the per user setup on Windows. Set `OPENCURSOR_VERSION=v0.1.0` to install a specific release.
 
-Then open OpenCursor and pick a model on the start screen: a subscription you are signed in to, a local model, or an API key.
+Then open OpenCursor and pick a model on the start screen: a subscription you are signed in to, a local model, or an API key. New versions show up as a notice in the app; Update installs them on restart.
 
 ## Download
 
@@ -167,4 +167,4 @@ Issues and pull requests are welcome. Run `npm run typecheck` in `extensions/ope
 
 [MIT](LICENSE.txt). Built on [Code - OSS](https://github.com/microsoft/vscode) by Microsoft, also MIT.
 
-Made by Noah, [@fsconfig](https://x.com/fsconfig) on X. If OpenCursor saves you time, a follow or a star helps.
+Made by Noah, [@fsconfig](https://x.com/fsconfig) on X. If you like OpenCursor, a star or a follow means a lot.
