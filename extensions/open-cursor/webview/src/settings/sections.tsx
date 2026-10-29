@@ -41,12 +41,12 @@ export function General({ state, set, send }: SectionProps): ReactElement {
 				</Row>
 			</Group>
 			<Group title="Terminal commands" hint="File edits never ask: they land as pending changes you can keep or undo. This only covers shell commands.">
-				<Row label="Auto-run" desc="When the agent may run a command without asking you.">
+				<Row label="Auto-run" desc="When the agent may run a command without asking you. Auto runs safe commands and asks before deleting, installing or going online. Full access never asks. Also in the chat box, next to the model.">
 					<Segmented label="Auto-run policy" value={c['agent.autoRun']} onChange={v => set('agent.autoRun', v)} options={[
-						{ value: 'ask', label: 'Ask every time' }, { value: 'allowlist', label: 'Allowlist' }, { value: 'always', label: 'Always run' },
+						{ value: 'ask', label: 'Ask every time' }, { value: 'allowlist', label: 'Allowlist' }, { value: 'auto', label: 'Auto' }, { value: 'always', label: 'Full access' },
 					]} />
 				</Row>
-				<Row stacked label="Allowlist" desc={'Commands starting with these run without asking when auto-run is "Allowlist".'} disabled={c['agent.autoRun'] !== 'allowlist'}>
+				<Row stacked label="Allowlist" desc={'Commands starting with these run without asking in Allowlist and Auto.'} disabled={c['agent.autoRun'] !== 'allowlist' && c['agent.autoRun'] !== 'auto'}>
 					<ListEditor label="Command allowlist" items={c['agent.commandAllowlist']} onChange={v => set('agent.commandAllowlist', v)} placeholder="npm test" />
 				</Row>
 				<Row stacked label="Denylist" desc="Commands starting with these always ask, whatever the policy.">

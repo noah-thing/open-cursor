@@ -11,7 +11,8 @@ const chatFrame = async (page, sleep) => {
 export default async ({ page, shot, sleep }) => {
 	await sleep(3000);
 	const f = await chatFrame(page, sleep);
-	await f.click("button[aria-label=\"New chat\"]");
+	// the chat header button, or the sidebar row when the chat list is docked beside the chat
+	await f.locator("button[aria-label=\"New chat\"], button:has-text(\"New chat\")").first().click();
 	await sleep(1200);
 	await shot("h1-home");
 	if (process.env.OC_PROMPT === "none") { return; }

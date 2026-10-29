@@ -10,7 +10,7 @@ import {
 import type { Chat, ChatMode, ContextItem, ContextKind, ModelOption, SlashCommandInfo, UiSettings } from '../../../src/shared/protocol';
 import { Icon } from '../common/icons';
 import { HelpChip } from './help';
-import { MOD, ModeMenu, ModelMenu } from './menus';
+import { MOD, ModeMenu, ModelMenu, PermissionMenu } from './menus';
 import { onHostMessage, post } from './host';
 import { ContextPill } from './parts';
 import { KIND_ICON, KIND_LABEL, MODE_META, MODE_ORDER, formatTokens, fuzzyScore, localId } from './util';
@@ -406,6 +406,7 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 					{mode === 'help' ? <HelpChip /> : <ModeMenu mode={mode} onSelect={onMode} />}
 					<ModelMenu models={models} modelId={modelId} onSelect={onModel} onConnect={onConnect} />
 					<span className="oc-spacer" />
+					{mode === 'agent' || mode === 'debug' ? <PermissionMenu autoRun={settings.autoRun} modelId={modelId} /> : null}
 					{chat.contextUsage && mode !== 'help' ? <ContextRing usage={chat.contextUsage} /> : null}
 					{mode === 'help' ? null : (
 						<button

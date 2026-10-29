@@ -16,7 +16,12 @@ export function cfg(): vscode.WorkspaceConfiguration {
 
 export function readAutoRun(): AutoRun {
 	const v = cfg().get<string>('agent.autoRun', 'allowlist');
-	return v === 'ask' || v === 'always' ? v : 'allowlist';
+	return v === 'ask' || v === 'auto' || v === 'always' ? v : 'allowlist';
+}
+
+/** The chat's permission menu writes the same user setting as Settings > General. */
+export async function setAutoRun(v: AutoRun): Promise<void> {
+	await cfg().update('agent.autoRun', v === 'allowlist' ? undefined : v, vscode.ConfigurationTarget.Global);
 }
 
 export function readLists(): { allowlist: string[]; denylist: string[] } {

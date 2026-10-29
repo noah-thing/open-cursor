@@ -158,7 +158,7 @@ export interface ICliAgents {
 		images?: { mediaType: string; data: string }[];
 		cwd: string;
 		sessionId?: string;
-		autoRun: 'ask' | 'allowlist' | 'always';
+		autoRun: 'ask' | 'allowlist' | 'auto' | 'always';
 		signal: AbortSignal;
 		callbacks: CliTurnCallbacks;
 	}): Promise<{ sessionId?: string; stopReason: 'done' | 'aborted' | 'error'; error?: string }>;

@@ -361,12 +361,15 @@ test('opencode: free models are labelled readably and listed first; other provid
 });
 
 test('grok: permission flags per mode', () => {
-	const flags = (mode: 'agent' | 'ask' | 'plan', autoRun: 'ask' | 'allowlist' | 'always', commandAllowlist: string[] = []): string => grokPermissionArgs({ mode, autoRun, commandAllowlist }).join(' ');
-	assert.strictEqual(flags('agent', 'ask'), '--permission-mode acceptEdits --sandbox workspace');
+	const flags = (mode: 'agent' | 'ask' | 'plan', autoRun: 'ask' | 'allowlist' | 'auto' | 'always', commandAllowlist: string[] = []): string => grokPermissionArgs({ mode, autoRun, commandAllowlist }).join(' ');
+	assert.strictEqual(flags('agent', 'ask'), '--permission-mode acceptEdits --sandbox workspace --deny Bash');
 	assert.strictEqual(flags('ask', 'always'), '--permission-mode plan --sandbox read-only');
 	assert.strictEqual(flags('plan', 'ask'), '--permission-mode plan --sandbox read-only');
 	assert.strictEqual(flags('agent', 'always'), '--permission-mode bypassPermissions');
-	assert.strictEqual(flags('agent', 'allowlist', ['npm test', 'git status && rm -rf /', '']), '--permission-mode acceptEdits --sandbox workspace --allow Bash(npm test) --allow Bash(npm test *)');
+	const denyFiles = ['touch', 'mkdir', 'cp', 'mv', 'sed', 'ln', 'tee', 'rm', 'rmdir'].map(c => `--deny Bash(${c}) --deny Bash(${c} *)`).join(' ');
+	assert.strictEqual(flags('agent', 'allowlist', ['npm test', 'git status && rm -rf /', '']), `--permission-mode acceptEdits --sandbox workspace --allow Bash(npm test) --allow Bash(npm test *) ${denyFiles}`);
+	assert.ok(!flags('agent', 'allowlist', ['mkdir']).includes('Bash(mkdir)') || flags('agent', 'allowlist', ['mkdir']).includes('--allow Bash(mkdir)'), 'a listed file command is allowed, not denied');
+	assert.ok(!flags('agent', 'allowlist', ['mkdir']).includes('--deny Bash(mkdir)'));
 });
 
 test('grok: model list parsing, tool titles, ANSI', () => {

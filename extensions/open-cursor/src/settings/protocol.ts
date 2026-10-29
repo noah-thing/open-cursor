@@ -29,7 +29,7 @@ export interface CustomModel {
 
 /** Every `openCursor.*` value the panel reads or writes, keyed by the setting name without the prefix. */
 export interface ConfigValues {
-	'agent.autoRun': 'ask' | 'allowlist' | 'always';
+	'agent.autoRun': 'ask' | 'allowlist' | 'auto' | 'always';
 	'agent.commandAllowlist': string[];
 	'agent.commandDenylist': string[];
 	'chat.defaultMode': 'agent' | 'plan' | 'debug' | 'ask';

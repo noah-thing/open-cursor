@@ -443,9 +443,10 @@ async function executeToolCall(p: LoopParams, c: PendingCall, recent: string[], 
 	const isCommand = c.name === 'run_terminal_cmd';
 	const policy = p.settings.getPolicy();
 	const command = isCommand && typeof args.command === 'string' ? args.command : undefined;
-	// MCP tools and fetch_url reach outside the editor: ask unless the user chose auto-run 'always'
-	const mcpAsk = (c.name.startsWith('mcp_') || c.name === 'fetch_url') && policy.autoRun !== 'always';
-	if ((command !== undefined && needsApproval(command, policy)) || mcpAsk) {
+	// MCP tools reach outside the editor: ask unless the user chose Full access. fetch_url only reads, so Auto lets it through.
+	const mcpAsk = (c.name.startsWith('mcp_') || (c.name === 'fetch_url' && policy.autoRun !== 'auto')) && policy.autoRun !== 'always';
+	const agentSaysAsk = typeof args.requires_approval === 'boolean' ? args.requires_approval : undefined;
+	if ((command !== undefined && needsApproval(command, policy, agentSaysAsk)) || mcpAsk) {
 		part = {
 			...toolPartBase(c, tool, args, 'awaiting-approval'),
 			command: command !== undefined ? { text: command, cwd: typeof args.cwd === 'string' ? args.cwd : undefined, background: args.is_background === true } : undefined,

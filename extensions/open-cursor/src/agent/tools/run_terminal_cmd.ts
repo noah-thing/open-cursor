@@ -9,7 +9,7 @@ import { getTerminalRunner } from './terminal';
 import { bool, clip, str, type ToolDef } from './types';
 import { msg } from './fsutil';
 
-interface Args { command?: string; is_background?: boolean; cwd?: string }
+interface Args { command?: string; is_background?: boolean; cwd?: string; requires_approval?: boolean }
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -24,6 +24,7 @@ export const runTerminalCmd: ToolDef<Args> = {
 				command: { type: 'string', description: 'The command line to execute.' },
 				is_background: { type: 'boolean', description: 'Start and return immediately (dev servers, watchers).' },
 				cwd: { type: 'string', description: 'Directory to run in (default: current shell directory, initially the workspace root).' },
+				requires_approval: { type: 'boolean', description: 'Whether the user should approve this command before it runs. false when it only reads, builds, lints, runs tests or project scripts, or creates and changes files inside the project (the user reviews those changes anyway). true when it deletes files, installs or removes packages, uses the network, changes git history or remotes, touches anything outside the project or the system, or you are unsure. Depending on the user\'s setting, false may let it run without asking.' },
 			},
 			required: ['command'],
 		},

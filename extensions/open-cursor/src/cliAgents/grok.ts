@@ -5,7 +5,8 @@
  *  ends the turn ("cancelled"). So agent mode runs with `acceptEdits` inside `--sandbox workspace`
  *  (the kernel only lets it write the workspace and temp dirs), ask/plan with `plan` inside
  *  `--sandbox read-only`. Only autoRun === 'always' uses `bypassPermissions` without a sandbox.
- *  Allowlisted commands are passed as `--allow Bash(...)` rules. Edits are found by diffing git
+ *  Below that: Ask denies the shell, Allowlist passes `--allow Bash(...)` rules and denies the file
+ *  commands acceptEdits would otherwise run, Auto allows the shell but denies the careful commands. Edits are found by diffing git
  *  status. Event shapes: text / thought deltas, tool_call + tool_call_update, usage, end.
  *--------------------------------------------------------------------------------------------*/
 
@@ -14,6 +15,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { commandAllowed } from './policy';
+import { CAREFUL } from '../agent/approval';
 import { cliPromptPrefix } from './modeArgs';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
 import { TurnTracker } from './tracking';
@@ -214,6 +216,9 @@ export class GrokParser {
 	}
 }
 
+/** Shell commands Grok's acceptEdits mode runs as if they were edits. */
+const GROK_FILE_COMMANDS = ['touch', 'mkdir', 'cp', 'mv', 'sed', 'ln', 'tee', 'rm', 'rmdir'];
+
 /** Permission and sandbox flags for a turn (see the header comment). */
 export function grokPermissionArgs(o: Pick<RunOptions, 'mode' | 'autoRun' | 'commandAllowlist'>): string[] {
 	if (MODE_READONLY(o.mode)) {
@@ -223,13 +228,26 @@ export function grokPermissionArgs(o: Pick<RunOptions, 'mode' | 'autoRun' | 'com
 		return ['--permission-mode', 'bypassPermissions'];
 	}
 	const args = ['--permission-mode', 'acceptEdits', '--sandbox', 'workspace'];
-	if (o.autoRun === 'allowlist') {
-		// Same rule as policy.ts: plain commands only, never a chain. Grok checks each chained segment itself.
-		for (const entry of o.commandAllowlist.map(e => e.trim())) {
-			if (commandAllowed(entry, [entry])) {
-				args.push('--allow', `Bash(${entry})`, '--allow', `Bash(${entry} *)`);
-			}
+	if (o.autoRun === 'auto') {
+		// Auto: any command inside the workspace sandbox, except the careful ones (delete, install, publish, network)
+		args.push('--allow', 'Bash');
+		for (const c of [...CAREFUL, 'sudo']) {
+			args.push('--deny', `Bash(${c})`, '--deny', `Bash(${c} *)`);
 		}
+		return args;
+	}
+	if (o.autoRun === 'ask') {
+		// acceptEdits also lets file commands (touch, mkdir, cp) through as edits: nothing may run in Ask
+		args.push('--deny', 'Bash');
+		return args;
+	}
+	// Allowlist: only listed commands. Grok counts file commands as edits, so the unlisted ones are denied by name.
+	const allowed = o.commandAllowlist.map(e => e.trim()).filter(e => commandAllowed(e, [e]));
+	for (const entry of allowed) {
+		args.push('--allow', `Bash(${entry})`, '--allow', `Bash(${entry} *)`);
+	}
+	for (const c of GROK_FILE_COMMANDS.filter(c => !allowed.includes(c))) {
+		args.push('--deny', `Bash(${c})`, '--deny', `Bash(${c} *)`);
 	}
 	return args;
 }

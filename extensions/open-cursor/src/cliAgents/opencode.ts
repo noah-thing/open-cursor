@@ -7,7 +7,8 @@
  *  config outranks the user's and the project's files, which are never modified.
  *    ask / plan : `"*": "deny"` plus read, glob, grep, list, webfetch, websearch. No shell, no edits.
  *    agent/debug: everything allowed except the shell, which only runs allowlisted commands
- *                 (autoRun allowlist) or nothing (autoRun ask); `--auto` plus allow-all when "always".
+ *                 (autoRun allowlist), everything but the careful commands (auto) or nothing (ask);
+ *                 `--auto` plus allow-all when "always".
  *  Events arrive whole (no token streaming): reasoning, text, and one `tool_use` per finished tool.
  *  Edits are found by diffing git status after each tool, like Codex and Grok.
  *--------------------------------------------------------------------------------------------*/
@@ -18,6 +19,7 @@ import * as path from 'path';
 import { cliPromptPrefix } from './modeArgs';
 import { openCodeMajor } from './opencodeSetup';
 import { commandAllowed } from './policy';
+import { CAREFUL } from '../agent/approval';
 import { TurnTracker } from './tracking';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
 import { arr, displayPath, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, spawnCli, str, truncate } from './util';
@@ -209,7 +211,18 @@ export function openCodePermission(o: Pick<RunOptions, 'mode' | 'autoRun' | 'com
 	if (o.autoRun === 'always') {
 		return { '*': 'allow', question: 'deny' };
 	}
-	const bash: Record<string, 'allow' | 'deny'> = { '*': 'deny' };
+	const bash: Record<string, 'allow' | 'deny'> = { '*': o.autoRun === 'auto' ? 'allow' : 'deny' };
+	if (o.autoRun === 'auto') {
+		// Auto: every command runs except the careful ones (delete, install, publish, network), which are refused
+		for (const c of [...CAREFUL, 'sudo']) {
+			bash[c] = 'deny';
+			bash[`${c} *`] = 'deny';
+		}
+		// and nothing that names a path outside the project
+		for (const p of ['* ../*', '* ..', '* ~/*', '* ~']) {
+			bash[p] = 'deny';
+		}
+	}
 	if (o.autoRun === 'allowlist') {
 		// Same rule as policy.ts: plain commands only. OpenCode checks each chained segment itself.
 		for (const entry of o.commandAllowlist.map(e => e.trim())) {

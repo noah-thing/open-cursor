@@ -152,7 +152,13 @@ export async function runCodex(o: RunOptions): Promise<RunResult> {
 	if (!o.sessionId) {
 		args.push('-C', o.cwd);
 	}
-	args.push(...codexModeArgs(o));
+	let configToml = '';
+	try {
+		configToml = fs.readFileSync(path.join(o.env.CODEX_HOME ?? process.env.CODEX_HOME ?? path.join(os.homedir(), '.codex'), 'config.toml'), 'utf8');
+	} catch {
+		// no user config: nothing to switch off
+	}
+	args.push(...codexModeArgs({ ...o, configToml }));
 	if (o.model && o.model !== 'default') {
 		args.push('-m', o.model);
 	}

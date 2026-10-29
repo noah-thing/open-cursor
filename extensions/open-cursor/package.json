@@ -454,12 +454,14 @@
 						"enum": [
 							"ask",
 							"allowlist",
+							"auto",
 							"always"
 						],
 						"enumDescriptions": [
 							"Ask before every terminal command.",
 							"Run commands on the allowlist automatically, ask for the rest.",
-							"Run every command without asking (denylisted commands still ask)."
+							"Run the allowlist; for other commands the agent decides whether to ask. Commands that delete, publish, install or reach the network always ask.",
+							"Full access: run every command and tool without asking (denylisted commands still ask)."
 						],
 						"default": "allowlist",
 						"markdownDescription": "How the agent runs terminal commands. File edits never ask; they land as pending edits you can keep or undo."

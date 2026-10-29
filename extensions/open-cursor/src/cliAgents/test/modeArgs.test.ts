@@ -10,7 +10,7 @@ import type { ChatMode } from '../../shared/protocol';
 const after = (args: string[], flag: string): string | undefined => { const i = args.indexOf(flag); return i === -1 ? undefined : args[i + 1]; };
 const RO: ChatMode[] = ['ask', 'plan'];
 const FULL: ChatMode[] = ['agent', 'debug'];
-const RUNS: AutoRun[] = ['ask', 'allowlist', 'always'];
+const RUNS: AutoRun[] = ['ask', 'allowlist', 'auto', 'always'];
 
 test('claude: read-only modes use plan permission mode and lose the edit tools; others stay default', () => {
 	for (const mode of RO) {
@@ -79,9 +79,34 @@ test('grok: plan permission mode inside a read-only sandbox for ask/plan; worksp
 	}
 });
 
+test('gemini: allowlisted commands pass in Allowlist and Auto only', () => {
+	assert.deepStrictEqual(geminiModeArgs({ mode: 'agent', autoRun: 'auto', commandAllowlist: ['npm test', 'ls > x'] }), ['--approval-mode', 'auto_edit', '--allowed-tools', 'run_shell_command(npm test)']);
+	assert.deepStrictEqual(geminiModeArgs({ mode: 'agent', autoRun: 'allowlist', commandAllowlist: ['git status'] }), ['--approval-mode', 'auto_edit', '--allowed-tools', 'run_shell_command(git status)']);
+	assert.deepStrictEqual(geminiModeArgs({ mode: 'agent', autoRun: 'ask', commandAllowlist: ['git status'] }), ['--approval-mode', 'auto_edit']);
+	assert.deepStrictEqual(geminiModeArgs({ mode: 'ask', autoRun: 'auto', commandAllowlist: ['git status'] }), ['--approval-mode', 'plan']);
+});
+
+test('grok: Auto allows the shell in the workspace sandbox but denies careful commands', () => {
+	const a = grokPermissionArgs({ mode: 'agent', autoRun: 'auto', commandAllowlist: [] });
+	assert.strictEqual(after(a, '--sandbox'), 'workspace');
+	assert.strictEqual(after(a, '--allow'), 'Bash');
+	for (const c of ['rm', 'rm *', 'git push *', 'npm install *', 'curl *', 'sudo *']) { assert.ok(a.includes(`Bash(${c})`), c); }
+});
+
 test('prompt prefix (gemini, grok) carries the per-mode guidance', () => {
 	for (const mode of ['agent', 'plan', 'debug', 'ask'] as const) { assert.ok(cliPromptPrefix(mode).startsWith(cliModeGuidance(mode))); }
 	assert.ok(cliPromptPrefix('plan').includes('read only') && cliPromptPrefix('ask').includes('read only'));
+});
+
+test('codex: below Full access the user tools are off, and in Ask the shell too', () => {
+	const toml = 'model = "x"\n[mcp_servers.node_repl]\ncommand = "n"\n[mcp_servers."my server"]\n';
+	const ask = codexModeArgs({ mode: 'agent', autoRun: 'ask', configToml: toml });
+	for (const f of ['mcp_servers.node_repl.enabled=false', 'mcp_servers."my server".enabled=false', 'features.plugins=false', 'features.computer_use=false', 'features.shell_tool=false', 'features.unified_exec=false']) { assert.ok(ask.includes(f), f); }
+	const auto = codexModeArgs({ mode: 'agent', autoRun: 'auto', configToml: toml });
+	assert.ok(auto.includes('features.plugins=false') && !auto.includes('features.shell_tool=false'));
+	assert.strictEqual(after(auto, '-s'), 'workspace-write');
+	const full = codexModeArgs({ mode: 'agent', autoRun: 'always', configToml: toml });
+	assert.ok(full.includes('--dangerously-bypass-approvals-and-sandbox') && !full.some(a => a.includes('enabled=false') || a.includes('features.')));
 });
 
 void done('cli modes');
@@ -106,10 +131,13 @@ test('opencode: agent/debug allow edits, gate the shell by the allowlist, never 
 		assert.strictEqual(ask.question, 'deny');
 		const list = openCodePermission({ mode, autoRun: 'allowlist', commandAllowlist: ['npm test', 'git status && rm -rf /', 'ls > x', ''] });
 		assert.deepStrictEqual(list.bash, { '*': 'deny', 'npm test': 'allow', 'npm test *': 'allow' });
+		const auto = openCodePermission({ mode, autoRun: 'auto', commandAllowlist: ['npm test'] });
+		assert.strictEqual(auto.bash && (auto.bash as Record<string, string>)['*'], 'allow');
+		for (const c of ['rm', 'rm *', 'git push *', 'npm install *', 'curl *', 'sudo *']) { assert.strictEqual((auto.bash as Record<string, string>)[c], 'deny', c); }
 		const always = openCodePermission({ mode, autoRun: 'always', commandAllowlist: [] });
 		assert.deepStrictEqual(always, { '*': 'allow', question: 'deny' });
 		// no rule may be `ask`: a headless OpenCode would wait forever
-		for (const r of [ask, list, always]) { assert.ok(!JSON.stringify(r).includes('"ask"')); }
+		for (const r of [ask, list, auto, always]) { assert.ok(!JSON.stringify(r).includes('"ask"')); }
 	}
 });
 

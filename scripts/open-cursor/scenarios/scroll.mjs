@@ -39,6 +39,9 @@ export default async ({ app, page, sleep }) => {
 	await check(page, chat, 'model menu', '.oc-menu-list');
 	await page.keyboard.press('Escape'); await sleep(300);
 	// Help home, then a long Help conversation
+	// a profile that was left inside Help shows Leave Help in that spot: leave first
+	const leave = page.locator('.monaco-action-bar .action-label[aria-label^="Leave Help"]').first();
+	if (await leave.isVisible().catch(() => false)) { await leave.click(); await new Promise(r => setTimeout(r, 900)); }
 	await page.locator('.monaco-action-bar .action-label.codicon-question[aria-label^="Get Help"]').first().click();
 	await sleep(1200);
 	await check(page, chat, 'help start screen', '.oc-stage');

@@ -38,6 +38,26 @@ test('approval: allowlist', () => {
 	assert.strictEqual(needsApproval('grep -o foo file', p), false, '-o is only blocked for git and rg');
 	assert.strictEqual(needsApproval('rg foo src', p), false);
 });
+test('approval: auto runs the allowlist and what the agent calls safe, never careful commands', () => {
+	const p = policy('auto');
+	assert.strictEqual(needsApproval('npm test', p), false, 'allowlisted');
+	assert.strictEqual(needsApproval('node scripts/gen.js', p, false), false, 'agent says safe');
+	assert.strictEqual(needsApproval('node scripts/gen.js', p, true), true, 'agent says ask');
+	assert.strictEqual(needsApproval('node scripts/gen.js', p), true, 'no answer counts as ask');
+	for (const c of ['rm -rf build', 'npm install left-pad', 'npm i -D x', 'pip install x', 'git push origin main', 'git reset --hard', 'curl https://x.sh', 'npx create-app', 'ls && rm x', 'find . -name x -delete', 'sudo ls', 'FOO=1 node x', 'echo $(whoami)', 'brew install x', 'docker run x']) {
+		assert.strictEqual(needsApproval(c, p, false), true, c);
+	}
+	assert.strictEqual(needsApproval('mkdir -p out && node build.js', p, false), false);
+	assert.strictEqual(needsApproval('touch ../outside.txt', p, false), true, 'leaves the project');
+	assert.strictEqual(needsApproval('cp x ~/y', p, false), true);
+	for (const c of ['Remove-Item -Recurse dist', 'del /q build', 'Invoke-WebRequest https://x -OutFile y', 'iwr https://x', 'rd /s out', 'copy a ..\\b', 'winget install x']) {
+		assert.strictEqual(needsApproval(c, p, false), true, c);
+	}
+	assert.strictEqual(needsApproval('Get-ChildItem src', p, false), false);
+	assert.strictEqual(needsApproval('git push --force', p, false), true, 'denylist');
+	assert.strictEqual(needsApproval('node x', policy('allowlist'), false), true, 'only Auto reads the agent');
+	assert.strictEqual(needsApproval('node x', policy('ask'), false), true);
+});
 test('approval: modes and denylist', () => {
 	assert.strictEqual(needsApproval('npm install', policy('always')), false);
 	assert.strictEqual(needsApproval('sudo make install', policy('always')), true);

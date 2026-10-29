@@ -360,6 +360,9 @@ export function readTextFile(p: string, maxBytes = 2_000_000): string | undefine
 export function friendlyError(agent: CliAgentId, raw: string): string {
 	const login = { 'claude-code': '`claude login`', codex: '`codex login`', grok: '`grok login`', 'gemini-cli': '`gemini` (and sign in)', opencode: '`opencode auth login`' }[agent];
 	const label = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI', opencode: 'OpenCode' }[agent];
+	if (agent === 'gemini-cli' && /IneligibleTierError|no longer supported for Gemini Code Assist/i.test(raw)) {
+		return 'Google no longer lets Gemini CLI sign in with a personal Google account. Use a Gemini API key instead: Settings > Models > Providers > Google Gemini (the key is free from Google AI Studio).';
+	}
 	if (/not logged in|please run \/login|invalid api key|authentication|unauthori[sz]ed|401|oauth|sign in|log in|api key not valid|no credentials|auth(?:entication)? required/i.test(raw)) {
 		return `${label} is not signed in. Run ${login} in a terminal, then try again.\n\n${tail(raw, 400)}`;
 	}

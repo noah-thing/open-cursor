@@ -25,7 +25,7 @@ import { actionLabel, firstInPlaceLink, parseHelpLink } from '../help/targets';
 import { suggestAllowPrefix } from './approval';
 import { applyCodeToFile } from './applyCode';
 import {
-	buildEnv, cfg, editorSnapshot, parseDataUrl, readAutoRun, readDefaultMode, readLists, readMaxIterations, readUiSettings, referencedFiles, selectionItem,
+	buildEnv, cfg, editorSnapshot, parseDataUrl, readAutoRun, readDefaultMode, readLists, readMaxIterations, readUiSettings, referencedFiles, selectionItem, setAutoRun,
 } from './env';
 import { buildHistoryFromChat, truncateTranscript } from './history';
 import { compactTranscript, runAgentLoop, type LoopHooks } from './loop';
@@ -360,6 +360,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'acceptFile': await this.services.pendingEdits.acceptFile(vscode.Uri.parse(m.uri)); return;
 			case 'rejectFile': await this.services.pendingEdits.rejectFile(vscode.Uri.parse(m.uri)); return;
 			case 'openSettings': return this.openSettings(m.section);
+			case 'setAutoRun': void setAutoRun(m.autoRun); return;
 			case 'copy': await vscode.env.clipboard.writeText(m.text); return;
 			case 'insertCode': return this.insertCode(m.code);
 			case 'applyCode': return this.applyCode(m.code, m.path);

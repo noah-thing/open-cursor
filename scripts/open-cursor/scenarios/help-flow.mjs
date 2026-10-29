@@ -9,6 +9,9 @@ async function chatFrame(page) {
 export default async ({ page, shot, sleep }) => {
 	const f = await chatFrame(page);
 	await shot('f0-before');
+	// a profile that was left inside Help shows Leave Help in that spot: leave first
+	const leave = page.locator('.monaco-action-bar .action-label[aria-label^="Leave Help"]').first();
+	if (await leave.isVisible().catch(() => false)) { await leave.click(); await new Promise(r => setTimeout(r, 900)); }
 	const btn = page.locator('.monaco-action-bar .action-label.codicon-question[aria-label^="Get Help"]').first();
 	console.log('title button visible:', await btn.isVisible().catch(() => false));
 	await btn.click();

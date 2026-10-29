@@ -6,7 +6,7 @@
 import type { ChatMode, ToolPart } from '../shared/protocol';
 
 export type CliAgentId = 'claude-code' | 'codex' | 'grok' | 'gemini-cli' | 'opencode';
-export type AutoRun = 'ask' | 'allowlist' | 'always';
+export type AutoRun = 'ask' | 'allowlist' | 'auto' | 'always';
 export type Approval = 'run' | 'skip' | 'allowAlways';
 
 /** What a runner reports back. Mirrors CliTurnCallbacks but with plain file paths instead of vscode.Uri. */

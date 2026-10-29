@@ -2,7 +2,7 @@
 async function chatFrame(page) {
 	for (let i = 0; i < 60; i++) {
 		for (const f of page.frames()) {
-			if (await f.$('.oc-app .oc-help-btn').catch(() => null)) { return f; }
+			if (await f.$('.oc-app .oc-composer').catch(() => null)) { return f; }
 		}
 		await new Promise(r => setTimeout(r, 500));
 	}
@@ -12,7 +12,8 @@ const tabs = page => page.$$eval('.tabs-container .tab .label-name, .tabs-contai
 
 export default async ({ page, shot, sleep }) => {
 	const f = await chatFrame(page);
-	await f.click('.oc-help-btn >> visible=true');
+	// Help lives in the chat title bar (a workbench action), not inside the chat page
+	if (!(await f.evaluate(() => document.querySelector('.oc-app')?.classList.contains('is-help')))) { await page.click('.action-label[aria-label^="Get Help"] >> visible=true'); }
 	await sleep(1200);
 	await shot('h1-help-home');
 	const state = await f.evaluate(() => ({

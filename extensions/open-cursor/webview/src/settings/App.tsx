@@ -95,7 +95,7 @@ export function App(): ReactElement {
 			<nav className="st-nav" aria-label="Settings sections">
 				<div className="st-nav-title">OpenCursor</div>
 				{SECTIONS.map(s => (
-					<button key={s.id} type="button" className={'st-nav-item' + (s.id === section ? ' is-active' : '')} aria-current={s.id === section ? 'page' : undefined} onClick={() => go(s.id)}>
+					<button key={s.id} type="button" className={'st-nav-item' + (s.id === section ? ' is-active' : '')} aria-current={s.id === section ? 'page' : undefined} aria-label={s.label} title={s.label} onClick={() => go(s.id)}>
 						<Icon name={ICONS[s.id]} size={15} />
 						<span>{s.label}</span>
 					</button>

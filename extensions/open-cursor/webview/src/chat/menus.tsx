@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
- *  Small popover menus: mode picker, model picker.
+ *  Small popover menus: mode picker, model picker, command permissions.
  *--------------------------------------------------------------------------------------------*/
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from 'react';
-import type { ChatMode, ModelOption } from '../../../src/shared/protocol';
+import type { ChatMode, ModelOption, UiSettings } from '../../../src/shared/protocol';
 import { Icon } from '../common/icons';
 import { post } from './host';
 import { MODE_META, MODE_ORDER, fuzzyScore, providerLabel } from './util';
@@ -114,6 +114,67 @@ export function ModeMenu({ mode, onSelect }: { readonly mode: ChatMode; readonly
 						);
 					})}
 					<div className="oc-menu-foot">{MOD}. cycles modes</div>
+				</Popover>
+			) : null}
+		</div>
+	);
+}
+
+type AutoRun = UiSettings['autoRun'];
+
+const PERMISSIONS: readonly { readonly id: AutoRun; readonly label: string; readonly short: string; readonly hint: string }[] = [
+	{ id: 'ask', label: 'Ask every time', short: 'Ask', hint: 'Every command waits for you' },
+	{ id: 'allowlist', label: 'Allowlist', short: 'Allowlist', hint: 'Commands on your allowlist run, the rest ask' },
+	{ id: 'auto', label: 'Auto', short: 'Auto', hint: 'Safe commands run; it asks before deleting, installing or going online' },
+	{ id: 'always', label: 'Full access', short: 'Full access', hint: 'Every command and tool runs without asking' },
+];
+
+/** When the agent may run a command without asking. One setting for every chat; file edits never ask. */
+/** What a subscription CLI does with the levels below Full access, where it cannot pause for the user. */
+function cliPermissionNote(modelId: string, autoRun: AutoRun): string | undefined {
+	if (autoRun === 'always' || !modelId.startsWith('cli:')) { return undefined; }
+	const agent = modelId.slice(4, modelId.indexOf('/'));
+	if (agent === 'claude-code') { return undefined; }
+	if (agent === 'codex') { return autoRun === 'ask' ? 'Codex cannot stop to ask, so in Ask it runs no commands.' : 'Codex cannot stop to ask, so its commands run in a sandbox that can only change this project and cannot go online. Deleted files show up for review.'; }
+	return `${AGENT_NAMES[agent] ?? 'This CLI'} cannot stop to ask, so a command that needs your approval is refused instead.`;
+}
+
+export function PermissionMenu({ autoRun, modelId }: { readonly autoRun: AutoRun; readonly modelId: string }): ReactElement {
+	const [open, setOpen] = useState(false);
+	const ref = useRef<HTMLDivElement>(null);
+	useDismiss(ref, open, () => setOpen(false));
+	const cur = PERMISSIONS.find(p => p.id === autoRun) ?? PERMISSIONS[1];
+	const note = cliPermissionNote(modelId, autoRun);
+	return (
+		<div className="oc-menu-wrap" ref={ref}>
+			<button type="button" className={'oc-chip oc-perm-chip is-' + cur.id} onClick={() => setOpen(o => !o)} aria-haspopup="menu" aria-expanded={open} title={'Commands: ' + cur.label}>
+				<Icon name={cur.id === 'always' ? 'bolt' : cur.id === 'ask' ? 'shield' : 'shieldCheck'} size={13} />
+				<span className="oc-perm-label">{cur.short}</span>
+			</button>
+			{open ? (
+				<Popover className="oc-perm-menu" align="end" fit>
+					<div className="oc-menu-section-title">Running commands</div>
+					{PERMISSIONS.map(p => (
+						<button
+							key={p.id}
+							type="button"
+							role="menuitemradio"
+							aria-checked={p.id === autoRun}
+							className={'oc-menu-item is-' + p.id + (p.id === autoRun ? ' is-active' : '')}
+							onClick={() => { post({ type: 'setAutoRun', autoRun: p.id }); setOpen(false); }}
+						>
+							<span className="oc-menu-main">
+								<span className="oc-menu-label">{p.label}</span>
+								<span className="oc-menu-hint">{p.hint}</span>
+							</span>
+							{p.id === autoRun ? <Icon name="check" size={13} className="oc-menu-check" /> : null}
+						</button>
+					))}
+					<div className="oc-menu-foot">
+						{note ? <span className="oc-perm-note">{note}</span> : null}
+						File edits never ask; you keep or undo them. The denylist always asks.{' '}
+						<button type="button" className="oc-linkbtn" onClick={() => { post({ type: 'openSettings', section: 'general' }); setOpen(false); }}>Edit lists</button>
+					</div>
 				</Popover>
 			) : null}
 		</div>

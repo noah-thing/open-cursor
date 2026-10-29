@@ -11,7 +11,7 @@ import { diffLines } from 'diff';
 import type { ToolPart } from '../shared/protocol';
 import { ApprovalBroker, type ApprovalDecision, type ApprovalRequest } from './approvalBroker';
 import { GitTracker } from './fileTracker';
-import { isDenied, DEFAULT_DENYLIST } from '../agent/approval';
+import { isCareful, isDenied, DEFAULT_DENYLIST } from '../agent/approval';
 import { isReadOnlyCommand } from '../agent/modes';
 import { claudeModeArgs } from './modeArgs';
 import { commandAllowed } from './policy';
@@ -400,7 +400,10 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 		// "allow always" remembers the exact normalised command, never a prefix; the denylist always wins
 		const denied = isBash && isDenied(command ?? '', DEFAULT_DENYLIST);
 		const key = isBash ? 'Bash:' + (command ?? '').replace(/\s+/g, ' ').trim() : toolName;
-		if (!denied && (alwaysTools.has(key) || (isBash && o.autoRun === 'allowlist' && commandAllowed(command ?? '', o.commandAllowlist)))) {
+		const listed = isBash && (o.autoRun === 'allowlist' || o.autoRun === 'auto') && commandAllowed(command ?? '', o.commandAllowlist);
+		// Auto: Claude Code says nothing about risk per command, so the rule decides: everything runs except careful commands
+		const autoOk = isBash && o.autoRun === 'auto' && !readonly && !isCareful(command ?? '');
+		if (!denied && (alwaysTools.has(key) || listed || autoOk)) {
 			return { behavior: 'allow', updatedInput: input };
 		}
 		const v = claudeToolView(toolName, input, 'run', o.cwd);

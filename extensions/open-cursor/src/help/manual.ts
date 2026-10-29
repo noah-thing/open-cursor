@@ -53,7 +53,12 @@ Agent edits land as pending changes, never silently. Changed lines show inline i
 - The review bar also has Keep all and Undo all, and opens each file's diff.
 
 ## Terminal commands
-The agent asks before running a shell command unless allowed. Settings > General > Terminal commands sets Auto-run: Ask every time, Allowlist (commands starting with listed words run without asking) or Always run, plus a Denylist that always asks. [General settings](opencursor:settings/general)
+The agent asks before running a shell command unless allowed. The shield chip next to the model chip (Agent and Debug modes) picks the level, the same setting as Settings > General > Terminal commands > Auto-run:
+- Ask every time: every command waits for approval.
+- Allowlist: commands starting with listed words run; the rest ask. The default.
+- Auto: safe commands run; the agent asks before anything that deletes, installs, publishes or goes online.
+- Full access: every command and MCP tool runs without asking.
+The Denylist always asks. File edits never ask in any level. Claude Code follows every level. Codex, Gemini CLI, Grok and OpenCode cannot stop to ask, so below Full access a command that needs approval is refused instead. Codex runs no commands in Ask; in Allowlist and Auto its commands run in a sandbox limited to the project, offline. [General settings](opencursor:settings/general)
 
 ## Context
 - Type @ in the box to attach files, folders, code symbols, git changes, lint errors, terminal output, docs, a web page, a rule or an earlier chat. Paste or drop images.

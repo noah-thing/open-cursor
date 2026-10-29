@@ -139,7 +139,7 @@ export interface PendingFileEdit {
 }
 
 export interface UiSettings {
-	readonly autoRun: 'ask' | 'allowlist' | 'always';
+	readonly autoRun: 'ask' | 'allowlist' | 'auto' | 'always';
 	readonly showThinking: boolean;
 	readonly fontSize: number;
 	readonly submitWithModEnter: boolean;
@@ -186,6 +186,7 @@ export type WebviewMessage =
 	| { readonly type: 'renameChat'; readonly chatId: string; readonly title: string }
 	| { readonly type: 'setMode'; readonly chatId: string; readonly mode: ChatMode }
 	| { readonly type: 'setModel'; readonly chatId: string; readonly modelId: string }
+	| { readonly type: 'setAutoRun'; readonly autoRun: UiSettings['autoRun'] }
 	| { readonly type: 'approveTool'; readonly chatId: string; readonly toolCallId: string; readonly decision: 'run' | 'skip' | 'allowAlways' }
 	| { readonly type: 'restoreCheckpoint'; readonly chatId: string; readonly messageId: string }
 	| { readonly type: 'searchMentions'; readonly requestId: number; readonly query: string; readonly kind?: ContextKind }

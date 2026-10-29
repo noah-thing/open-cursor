@@ -18,6 +18,7 @@
 import { cliModeGuidance } from '../agent/prompts';
 import type { RunOptions } from './types';
 import { MODE_READONLY } from './types';
+import { commandAllowed } from './policy';
 
 type ModeOpts = Pick<RunOptions, 'mode' | 'autoRun'>;
 
@@ -43,11 +44,29 @@ export function claudeModeArgs(o: Pick<RunOptions, 'mode'>): string[] {
 	return args;
 }
 
-/** Sandbox, approval and developer-instructions flags for `codex exec` (new or resumed session). */
-export function codexModeArgs(o: ModeOpts & Pick<RunOptions, 'sessionId'>): string[] {
+/** `[mcp_servers.x]` names in a Codex config.toml. */
+export function codexMcpServers(configToml: string): string[] {
+	return [...configToml.matchAll(/^\[mcp_servers\.("[^"]+"|[A-Za-z0-9_-]+)\]\s*$/gm)].map(m => m[1]);
+}
+
+/** Codex features that bring tools able to act without approval: plugins (computer use carries a JS REPL), connectors, browsers. */
+const CODEX_TOOL_FEATURES = ['plugins', 'apps', 'computer_use', 'browser_use', 'in_app_browser'];
+
+/**
+ * Sandbox, approval and developer-instructions flags for `codex exec` (new or resumed session).
+ * Codex cannot pause for approval, so below Full access it only gets what needs none: the user's
+ * MCP servers, plugins and connectors (computer use, a browser, a JS REPL) are switched off for the
+ * run, and in Ask the shell too. Allowlist and Auto keep the shell inside the workspace sandbox, offline.
+ */
+export function codexModeArgs(o: ModeOpts & Pick<RunOptions, 'sessionId'> & { readonly configToml?: string }): string[] {
 	const readonly = MODE_READONLY(o.mode);
 	const sandbox = readonly ? 'read-only' : 'workspace-write';
 	const args: string[] = [];
+	if (o.autoRun !== 'always' || readonly) {
+		for (const s of codexMcpServers(o.configToml ?? '')) { args.push('-c', `mcp_servers.${s}.enabled=false`); }
+		for (const f of CODEX_TOOL_FEATURES) { args.push('-c', `features.${f}=false`); }
+		if (o.autoRun === 'ask' && !readonly) { args.push('-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false'); }
+	}
 	if (o.autoRun === 'always' && !readonly) {
 		args.push('--dangerously-bypass-approvals-and-sandbox');
 	} else if (o.sessionId) {
@@ -62,9 +81,18 @@ export function codexModeArgs(o: ModeOpts & Pick<RunOptions, 'sessionId'>): stri
 	return args;
 }
 
-/** `--approval-mode` for Gemini CLI. Headless cannot ask, so agent/debug use auto_edit (shell denied) unless autoRun is always. */
-export function geminiModeArgs(o: ModeOpts): string[] {
-	return ['--approval-mode', MODE_READONLY(o.mode) ? 'plan' : o.autoRun === 'always' ? 'yolo' : 'auto_edit'];
+/**
+ * `--approval-mode` for Gemini CLI. Headless cannot ask, so agent/debug use auto_edit (shell denied)
+ * unless autoRun is always; Allowlist and Auto let the allowlisted commands through.
+ */
+export function geminiModeArgs(o: ModeOpts & Partial<Pick<RunOptions, 'commandAllowlist'>>): string[] {
+	const readonly = MODE_READONLY(o.mode);
+	const args = ['--approval-mode', readonly ? 'plan' : o.autoRun === 'always' ? 'yolo' : 'auto_edit'];
+	if (!readonly && (o.autoRun === 'allowlist' || o.autoRun === 'auto')) {
+		const allowed = (o.commandAllowlist ?? []).map(e => e.trim()).filter(e => commandAllowed(e, [e]));
+		if (allowed.length) { args.push('--allowed-tools', ...allowed.map(e => `run_shell_command(${e})`)); }
+	}
+	return args;
 }
 
 /** Text put in front of the user's prompt for CLIs without a system-prompt flag. */
