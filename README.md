@@ -1,8 +1,10 @@
-<p align="center">
-  <img src="resources/readme/icon.png" width="128" alt="OpenCursor">
-</p>
+<a href="https://opencursor.org">
+  <img src="resources/readme/banner.jpg" alt="OpenCursor. The open source Cursor. An open source AI code editor that works with whatever you already use." width="100%">
+</a>
 
-<h1 align="center">OpenCursor</h1>
+<h3 align="center">
+  <a href="https://opencursor.org">opencursor.org</a>
+</h3>
 
 <p align="center">
   An AI code editor that runs on your own model, key or subscription.<br>
@@ -10,6 +12,7 @@
 </p>
 
 <p align="center">
+  <a href="https://opencursor.org"><img alt="opencursor.org" src="https://img.shields.io/badge/website-opencursor.org-555?style=flat-square"></a>
   <a href="#download"><img alt="macOS, Windows and Linux" src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-555?style=flat-square"></a>
   <a href="LICENSE.txt"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-555?style=flat-square"></a>
   <a href="https://x.com/fsconfig"><img alt="Follow @fsconfig on X" src="https://img.shields.io/badge/follow-%40fsconfig-555?style=flat-square&logo=x&logoColor=white"></a>
@@ -33,13 +36,13 @@ What sets it apart is who you pay. Point it at an API key, a model running on yo
 **macOS and Linux**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/noah-thing/open-cursor/main/install.sh | sh
+curl -fsSL https://opencursor.org/install.sh | sh
 ```
 
 **Windows** (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/noah-thing/open-cursor/main/install.ps1 | iex
+irm https://opencursor.org/install.ps1 | iex
 ```
 
 The script picks the build for your system and processor from the latest release and installs it: the app in Applications on macOS, the `.deb` or `.rpm` on Linux (or a portable copy in `~/.local` when neither fits), the per user setup on Windows. Set `OPENCURSOR_VERSION=v0.1.0` to install a specific release.
