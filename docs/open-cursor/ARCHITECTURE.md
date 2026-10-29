@@ -2,7 +2,7 @@
 
 OpenCursor is a fork of Code - OSS 1.143.1. Nearly everything it adds lives in one built-in extension, `extensions/open-cursor`. A small workbench contribution in core (`src/vs/workbench/contrib/openCursor/`) covers the two things an extension cannot draw: the Cmd+K prompt box inside the editor, and inline diff rendering (removed lines as view zones, Keep and Undo per hunk).
 
-Models come from the user: API keys, local servers (Ollama, LM Studio, any OpenAI compatible URL), or an installed agent CLI running on the user's own subscription (Claude Code, Codex, Gemini CLI). There is no OpenCursor backend.
+Models come from the user: API keys, local servers (Ollama, LM Studio, any OpenAI compatible URL), or an installed agent CLI running on the user's own subscription (Claude Code, Codex, Grok, Gemini CLI, or the free OpenCode). There is no OpenCursor backend.
 
 ## Extension layout
 

@@ -40,20 +40,23 @@ Then open OpenCursor and pick a model on the start screen: a subscription you ar
 
 Prefer to install by hand? Grab the latest build from [Releases](https://github.com/noah-thing/open-cursor/releases).
 
-| Platform | File |
+| Platform | Files |
 |---|---|
-| macOS (Apple Silicon) | `OpenCursor-<version>-macos-arm64.dmg` |
-| Windows | `OpenCursor-<version>-windows-x64-setup.exe`, or the portable `.zip` |
-| Linux | `.deb` |
+| macOS | `macos-arm64.dmg` (Apple Silicon), `macos-x64.dmg` (Intel) |
+| Windows | `windows-x64-setup.exe` or `windows-arm64-setup.exe`, or a portable `.zip` |
+| Linux | `.deb`, `.rpm` or `.tar.gz`, for x64 and arm64 |
 
-Builds are not signed yet. On macOS, right click the app and choose Open the first time.
+Builds are not signed yet, so the first launch of a downloaded file needs one extra step. The install commands above skip it.
+
+- **macOS:** open the app once, then System Settings > Privacy & Security > Open Anyway.
+- **Windows:** on the SmartScreen prompt, choose More info > Run anyway.
 
 ## Features
 
 <table>
   <tr>
     <td width="150"><b>Agent</b></td>
-    <td>Reads and searches your code, edits files and runs commands. Four modes: Agent, Plan, Debug and Ask. Commands wait for your approval unless you allow them.</td>
+    <td>Reads and searches your code, edits files and runs commands. Four modes: Agent, Plan, Debug and Ask. You choose how much it may run on its own: ask every time, an allowlist, Auto (it asks before deleting, installing or going online) or full access.</td>
   </tr>
   <tr>
     <td><b>Tab</b></td>
@@ -76,6 +79,10 @@ Builds are not signed yet. On macOS, right click the app and choose Open the fir
     <td>Rules from <code>.open-cursor/rules</code>, <code>AGENTS.md</code> and <code>CLAUDE.md</code>, your own slash commands, and any MCP server. Cursor projects work as they are.</td>
   </tr>
   <tr>
+    <td><b>Help</b></td>
+    <td>Ask how anything in the app works and it takes you to the right setting or page. Common questions are answered instantly, without a model.</td>
+  </tr>
+  <tr>
     <td><b>Menu bar</b></td>
     <td>A small panel next to the clock: hand a task to the agent in any project, or jump to an open window.</td>
   </tr>
@@ -85,11 +92,12 @@ Builds are not signed yet. On macOS, right click the app and choose Open the fir
 
 | Source | Examples |
 |---|---|
+| Free | OpenCode's free models with no account, installed in one click; free keys from OpenRouter, Groq, Google Gemini, NVIDIA, Z.ai, Mistral and SambaNova |
 | Subscription | Claude Code, Codex CLI, Grok CLI, Gemini CLI |
 | Local | Ollama, LM Studio or any OpenAI compatible server, on this computer or another on your network |
-| API key | Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, xAI, Mistral, Groq |
+| API key | Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, xAI, Mistral, Groq, NVIDIA, Z.ai, SambaNova |
 
-A subscription runs the CLI you already use in the background, so you keep OpenCursor's chat, review and checkpoints while the work counts against your plan. API keys stay in your system keychain.
+A subscription runs the CLI you already use in the background, so you keep OpenCursor's chat, review and checkpoints while the work counts against your plan. With a free key connected, Free (auto) moves to another free model when one hits its limit. API keys stay in your system keychain.
 
 ## Development
 
@@ -113,7 +121,7 @@ npm ci
 node .esbuild.mts --watch
 ```
 
-Package a macOS build with `./scripts/open-cursor/package-mac.sh arm64`. End to end scenarios that drive a real window live in `scripts/open-cursor/scenarios`.
+Package a macOS build with `./scripts/open-cursor/package-mac.sh arm64`. End to end scenarios that drive a real window live in `scripts/open-cursor/scenarios`; `./scripts/open-cursor/test-all.sh` runs them all.
 
 </details>
 
@@ -127,7 +135,8 @@ OpenCursor's own code is small and sits beside the upstream tree.
 extensions/open-cursor/               the AI extension
   src/agent/                          chat, agent loop, modes, tools
   src/providers/                      model providers
-  src/cliAgents/                      Claude Code, Codex, Grok and Gemini adapters
+  src/cliAgents/                      Claude Code, Codex, Grok, Gemini and OpenCode adapters
+  src/help/                           Help mode: manual, instant answers, in app links
   src/tab/  src/inline/               Tab and Cmd+K
   src/edits/                          review and checkpoints
   src/context/  src/indexing/         @ mentions, rules, codebase index
