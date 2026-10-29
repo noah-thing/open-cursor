@@ -1,10 +1,8 @@
-<a href="https://opencursor.org">
-  <img src="resources/readme/banner.jpg" alt="OpenCursor. The open source Cursor. An open source AI code editor that works with whatever you already use." width="100%">
-</a>
+<p align="center">
+  <a href="https://opencursor.org"><img src="resources/readme/icon.png" width="128" alt="OpenCursor"></a>
+</p>
 
-<h3 align="center">
-  <a href="https://opencursor.org">opencursor.org</a>
-</h3>
+<h1 align="center">OpenCursor</h1>
 
 <p align="center">
   An AI code editor that runs on your own model, key or subscription.<br>
@@ -12,7 +10,14 @@
 </p>
 
 <p align="center">
-  <a href="https://opencursor.org"><img alt="opencursor.org" src="https://img.shields.io/badge/website-opencursor.org-555?style=flat-square"></a>
+  <a href="https://opencursor.org"><b>opencursor.org</b></a>
+  &nbsp;·&nbsp;
+  <a href="#quick-setup">Install</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/noah-thing/open-cursor/releases/latest">Download</a>
+</p>
+
+<p align="center">
   <a href="#download"><img alt="macOS, Windows and Linux" src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-555?style=flat-square"></a>
   <a href="LICENSE.txt"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-555?style=flat-square"></a>
   <a href="https://x.com/fsconfig"><img alt="Follow @fsconfig on X" src="https://img.shields.io/badge/follow-%40fsconfig-555?style=flat-square&logo=x&logoColor=white"></a>
@@ -25,6 +30,10 @@
       <img src="resources/readme/made-by-light.svg" width="178" height="44" alt="Made by Noah, @fsconfig on X">
     </picture>
   </a>
+</p>
+
+<p align="center">
+  <a href="https://opencursor.org"><img src="resources/readme/screenshot.webp" width="100%" alt="OpenCursor with a Cmd K edit in cart.ts: the old line in red, the new one in green, Accept and Reject above it, and the model picker in the chat panel."></a>
 </p>
 
 OpenCursor is a fork of [Code - OSS](https://github.com/microsoft/vscode) with an agent, Tab completion and inline editing built in. It is laid out the way Cursor is, so the habits carry over: Cmd+K edits in place, Cmd+L sends your selection to the agent, Tab finishes the line. Your VS Code extensions, themes and settings work as they always did.
