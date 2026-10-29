@@ -272,4 +272,6 @@ export type WebviewMessageExt =
 	| { readonly type: 'openHelp'; readonly text?: string }
 	| { readonly type: 'leaveHelp' }
 	/** A clicked opencursor: link in a Help answer. The host checks it against the catalog. */
-	| { readonly type: 'helpAction'; readonly href: string };
+	| { readonly type: 'helpAction'; readonly href: string }
+	/** The credit line: open an https link on x.com or github.com in the browser. */
+	| { readonly type: 'openExternal'; readonly url: string };

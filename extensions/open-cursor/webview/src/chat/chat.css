@@ -593,6 +593,7 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 .oc-recent-item:active { transform: scale(0.99); }
 .oc-home-keys { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 20px 10px 0; font-size: 11.5px; color: var(--oc-fg-3); }
 .oc-home-keys kbd { margin-right: 4px; }
+.oc-home-credit { margin: 14px 10px 0; }
 
 /* Ghosts keep their last frame; their own entrance must not replay when they are put back. */
 .oc-leaving, .oc-leaving * { animation: none !important; }

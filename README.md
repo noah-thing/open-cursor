@@ -12,6 +12,16 @@
 <p align="center">
   <a href="https://github.com/noah-thing/open-cursor/releases"><img alt="Release" src="https://img.shields.io/github/v/release/noah-thing/open-cursor?include_prereleases&style=flat-square&color=555"></a>
   <a href="LICENSE.txt"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-555?style=flat-square"></a>
+  <a href="https://x.com/fsconfig"><img alt="Follow @fsconfig on X" src="https://img.shields.io/badge/follow-%40fsconfig-555?style=flat-square&logo=x&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <a href="https://x.com/fsconfig">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="resources/readme/made-by-dark.svg">
+      <img src="resources/readme/made-by-light.svg" width="178" height="44" alt="Made by Noah, @fsconfig on X">
+    </picture>
+  </a>
 </p>
 
 OpenCursor is a fork of [Code - OSS](https://github.com/microsoft/vscode) with an agent, Tab completion and inline editing built in. It is laid out the way Cursor is, so the habits carry over: Cmd+K edits in place, Cmd+L sends your selection to the agent, Tab finishes the line. Your VS Code extensions, themes and settings work as they always did.
@@ -156,3 +166,5 @@ Issues and pull requests are welcome. Run `npm run typecheck` in `extensions/ope
 ## License
 
 [MIT](LICENSE.txt). Built on [Code - OSS](https://github.com/microsoft/vscode) by Microsoft, also MIT.
+
+Made by Noah, [@fsconfig](https://x.com/fsconfig) on X. If OpenCursor saves you time, a follow or a star helps.

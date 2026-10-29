@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as nodePath from 'path';
 import * as cp from 'child_process';
 import type { LLMContent, ModelInfo } from '../providers/types';
+import { isAllowedExternalUrl } from '../shared/externalLink';
 import type { Services } from '../services';
 import type {
 	AssistantMessage, ChatMode, ChatSummary, ContextItem, HostMessage, HostMessageExt, MessagePart, ModelOption, SlashCommandInfo, ToolPart, UserMessage, WebviewMessage, WebviewMessageExt,
@@ -334,6 +335,9 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 				if (a) { await this.help.run(a).catch(e => console.warn('[open-cursor] help action failed', m.href, e)); }
 				return;
 			}
+			case 'openExternal':
+				if (isAllowedExternalUrl(m.url)) { await vscode.env.openExternal(vscode.Uri.parse(m.url)); }
+				return;
 			case 'openChat': return this.openChat(m.chatId);
 			case 'closeChatTab': return this.closeTab(m.chatId);
 			case 'deleteChat': return this.deleteChat(m.chatId);

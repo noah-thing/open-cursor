@@ -181,4 +181,5 @@ export type SettingsWebviewMessage =
 	| { readonly type: 'newRule'; readonly scope: 'workspace' | 'user' }
 	| { readonly type: 'newCommand'; readonly scope: 'workspace' | 'user' }
 	| { readonly type: 'openCommand'; readonly source: string }
-	| { readonly type: 'openSettingsJson' };
+	| { readonly type: 'openSettingsJson' }
+	| { readonly type: 'openExternal'; readonly url: string };

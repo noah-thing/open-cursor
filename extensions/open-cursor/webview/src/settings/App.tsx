@@ -10,6 +10,7 @@ import {
 } from '../../../src/settings/protocol';
 import { Commands, General, Indexing, Mcp, Models, Rules, Subscriptions, TabSection, type VerifyMap } from './sections';
 import { Loader } from '../common/loader';
+import { Credit } from '../common/credit';
 
 const api = getVsCode<SettingsWebviewMessage, { section?: SettingsSection }>();
 
@@ -100,6 +101,7 @@ export function App(): ReactElement {
 						<span>{s.label}</span>
 					</button>
 				))}
+				<Credit className="st-credit" open={url => send({ type: 'openExternal', url })} />
 			</nav>
 			<main className="st-main" ref={content}>{body}</main>
 			<div className="st-toasts" aria-live="polite">

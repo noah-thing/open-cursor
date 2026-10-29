@@ -5,6 +5,7 @@
 
 import { memo, type ReactElement } from 'react';
 import type { ToolPart } from '../../../src/shared/protocol';
+import { Credit } from '../common/credit';
 import { Icon, type IconName } from '../common/icons';
 import { post } from './host';
 
@@ -72,6 +73,7 @@ export function HelpBottom({ hasModel, onAsk }: { readonly hasModel: boolean; re
 					))}
 				</div>
 			</section>
+			<Credit className="oc-home-credit" open={url => post({ type: 'openExternal', url })} />
 		</div>
 	);
 }

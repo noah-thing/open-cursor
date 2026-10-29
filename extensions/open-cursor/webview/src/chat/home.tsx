@@ -6,6 +6,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactElement, type ReactNode } from 'react';
 import type { AgentStatus, ApiProviderStatus, ChatMode, ChatSummary, LocalServerStatus } from '../../../src/shared/protocol';
 import { BrandMark, hasBrandMark } from '../common/brands';
+import { Credit } from '../common/credit';
 import { Icon, Spinner, type IconName } from '../common/icons';
 import { post } from './host';
 import { MOD } from './menus';
@@ -341,6 +342,7 @@ export function HomeBottom({ starters, recent, onPick, connect }: {
 				<span><kbd>/</kbd> commands</span>
 				<span><kbd>{MOD}.</kbd> modes</span>
 			</p>
+			<Credit className="oc-home-credit" open={url => post({ type: 'openExternal', url })} />
 		</div>
 	);
 }

@@ -16,6 +16,8 @@ body { overflow: hidden; }
 .st-nav-item .oc-icon { color: var(--oc-fg-3); }
 .st-nav-item.is-active .oc-icon { color: var(--oc-fg); }
 
+.st-credit { margin-top: auto; padding: 14px 10px 0; }
+
 .st-main { overflow-y: auto; }
 .st-page { max-width: 720px; margin: 0 auto; padding: 32px 32px 72px; animation: oc-rise 180ms var(--oc-ease); }
 .st-h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
@@ -159,6 +161,8 @@ input[type='number'].st-input { -moz-appearance: textfield; }
 	.st-app { grid-template-columns: 56px minmax(0, 1fr); }
 	.st-nav-item span, .st-nav-title { display: none; }
 	.st-nav-item { justify-content: center; padding: 0; }
+	.st-credit { flex-direction: column; align-items: center; padding: 14px 0 0; }
+	.st-credit .oc-credit-text, .st-credit .oc-credit-gh-label { display: none; }
 	.st-page { padding: 24px 16px 56px; }
 	.st-form { grid-template-columns: 1fr; }
 	.st-form .st-form-wide { grid-column: auto; }

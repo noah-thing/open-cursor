@@ -41,7 +41,7 @@ const webview: esbuild.BuildOptions = {
 	jsx: 'automatic',
 	sourcemap: dev,
 	minify: !dev,
-	loader: { '.svg': 'text', '.woff2': 'dataurl' },
+	loader: { '.svg': 'text', '.woff2': 'dataurl', '.jpg': 'dataurl' },
 	define: { 'process.env.NODE_ENV': JSON.stringify(dev ? 'development' : 'production') },
 	logLevel: 'info',
 };

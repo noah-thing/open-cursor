@@ -10,6 +10,7 @@ import * as os from 'node:os';
 import type { Services } from '../services';
 import type { ModelInfo } from '../providers/types';
 import { cliHint } from '../shared/cliHints';
+import { isAllowedExternalUrl } from '../shared/externalLink';
 import {
 	CONFIG_DEFAULTS, SECTIONS,
 	type CliRow, type CommandRow, type ConfigKey, type ConfigValues, type ModelRow, type ProviderKey, type ProviderRow,
@@ -412,6 +413,9 @@ class SettingsPanel implements vscode.Disposable {
 			}
 			case 'openSettingsJson':
 				await vscode.commands.executeCommand('workbench.action.openSettings', 'openCursor');
+				return;
+			case 'openExternal':
+				if (isAllowedExternalUrl(m.url)) { await vscode.env.openExternal(vscode.Uri.parse(m.url)); }
 				return;
 		}
 	}
