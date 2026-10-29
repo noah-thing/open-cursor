@@ -18,6 +18,9 @@ import type { IContextServiceEx } from '../context/service';
 import { toDisplayPath } from '../context/paths';
 import type { CliAgentInfo } from '../services';
 import { cliHint } from '../shared/cliHints';
+import { cliEnv, loginShellInfo } from '../cliAgents/detect';
+import { installWithPrivateNode } from '../cliAgents/npmSetup';
+import { COMMON_BIN_DIRS, executableNames } from '../cliAgents/util';
 import { ConnectService } from '../connect/connect';
 import { FREE_AUTO_ID, isFreeModel } from '../providers/free';
 import { HelpNavigator } from '../help/navigator';
@@ -108,6 +111,13 @@ export function createChatController(ctx: vscode.ExtensionContext, services: Ser
 	const controller = new ChatController(ctx, services);
 	controller.register();
 	return controller;
+}
+
+/** npm from the user's own Node.js (the private copy in ~/.open-cursor does not count: terminals cannot see it). */
+async function hasSystemNpm(): Promise<boolean> {
+	const own = nodePath.join(os.homedir(), '.open-cursor');
+	const dirs = [...(await loginShellInfo()).path, ...COMMON_BIN_DIRS(), ...(process.env.PATH ?? '').split(nodePath.delimiter)];
+	return dirs.some(d => !!d && !d.startsWith(own) && executableNames('npm').some(n => fs.existsSync(nodePath.join(d, n))));
 }
 
 /** `macOS 15.4 (arm64)`, `Windows 10.0.22631 (x64)`, `Ubuntu 24.04 LTS (x64)`: enough to reproduce a bug, nothing personal. */
@@ -505,8 +515,24 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			await this.refreshModels();
 			return;
 		}
+		// Codex and Gemini CLI come from npm: without Node.js on this computer, install them with a private copy
+		const npmPkg: Record<string, [string, string]> = { codex: ['@openai/codex', 'codex'], 'gemini-cli': ['@google/gemini-cli', 'gemini'] };
+		if (action === 'install' && npmPkg[id] && !(await hasSystemNpm())) {
+			const [pkg, bin] = npmPkg[id];
+			const label = this.services.cli.get(id as CliAgentInfo['id'])?.label ?? id;
+			const r = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Installing ${label}` }, async progress =>
+				installWithPrivateNode(pkg, bin, await cliEnv(undefined), message => progress.report({ message })));
+			if (r.ok) {
+				await this.postAgents(true);
+				await this.refreshModels();
+				void vscode.window.showInformationMessage(`${label} is installed. Sign in to start using it.`);
+			} else {
+				void vscode.window.showErrorMessage(`${label} did not install: ${r.message}`);
+			}
+			return;
+		}
 		const hint = cliHint(id);
-		const command = action === 'install' ? hint.install : hint.loginCommand;
+		const command = action === 'install' ? (process.platform === 'win32' ? hint.installWindows ?? hint.install : hint.install) : hint.loginCommand;
 		if (!command) {
 			void vscode.window.showInformationMessage(hint.login);
 			return;

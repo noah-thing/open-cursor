@@ -23,6 +23,10 @@ export const COMMON_BIN_DIRS = (): string[] => {
 			path.join(h, 'scoop', 'shims'),
 			path.join(h, '.bun', 'bin'),
 			path.join(h, '.opencode', 'bin'),
+			path.join(h, '.codex', 'packages', 'standalone', 'current', 'bin'),
+			// CLIs OpenCursor installed with its private Node.js (npmSetup.ts), and that Node.js
+			path.join(h, '.open-cursor', 'cli'),
+			path.join(h, '.open-cursor', 'node'),
 		];
 	}
 	return [
@@ -36,6 +40,13 @@ export const COMMON_BIN_DIRS = (): string[] => {
 		path.join(h, '.npm-global', 'bin'),
 		path.join(h, '.bun', 'bin'),
 		path.join(h, '.opencode', 'bin'),
+		// Codex's own installer, and the copy the ChatGPT app ships for its Codex tab
+		path.join(h, '.codex', 'packages', 'standalone', 'current', 'bin'),
+		'/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin',
+		path.join(h, 'Applications', 'ChatGPT.app', 'Contents', 'Resources', 'codex-cli', 'bin'),
+		// CLIs OpenCursor installed with its private Node.js (npmSetup.ts), and that Node.js
+		path.join(h, '.open-cursor', 'cli', 'bin'),
+		path.join(h, '.open-cursor', 'node', 'bin'),
 	];
 };
 

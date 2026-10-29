@@ -32,12 +32,14 @@ esac
 if [ -n "${OPENCURSOR_VERSION:-}" ]; then
 	API="https://api.github.com/repos/$REPO/releases/tags/$OPENCURSOR_VERSION"
 else
-	API="https://api.github.com/repos/$REPO/releases/latest"
+	# newest first; a release still uploading its files is skipped for the systems it does not have yet
+	API="https://api.github.com/repos/$REPO/releases?per_page=20"
 fi
 
 step "Finding the latest OpenCursor release"
 RELEASE=$(curl -fsSL -H "Accept: application/vnd.github+json" "$API") || fail "could not reach GitHub"
 TAG=$(printf '%s' "$RELEASE" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+tag_of() { case "$1" in */download/*/*) printf '%s' "$1" | sed 's|.*/download/\([^/]*\)/.*|\1|' ;; *) printf '%s' "$TAG" ;; esac; }
 
 # The download URL of the first asset whose name ends in $1.
 asset() {
@@ -48,6 +50,7 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 download() {
+	TAG=$(tag_of "$1")
 	say "Downloading $(basename "$1")"
 	curl -fL --progress-bar -o "$TMP/$2" "$1" || fail "download failed"
 }
@@ -57,7 +60,7 @@ SUDO=""
 
 if [ "$OS" = macos ]; then
 	URL=$(asset "-macos-$ARCH.dmg")
-	[ -n "$URL" ] || fail "release $TAG has no build for macOS ($ARCH)"
+	[ -n "$URL" ] || fail "no OpenCursor release has a build for macOS ($ARCH) yet"
 	download "$URL" OpenCursor.dmg
 
 	step "Installing"
@@ -89,7 +92,7 @@ elif { command -v dnf >/dev/null 2>&1 || command -v zypper >/dev/null 2>&1; } &&
 	WHERE="the applications menu, or run: open-cursor"
 else
 	URL=$(asset "-linux-$ARCH.tar.gz")
-	[ -n "$URL" ] || fail "release $TAG has no build for Linux ($ARCH)"
+	[ -n "$URL" ] || fail "no OpenCursor release has a build for Linux ($ARCH) yet"
 	download "$URL" opencursor.tar.gz
 	step "Installing to ~/.local/share/opencursor"
 	ROOT="$HOME/.local/share/opencursor"

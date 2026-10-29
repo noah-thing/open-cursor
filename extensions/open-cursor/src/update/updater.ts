@@ -99,7 +99,10 @@ class Updater implements vscode.Disposable {
 			if (manual) { void vscode.window.showWarningMessage(`Could not check for updates: ${e instanceof Error ? e.message : String(e)}`); }
 			return;
 		}
-		if (!release || !isNewer(release.version, this.current)) {
+		// a release whose file for this system is still uploading is not offered yet
+		const kind = this.kind();
+		const waiting = !!release && (kind !== 'unknown' && kind !== 'win-portable') && !pickAsset(release, kind, process.arch);
+		if (!release || !isNewer(release.version, this.current) || waiting) {
 			if (manual) { void vscode.window.showInformationMessage(`OpenCursor ${this.current} is the latest version.`); }
 			return;
 		}

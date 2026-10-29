@@ -9,12 +9,14 @@ $ProgressPreference = 'SilentlyContinue'
 
 $repo = 'noah-thing/open-cursor'
 $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' }
-$api = if ($env:OPENCURSOR_VERSION) { "https://api.github.com/repos/$repo/releases/tags/$($env:OPENCURSOR_VERSION)" } else { "https://api.github.com/repos/$repo/releases/latest" }
+# newest first; a release still uploading its files is skipped until it has the Windows ones
+$api = if ($env:OPENCURSOR_VERSION) { "https://api.github.com/repos/$repo/releases/tags/$($env:OPENCURSOR_VERSION)" } else { "https://api.github.com/repos/$repo/releases?per_page=20" }
 
 Write-Host 'Finding the latest OpenCursor release' -ForegroundColor White
 $release = Invoke-RestMethod $api -Headers @{ 'User-Agent' = 'opencursor-installer'; 'Accept' = 'application/vnd.github+json' }
+$release = @($release) | Where-Object { -not $_.draft -and ($_.assets | Where-Object { $_.name -like "*-windows-$arch-setup.exe" }) } | Select-Object -First 1
+if (-not $release) { throw "No OpenCursor release has a build for Windows ($arch) yet." }
 $asset = $release.assets | Where-Object { $_.name -like "*-windows-$arch-setup.exe" } | Select-Object -First 1
-if (-not $asset) { throw "Release $($release.tag_name) has no build for Windows ($arch)." }
 
 $file = Join-Path ([IO.Path]::GetTempPath()) $asset.name
 Write-Host "Downloading $($asset.name)"
