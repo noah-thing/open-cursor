@@ -34,6 +34,7 @@ export interface ConfigValues {
 	'agent.commandDenylist': string[];
 	'chat.defaultMode': 'agent' | 'plan' | 'debug' | 'ask';
 	'chat.submitWithModEnter': boolean;
+	'privacy.anonymousCount': boolean;
 	'chat.showThinking': boolean;
 	'chat.fontSize': number;
 	'models.default': string;
@@ -62,6 +63,7 @@ export const CONFIG_DEFAULTS: ConfigValues = {
 	'agent.commandDenylist': [],
 	'chat.defaultMode': 'agent',
 	'chat.submitWithModEnter': false,
+	'privacy.anonymousCount': true,
 	'chat.showThinking': true,
 	'chat.fontSize': 13,
 	'models.default': '',

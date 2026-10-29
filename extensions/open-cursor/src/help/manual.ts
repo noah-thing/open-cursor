@@ -107,6 +107,7 @@ Tell Help what went wrong. If it is a bug, Help offers a Report on GitHub link: 
 
 ## Privacy
 API keys stay in the system keychain and only go to the provider they belong to. Code is sent only to the model you chose for that chat. Subscriptions run on your own CLI login. Local models never leave your network.
+Once a day OpenCursor sends an anonymous install count: a random ID made on this computer, the version and the OS, nothing else. Turn it off in Settings > General > Privacy (Anonymous install count). [General settings](opencursor:settings/general)
 
 ## When something does not work
 - "No model" or nothing happens on send: connect a model (Connect panel, Free models page, or Settings > Models).

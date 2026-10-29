@@ -1,0 +1,13 @@
+{
+	"configuration": {
+		"title": "OpenCursor: Privacy",
+		"properties": {
+			"openCursor.privacy.anonymousCount": {
+				"type": "boolean",
+				"default": true,
+				"scope": "application",
+				"markdownDescription": "Once a day, send a random ID made on this computer, the OpenCursor version and the OS, so the project knows how many people use it. Nothing about you, your code, chats or keys is sent. Also off when `#telemetry.telemetryLevel#` is off. The counter's code is in [`stats/`](https://github.com/noah-thing/open-cursor/tree/main/stats)."
+			}
+		}
+	}
+}

@@ -159,6 +159,10 @@ See [ARCHITECTURE.md](docs/open-cursor/ARCHITECTURE.md) for how the pieces fit t
 
 </details>
 
+## Privacy
+
+There is no account and no server between you and your models: requests go from your computer straight to the provider, and API keys stay in your system keychain. Once a day OpenCursor sends an anonymous install count, a random ID made on your computer plus the version and OS, so we know how many people use it. Nothing about you, your code, chats or keys is sent. Turn it off in Settings > General > Privacy. The counter's code is in [`stats/`](stats).
+
 ## Contributing
 
 Issues and pull requests are welcome. Run `npm run typecheck` in `extensions/open-cursor` before opening one, and keep changes to upstream VS Code files small so newer Code - OSS releases merge cleanly.

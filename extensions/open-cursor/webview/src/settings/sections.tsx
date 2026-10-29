@@ -53,6 +53,11 @@ export function General({ state, set, send }: SectionProps): ReactElement {
 					<ListEditor label="Command denylist" items={c['agent.commandDenylist']} onChange={v => set('agent.commandDenylist', v)} placeholder="git push" />
 				</Row>
 			</Group>
+			<Group title="Privacy" hint="OpenCursor has no account and no server between you and your models. API keys stay in the system keychain.">
+				<Row label="Anonymous install count" desc="Once a day, send a random ID made on this computer, the version and the OS, so we know how many people use OpenCursor. Nothing about you, your code, chats or keys.">
+					<Toggle label="Anonymous install count" checked={c['privacy.anonymousCount']} onChange={v => set('privacy.anonymousCount', v)} />
+				</Row>
+			</Group>
 			<Group>
 				<Row label="All settings" desc="Every OpenCursor option, in the standard settings editor.">
 					<Button onClick={() => send({ type: 'openSettingsJson' })}>Open settings editor</Button>

@@ -1,0 +1,11 @@
+{
+	"$schema": "https://unpkg.com/wrangler@4.125.0/config-schema.json",
+	"name": "opencursor-stats",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-15",
+	// Requests are not logged: the counter keeps only what migrations/0001_init.sql defines.
+	"observability": { "enabled": false },
+	"d1_databases": [
+		{ "binding": "DB", "database_name": "opencursor-stats", "database_id": "615ff372-f6a1-4c28-8680-3cb46c76dcc9", "migrations_dir": "migrations" }
+	]
+}

@@ -2,7 +2,7 @@
 	"name": "open-cursor",
 	"displayName": "OpenCursor",
 	"description": "Agent, Tab, inline edit and chat for OpenCursor.",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"publisher": "open-cursor",
 	"license": "MIT",
 	"author": "Noah",
@@ -716,6 +716,17 @@
 						"type": "string",
 						"default": "auto",
 						"markdownDescription": "Embedding model for the codebase index: `auto` (OpenAI key, then Gemini key, then a local Ollama embedding model) or `provider/model`, for example `openai/text-embedding-3-large`, `google/gemini-embedding-001` or `ollama/nomic-embed-text`. Changing it rebuilds the index."
+					}
+				}
+			},
+			{
+				"title": "OpenCursor: Privacy",
+				"properties": {
+					"openCursor.privacy.anonymousCount": {
+						"type": "boolean",
+						"default": true,
+						"scope": "application",
+						"markdownDescription": "Once a day, send a random ID made on this computer, the OpenCursor version and the OS, so the project knows how many people use it. Nothing about you, your code, chats or keys is sent. Also off when `#telemetry.telemetryLevel#` is off. The counter's code is in [`stats/`](https://github.com/noah-thing/open-cursor/tree/main/stats)."
 					}
 				}
 			},
