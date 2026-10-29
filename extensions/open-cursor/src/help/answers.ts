@@ -43,8 +43,8 @@ const INTENTS: readonly Intent[] = [
 	{
 		id: 'local',
 		all: [/\b(ollama|lm ?studio|local models?|locally|offline|on my (own )?(computer|machine))\b/],
-		text: 'Local models come from Ollama, LM Studio or any OpenAI compatible server, on this computer or another one on your network. Start the server, and its models appear in the model menu. To use a server elsewhere, set its address in **Settings > Models** (Ollama or LM Studio row) or on a new chat\'s start screen under **Local**.',
-		open: { target: 'settings', arg: 'models' },
+		text: 'Open **Run a model on this computer** (on the Free models page, or On this computer in the model menu). It checks your memory and graphics card, lists the models that fit with the best fit first, and **Install** does the rest in one click: it installs Ollama if needed, downloads the model and switches the chat to it. LM Studio and any OpenAI compatible server work too: start the server and its models appear in the model menu, or set its address in **Settings > Models**.',
+		open: { target: 'free-models', arg: 'local' },
 	},
 	{
 		id: 'api-key',

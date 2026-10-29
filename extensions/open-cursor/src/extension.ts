@@ -63,7 +63,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	}));
 
 	const free = new FreeModelsPanel(ctx, services, { activeModel: () => chat.activeModelId(), useModel: id => chat.useModel(id) });
-	ctx.subscriptions.push(free, vscode.commands.registerCommand('openCursor.freeModels.open', (o?: { install?: boolean }) => free.open(o)));
+	ctx.subscriptions.push(free,
+		vscode.commands.registerCommand('openCursor.freeModels.open', (o?: { install?: boolean; local?: boolean }) => free.open(o)),
+		vscode.commands.registerCommand('openCursor.localModels.open', () => free.open({ local: true })));
 }
 
 export function deactivate(): void {

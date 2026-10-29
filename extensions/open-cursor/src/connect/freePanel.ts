@@ -7,7 +7,9 @@ import * as vscode from 'vscode';
 import type { Services } from '../services';
 import type { ProviderId } from '../providers/types';
 import { FREE_PROVIDERS, looksLikeKey, verifyFreeKey, type FreeProviderSpec } from './freeProviders';
-import type { FreeCard, FreeHostMessage, FreeWebviewMessage, OpenCodeState } from './freeProtocol';
+import type { FreeCard, FreeHostMessage, FreeWebviewMessage, LocalState, OpenCodeState } from './freeProtocol';
+import { budget, needGB, pickModels, type Hardware } from './localModels';
+import { detectHardware, installOllama, installedTags, ollamaState, pullModel, startOllama, within, type OllamaState } from './localSetup';
 import { signInWithOpenRouter } from './openrouter';
 
 export interface FreeModelsHooks {
@@ -22,6 +24,15 @@ export class FreeModelsPanel implements vscode.Disposable {
 	private installing = false;
 	private signIn: vscode.CancellationTokenSource | undefined;
 	private readonly disposables: vscode.Disposable[] = [];
+	private hardware: Promise<Hardware> | undefined;
+	private localBusy: string | undefined;
+	private pulling: LocalState['pulling'];
+	private pullAbort: AbortController | undefined;
+	private lastOllama: OllamaState | undefined;
+	private poll: NodeJS.Timeout | undefined;
+	private focusLocal = false;
+	/** A model picked before Ollama was ready; it downloads as soon as Ollama runs. */
+	private queued: string | undefined;
 
 	constructor(private readonly ctx: vscode.ExtensionContext, private readonly services: Services, private readonly hooks: FreeModelsHooks) {
 		this.disposables.push(
@@ -31,9 +42,15 @@ export class FreeModelsPanel implements vscode.Disposable {
 	}
 
 	/** With `install`, OpenCode starts installing right away (the model menu's one click Get). */
-	open(opts?: { install?: boolean }): void {
+	/** With `local`, the page opens at Run a model on this computer. */
+	open(opts?: { install?: boolean; local?: boolean }): void {
 		if (opts?.install) { void this.installIfMissing(); }
-		if (this.panel) { this.panel.reveal(undefined, false); return; }
+		if (opts?.local) { this.focusLocal = true; }
+		if (this.panel) {
+			this.panel.reveal(undefined, false);
+			if (this.focusLocal) { this.focusLocal = false; this.post({ type: 'focus', section: 'local' }); }
+			return;
+		}
 		const dist = vscode.Uri.joinPath(this.ctx.extensionUri, 'dist', 'webview');
 		const panel = this.panel = vscode.window.createWebviewPanel('openCursor.freeModels', 'Free models', vscode.ViewColumn.Active, {
 			enableScripts: true, localResourceRoots: [dist], retainContextWhenHidden: false,
@@ -41,7 +58,16 @@ export class FreeModelsPanel implements vscode.Disposable {
 		panel.iconPath = vscode.Uri.joinPath(this.ctx.extensionUri, 'media', 'chat.svg');
 		panel.webview.html = this.html(panel.webview, dist);
 		panel.webview.onDidReceiveMessage((m: FreeWebviewMessage) => { void this.onMessage(m); }, undefined, this.disposables);
-		panel.onDidDispose(() => { this.panel = undefined; this.signIn?.cancel(); }, undefined, this.disposables);
+		panel.onDidDispose(() => { this.panel = undefined; this.signIn?.cancel(); if (this.poll) { clearInterval(this.poll); this.poll = undefined; } }, undefined, this.disposables);
+		// Ollama can be opened, quit or installed outside the editor; follow it while the page is open.
+		this.poll = setInterval(() => {
+			if (this.localBusy || this.pulling) { return; }
+			void ollamaState().then(s => {
+				if (s === this.lastOllama) { return; }
+				if (s === 'running' && this.queued) { const tag = this.queued; this.queued = undefined; void this.onMessage({ type: 'pullModel', tag }); return; }
+				void this.pushState();
+			});
+		}, 4000);
 	}
 
 	private async installIfMissing(): Promise<void> {
@@ -71,13 +97,60 @@ export class FreeModelsPanel implements vscode.Disposable {
 		};
 	}
 
+	private async localState(): Promise<LocalState> {
+		this.hardware ??= detectHardware();
+		const hw = await this.hardware;
+		const b = budget(hw);
+		const ollama = this.lastOllama = await ollamaState();
+		const tags = ollama === 'running' ? await installedTags() : [];
+		const has = (tag: string): boolean => tags.includes(tag) || tags.includes(tag + ':latest');
+		const picks = pickModels(hw).map(p => ({ tag: p.model.tag, label: p.model.label, note: p.model.note, sizeGB: p.model.sizeGB, recommended: p.recommended, tight: p.tight, diskOk: p.diskOk, installed: has(p.model.tag), fill: Math.min(1, needGB(p.model) / b.gb) }));
+		return {
+			hardware: b.summary, speed: b.speed, ollama, picks,
+			others: tags.filter(t => !picks.some(p => p.tag === t || p.tag + ':latest' === t)),
+			...(this.localBusy ? { busy: this.localBusy } : {}),
+			...(this.pulling ? { pulling: this.pulling } : {}),
+		};
+	}
+
 	private async pushState(): Promise<void> {
 		if (!this.panel) { return; }
 		const cards: FreeCard[] = await Promise.all(FREE_PROVIDERS.map(async p => ({
 			id: p.id, name: p.name, signupUrl: p.signupUrl, keyUrl: p.keyUrl, steps: p.steps, models: p.models, limits: p.limits,
 			privacy: p.privacy, oauth: p.oauth, connected: await this.services.registry.hasKey(p.id).catch(() => false),
 		})));
-		this.post({ type: 'state', cards, opencode: await this.openCodeState(), activeModel: this.hooks.activeModel() });
+		// never let a slow probe hold up the rest of the page
+		const local = await within(this.localState(), 6000, undefined);
+		this.post({ type: 'state', cards, opencode: await this.openCodeState(), activeModel: this.hooks.activeModel(), ...(local ? { local } : {}) });
+		if (this.focusLocal) { this.focusLocal = false; this.post({ type: 'focus', section: 'local' }); }
+	}
+
+	/** Gets Ollama installed and running. False when it is not running yet (failed, or finishing in a terminal). */
+	private async ensureOllama(queue?: string): Promise<boolean> {
+		const state = await ollamaState();
+		if (state === 'running') { return true; }
+		const say = (s: string): void => { this.localBusy = s; void this.pushState(); };
+		try {
+			if (state === 'stopped') {
+				say('Starting Ollama');
+				if (await startOllama()) { return true; }
+				throw new Error('it did not start. Open Ollama once from your apps, then try again.');
+			}
+			say('Downloading Ollama');
+			const r = await installOllama(say, new AbortController().signal);
+			if (r === 'terminal') {
+				this.queued = queue;
+				this.post({ type: 'result', id: 'local', ok: true, message: 'Finish the install in the terminal below; it asks for your password.' + (queue ? ` ${queue} downloads as soon as Ollama runs.` : '') });
+				return false;
+			}
+			return true;
+		} catch (e) {
+			this.post({ type: 'result', id: 'local', ok: false, message: `Could not get Ollama running: ${e instanceof Error ? e.message : String(e)}` });
+			return false;
+		} finally {
+			this.localBusy = undefined;
+			await this.services.registry.refreshModels().catch(() => undefined);
+		}
 	}
 
 	private async connect(spec: FreeProviderSpec, key: string): Promise<void> {
@@ -144,8 +217,44 @@ export class FreeModelsPanel implements vscode.Disposable {
 				return this.pushState();
 			}
 			case 'use':
+				if (m.modelId.startsWith('ollama/')) { await this.services.registry.refreshModels().catch(() => undefined); }
 				await this.hooks.useModel(m.modelId);
 				return this.pushState();
+			case 'installOllama':
+				await this.ensureOllama();
+				return this.pushState();
+			case 'startOllama':
+				if (this.localBusy) { return; }
+				await this.ensureOllama();
+				return this.pushState();
+			case 'pullModel': {
+				if (this.pulling || this.localBusy) { return; }
+				// one click: install and start Ollama first when needed
+				if (!(await this.ensureOllama(m.tag))) { return this.pushState(); }
+				const abort = this.pullAbort = new AbortController();
+				this.pulling = { tag: m.tag, status: 'Starting' };
+				await this.pushState();
+				let last = 0;
+				try {
+					await pullModel(m.tag, (pct, status) => {
+						this.pulling = { tag: m.tag, status, ...(pct !== undefined ? { pct } : {}) };
+						if (Date.now() - last > 250) { last = Date.now(); void this.pushState(); }
+					}, abort.signal);
+					this.pulling = undefined;
+					await this.services.registry.refreshModels().catch(() => undefined);
+					await this.hooks.useModel(`ollama/${m.tag}`);
+					this.post({ type: 'result', id: 'local', ok: true, message: `${m.tag} is ready and selected in the chat.` });
+				} catch (e) {
+					this.pulling = undefined;
+					if (!abort.signal.aborted) { this.post({ type: 'result', id: 'local', ok: false, message: `The download stopped: ${e instanceof Error ? e.message : String(e)}` }); }
+				} finally {
+					if (this.pullAbort === abort) { this.pullAbort = undefined; }
+				}
+				return this.pushState();
+			}
+			case 'cancelPull':
+				this.pullAbort?.abort();
+				return;
 		}
 	}
 

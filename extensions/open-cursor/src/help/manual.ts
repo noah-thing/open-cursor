@@ -44,6 +44,7 @@ Free models are on their own page, also reachable with the "Get Free Models" com
 - Free keys, about a minute each: OpenRouter (Connect with OpenRouter signs in through the browser, no key to copy), NVIDIA, Z.ai, Groq, Google Gemini, Mistral, SambaNova. Each card has Open the key page, the steps, and Paste key (reads the key from the clipboard and checks it).
 - Free (auto): appears once a free key is connected. It uses whichever free model has room and moves on when one hits its limit. When OpenCode's free quota runs out mid task, the chat continues on Free (auto) by itself.
 - Models that cost nothing carry a Free tag in the model menu.
+- Run a model on this computer (local models, offline, private): the Free models page has a section On this computer. It reads the memory and graphics card, lists the models that fit with the best fit first, and Install does everything in one click: installs Ollama if needed, downloads the model and switches the chat to it. Also the "Run a Model on This Computer" command, and On this computer in the Free part of the model menu. [Run a model on this computer](opencursor:free-models/local)
 
 ## Reviewing changes
 Agent edits land as pending changes, never silently. Changed lines show inline in the editor and a review bar appears above the chat box.

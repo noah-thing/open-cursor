@@ -116,7 +116,7 @@ Builds are not signed yet, so the first launch of a downloaded file needs one ex
 |---|---|
 | Free | OpenCode's free models with no account, installed in one click; free keys from OpenRouter, Groq, Google Gemini, NVIDIA, Z.ai, Mistral and SambaNova |
 | Subscription | Claude Code, Codex CLI, Grok CLI, Gemini CLI |
-| Local | Ollama, LM Studio or any OpenAI compatible server, on this computer or another on your network |
+| Local | Ollama, LM Studio or any OpenAI compatible server, on this computer or another on your network. **Run a Model on This Computer** checks your memory and graphics card, lists the models that fit and installs Ollama plus the model in one click |
 | API key | Anthropic, OpenAI, Google Gemini, OpenRouter, DeepSeek, xAI, Mistral, Groq, NVIDIA, Z.ai, SambaNova |
 
 A subscription runs the CLI you already use in the background, so you keep OpenCursor's chat, review and checkpoints while the work counts against your plan. With a free key connected, Free (auto) moves to another free model when one hits its limit. API keys stay in your system keychain.

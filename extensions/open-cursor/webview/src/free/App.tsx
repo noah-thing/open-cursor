@@ -2,8 +2,8 @@
  *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { useEffect, useState, type ReactElement } from 'react';
-import type { FreeCard, FreeHostMessage, FreeWebviewMessage, OpenCodeState } from '../../../src/connect/freeProtocol';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
+import type { FreeCard, FreeHostMessage, FreeWebviewMessage, LocalPick, LocalState, OpenCodeState } from '../../../src/connect/freeProtocol';
 import { BrandMark, hasBrandMark } from '../common/brands';
 import { Icon, Spinner } from '../common/icons';
 import { Loader } from '../common/loader';
@@ -65,6 +65,113 @@ function OpenCodeCard({ oc, active, busy, result, act }: {
 			) : null}
 			{result && !result.ok ? <div className="fm-result is-err">{result.message}</div> : null}
 			<div className="fm-hero-foot">Some free models may use prompts to improve the model.</div>
+		</section>
+	);
+}
+
+const gb = (n: number): string => (n < 10 ? n.toFixed(1) : String(Math.round(n))) + ' GB';
+
+/** One model that fits: what it is, how much of this computer it takes, and one button that does the rest. */
+function LocalRow({ pick, index, local, active, act }: {
+	readonly pick: LocalPick;
+	readonly index: number;
+	readonly local: LocalState;
+	readonly active: string;
+	readonly act: (m: FreeWebviewMessage) => void;
+}): ReactElement {
+	const id = 'ollama/' + pick.tag;
+	const on = active === id;
+	const pulling = local.pulling?.tag === pick.tag ? local.pulling : undefined;
+	const blocked = !!local.busy || (!!local.pulling && !pulling);
+	const pct = pulling?.pct;
+	const label = pulling
+		? (pct !== undefined && /pulling|download/i.test(pulling.status) ? `Downloading, ${Math.round(pct * 100)}%` : pulling.status === 'success' ? 'Finishing' : pulling.status ? pulling.status.charAt(0).toUpperCase() + pulling.status.slice(1).replace(/ [0-9a-f]{12,}$/, '') : 'Starting')
+		: undefined;
+	return (
+		<li className={'fm-local-row' + (pulling ? ' is-pulling' : '') + (on ? ' is-on' : '')} style={{ ['--i' as string]: index, ['--fill' as string]: pick.fill, ['--pct' as string]: pct ?? 0 }}>
+			<span className="fm-local-progress" aria-hidden="true" />
+			<div className="fm-local-main">
+				<div className="fm-local-name">
+					{pick.label}
+					{pick.recommended ? <span className="fm-tag">Best fit</span> : null}
+				</div>
+				<div className="fm-local-note">{label ?? pick.note}</div>
+			</div>
+			<div className="fm-local-meter" title={`${gb(pick.sizeGB)} download. Uses about ${Math.round(pick.fill * 100)}% of the memory a model can have here.`}>
+				<span className="fm-local-size">{gb(pick.sizeGB)}</span>
+				<span className={'fm-local-bar' + (pick.tight ? ' is-tight' : '')}><i /></span>
+			</div>
+			<div className="fm-local-act">
+				{pulling ? (
+					<button type="button" className="fm-link" onClick={() => act({ type: 'cancelPull' })}>Cancel</button>
+				) : on ? (
+					<span className="fm-status is-on"><Check /> In use</span>
+				) : pick.installed ? (
+					<button type="button" className="fm-btn" disabled={blocked} onClick={() => act({ type: 'use', modelId: id })}>Use</button>
+				) : (
+					<button type="button" className={'fm-btn' + (pick.recommended ? ' is-primary' : '')} disabled={blocked || !pick.diskOk} title={pick.diskOk ? undefined : `Needs ${gb(pick.sizeGB + 2)} free on disk`} onClick={() => act({ type: 'pullModel', tag: pick.tag })}>
+						{pick.diskOk ? 'Install' : 'No space'}
+					</button>
+				)}
+			</div>
+		</li>
+	);
+}
+
+function LocalCard({ local, active, result, act, flash }: {
+	readonly local: LocalState;
+	readonly active: string;
+	readonly result: Result | undefined;
+	readonly act: (m: FreeWebviewMessage) => void;
+	readonly flash: number;
+}): ReactElement {
+	const status = local.busy
+		? <span className="fm-status"><Spinner size={12} /> {local.busy}</span>
+		: local.ollama === 'running'
+			? <span className="fm-status is-on"><Check /> Ollama running</span>
+			: local.ollama === 'stopped'
+				? <button type="button" className="fm-btn" onClick={() => act({ type: 'startOllama' })}>Start Ollama</button>
+				: null;
+	return (
+		<section id="fm-local" key={flash} className={'fm-hero fm-local' + (flash ? ' is-flash' : '')}>
+			<div className="fm-hero-head">
+				<Logo id="ollama" size={20} />
+				<div className="fm-hero-titles">
+					<div className="fm-hero-title">Run a model on this computer <span className="fm-tag">Free</span></div>
+					<div className="fm-hero-sub fm-local-hw">{local.hardware}</div>
+				</div>
+				{status}
+			</div>
+			{local.picks.length ? (
+				<>
+					<div className="fm-local-lead">
+						{local.ollama === 'missing'
+							? 'These fit. One click installs Ollama, downloads the model and switches the chat to it.'
+							: 'These fit. One click downloads the model and switches the chat to it.'}
+						{local.speed === 'slow' ? ' Without a supported graphics card, answers come slower than online models.' : ''}
+					</div>
+					<ul className="fm-local-list">
+						{local.picks.map((p, i) => <LocalRow key={p.tag} pick={p} index={i} local={local} active={active} act={act} />)}
+					</ul>
+				</>
+			) : (
+				<div className="fm-local-lead">This computer has too little memory for a useful local model. The free models above run in the cloud instead.</div>
+			)}
+			{local.others.length ? (
+				<div className="fm-local-others">
+					<span>Already in Ollama</span>
+					{local.others.map(t => {
+						const id = 'ollama/' + t;
+						return (
+							<button key={t} type="button" className={'fm-chip' + (active === id ? ' is-on' : '')} onClick={() => act({ type: 'use', modelId: id })}>
+								{active === id ? <Check /> : null}{t.replace(/:latest$/, '')}
+							</button>
+						);
+					})}
+				</div>
+			) : null}
+			{result ? <div key={result.message} className={'fm-result' + (result.ok ? ' is-ok' : ' is-err')}>{result.message}</div> : null}
+			<div className="fm-hero-foot">Runs through Ollama, free and open source. Your code and chats never leave this computer.</div>
 		</section>
 	);
 }
@@ -156,6 +263,9 @@ export function App(): ReactElement {
 	const [open, setOpen] = useState<string | undefined>(undefined);
 	const [busy, setBusy] = useState<Record<string, boolean>>({});
 	const [results, setResults] = useState<Record<string, Result>>({});
+	const [local, setLocal] = useState<LocalState | undefined>(undefined);
+	const [flash, setFlash] = useState(0);
+	const wantFocus = useRef(false);
 
 	useEffect(() => {
 		const onMessage = (e: MessageEvent<FreeHostMessage>): void => {
@@ -164,6 +274,10 @@ export function App(): ReactElement {
 				setCards(m.cards);
 				setOc(m.opencode);
 				setActive(m.activeModel);
+				setLocal(m.local);
+			} else if (m.type === 'focus') {
+				wantFocus.current = true;
+				setFlash(f => f + 1);
 			} else if (m.type === 'result') {
 				setBusy(b => ({ ...b, [m.id]: false }));
 				setResults(r => ({ ...r, [m.id]: { ok: m.ok, message: m.message } }));
@@ -181,8 +295,16 @@ export function App(): ReactElement {
 			setResults(r => { const n = { ...r }; delete n[m.id]; return n; });
 		}
 		if (m.type === 'installOpenCode') { setBusy(b => ({ ...b, opencode: true })); }
+		if (m.type === 'pullModel' || m.type === 'installOllama' || m.type === 'startOllama') { setResults(r => { const n = { ...r }; delete n.local; return n; }); }
 		post(m);
 	};
+
+	// Scroll once the section exists; the page may still be loading when the request arrives.
+	useEffect(() => {
+		if (!wantFocus.current || !local) { return; }
+		wantFocus.current = false;
+		requestAnimationFrame(() => document.getElementById('fm-local')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }));
+	}, [flash, local]);
 
 	if (!cards) { return <div className="fm-loading"><Loader /></div>; }
 	const connected = cards.filter(c => c.connected).length + (oc.installed ? 1 : 0);
@@ -203,6 +325,13 @@ export function App(): ReactElement {
 
 			<h2 className="fm-section">No account needed</h2>
 			<OpenCodeCard act={act} oc={oc} active={active} busy={!!busy.opencode} result={results.opencode} />
+
+			{local ? (
+				<>
+					<h2 className="fm-section">On this computer, private and offline</h2>
+					<LocalCard local={local} active={active} result={results.local} act={act} flash={flash} />
+				</>
+			) : null}
 
 			<h2 className="fm-section">Free keys, about a minute each</h2>
 			<ul className="fm-grid">

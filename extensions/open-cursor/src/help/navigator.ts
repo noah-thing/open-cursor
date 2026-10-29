@@ -37,7 +37,7 @@ export class HelpNavigator {
 		const cmd = (id: string, ...args: unknown[]): Thenable<unknown> => vscode.commands.executeCommand(id, ...args);
 		const label = actionLabel(a);
 		switch (a.target) {
-			case 'free-models': await cmd('openCursor.freeModels.open', a.arg === 'install' ? { install: true } : undefined); break;
+			case 'free-models': await cmd('openCursor.freeModels.open', a.arg === 'install' ? { install: true } : a.arg === 'local' ? { local: true } : undefined); break;
 			case 'settings': await cmd('openCursor.settings.open', a.arg); break;
 			case 'editor-settings': await cmd('workbench.action.openSettings', a.arg ?? ''); break;
 			case 'shortcuts': await cmd('workbench.action.openGlobalKeybindings', a.arg ?? ''); break;

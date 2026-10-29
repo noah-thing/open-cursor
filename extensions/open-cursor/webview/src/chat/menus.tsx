@@ -280,6 +280,11 @@ function buildSections(models: readonly ModelOption[], query: string): Section[]
 	if (!hasOpenCode && (!q || fuzzyScore(q, 'opencode free') >= 0)) {
 		freeGroups.push({ key: 'get-opencode', rows: [{ kind: 'get-free', key: 'get-opencode', label: 'OpenCode', detail: 'Free models, no account' }] });
 	}
+	// A model on this computer, offered until one is running in Ollama.
+	const hasLocal = models.some(m => m.provider === 'ollama' && m.hasKey);
+	if (!hasLocal && (!q || fuzzyScore(q, 'local ollama offline computer') >= 0)) {
+		freeGroups.push({ key: 'get-local', rows: [{ kind: 'get-free', key: 'get-local', label: 'On this computer', detail: 'Private, works offline' }] });
+	}
 	if (freeGroups.length) { out.push({ title: 'Free', groups: freeGroups }); }
 	if (subs.length) { out.push({ title: 'Your subscriptions', groups: byGroup(subs, m => agentOf(m)!, k => AGENT_NAMES[k] ?? k) }); }
 	if (local.length) { out.push({ title: 'Local models', groups: byGroup(local, m => m.provider, providerLabel) }); }
@@ -327,7 +332,7 @@ export function ModelMenu({ models, modelId, onSelect, onConnect }: {
 		if (r.kind === 'connect') {
 			post({ type: 'openSettings', section: r.subscription ? 'subscriptions' : 'models' });
 		} else if (r.kind === 'get-free') {
-			post({ type: 'helpAction', href: 'opencursor:free-models/install' });
+			post({ type: 'helpAction', href: r.key === 'get-local' ? 'opencursor:free-models/local' : 'opencursor:free-models/install' });
 		} else {
 			onSelect(r.m.id);
 		}

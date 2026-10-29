@@ -2,7 +2,7 @@
 	"name": "open-cursor",
 	"displayName": "OpenCursor",
 	"description": "Agent, Tab, inline edit and chat for OpenCursor.",
-	"version": "0.1.4",
+	"version": "0.1.5",
 	"publisher": "open-cursor",
 	"license": "MIT",
 	"author": "Noah",
@@ -117,6 +117,11 @@
 			{
 				"command": "openCursor.freeModels.open",
 				"title": "Get Free Models",
+				"category": "OpenCursor"
+			},
+			{
+				"command": "openCursor.localModels.open",
+				"title": "Run a Model on This Computer",
 				"category": "OpenCursor"
 			},
 			{

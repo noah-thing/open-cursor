@@ -484,8 +484,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			const term = vscode.window.createTerminal({ name: 'LM Studio' });
 			term.sendText('lms server start');
 			term.show(true);
+		} else if (id === 'ollama') {
+			// Not installed: the Free models page installs it, picks a model that fits and downloads it.
+			await this.help.run({ target: 'free-models', arg: 'local' });
+			return;
 		} else {
-			await vscode.env.openExternal(vscode.Uri.parse(id === 'ollama' ? 'https://ollama.com/download' : 'https://lmstudio.ai'));
+			await vscode.env.openExternal(vscode.Uri.parse('https://lmstudio.ai'));
 			return;
 		}
 		// Give the server a moment, then look again.

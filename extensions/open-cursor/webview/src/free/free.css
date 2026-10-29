@@ -120,13 +120,76 @@ body { background: var(--vscode-editor-background, var(--oc-bg-editor)); }
 .fm-foot-sub { margin-top: 2px; font-size: 12px; color: var(--oc-fg-2); }
 @keyframes fm-rise { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
+/* Run a model on this computer */
+.fm-local-hw { animation: oc-swap 260ms 120ms var(--oc-ease-out) both; }
+.fm-local-lead { margin: 14px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--oc-fg-2); }
+.fm-local-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fm-local-row {
+	position: relative; overflow: hidden; display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 8px 10px 8px 14px; border-radius: 10px;
+	background: var(--oc-ink-4); box-shadow: inset 0 0 0 1px var(--oc-stroke-2);
+	animation: oc-enter 320ms var(--oc-ease-out) both; animation-delay: calc(90ms + var(--i) * 55ms);
+	transition: background-color 140ms ease, box-shadow 200ms ease;
+}
+.fm-local-row:hover { background: var(--oc-ink-6); }
+.fm-local-row.is-on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oc-add) 55%, transparent); }
+.fm-local-row > :not(.fm-local-progress) { position: relative; }
+/* Download progress fills the row from the left; transform only, so it stays smooth while Ollama streams. */
+.fm-local-progress {
+	position: absolute; inset: 0; transform-origin: left; transform: scaleX(0); pointer-events: none;
+	background: color-mix(in srgb, var(--oc-accent) 13%, transparent);
+	transition: transform 420ms var(--oc-ease-out), opacity 300ms ease; opacity: 0;
+}
+.fm-local-row.is-pulling .fm-local-progress { opacity: 1; transform: scaleX(var(--pct)); }
+.fm-local-row.is-pulling .fm-local-progress::after {
+	content: ""; position: absolute; inset: 0;
+	background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--oc-accent) 22%, transparent), transparent);
+	transform: translateX(-100%); animation: fm-sweep 1.6s var(--oc-glide) infinite;
+}
+@keyframes fm-sweep { to { transform: translateX(100%); } }
+.fm-local-main { flex: 1; min-width: 0; }
+.fm-local-name { font-size: 13px; font-weight: 500; }
+.fm-local-note { margin-top: 2px; font-size: 12px; color: var(--oc-fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fm-local-row.is-pulling .fm-local-note { color: var(--oc-fg-2); font-variant-numeric: tabular-nums; }
+.fm-local-meter { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; width: 74px; flex: none; }
+.fm-local-size { font-size: 11.5px; color: var(--oc-fg-2); font-variant-numeric: tabular-nums; }
+.fm-local-bar { position: relative; width: 100%; height: 4px; border-radius: 2px; overflow: hidden; background: var(--oc-ink-8); }
+.fm-local-bar > i {
+	position: absolute; inset: 0; border-radius: 2px; transform-origin: left; transform: scaleX(var(--fill));
+	background: color-mix(in srgb, var(--oc-add) 70%, var(--oc-fg-3));
+	animation: fm-grow 700ms var(--oc-glide) both; animation-delay: calc(220ms + var(--i) * 70ms);
+}
+.fm-local-bar.is-tight > i { background: color-mix(in srgb, var(--oc-warn) 75%, var(--oc-fg-3)); }
+@keyframes fm-grow { from { transform: scaleX(0); } }
+.fm-local-act { display: flex; justify-content: flex-end; min-width: 76px; flex: none; }
+.fm-local-others { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 14px; font-size: 12px; color: var(--oc-fg-3); }
+.fm-local-others > span { margin-right: 4px; }
+.fm-chip {
+	display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px; border-radius: 7px; font-size: 12px;
+	color: var(--oc-fg-2); background: var(--oc-ink-6); box-shadow: inset 0 0 0 1px var(--oc-stroke-2);
+	transition: background-color 120ms ease, color 120ms ease, transform 120ms var(--oc-ease-out);
+}
+.fm-chip:hover { background: var(--oc-ink-10, var(--oc-ink-8)); color: var(--oc-fg); }
+.fm-chip:active { transform: scale(0.97); }
+.fm-chip.is-on { color: var(--oc-add); }
+.fm-result.is-ok { color: var(--oc-fg-2); }
+/* Opened from Run a Model on This Computer: one soft ring so the eye lands here. */
+.fm-local.is-flash { animation: oc-enter 380ms var(--oc-ease-out) both, fm-ring 1.3s 250ms var(--oc-ease-out) both; }
+@keyframes fm-ring {
+	0% { box-shadow: inset 0 0 0 1px var(--oc-stroke), 0 0 0 0 color-mix(in srgb, var(--oc-accent) 45%, transparent); }
+	35% { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oc-accent) 70%, transparent), 0 0 0 5px color-mix(in srgb, var(--oc-accent) 16%, transparent); }
+	100% { box-shadow: inset 0 0 0 1px var(--oc-stroke), 0 0 0 10px transparent; }
+}
+
 @media (max-width: 560px) {
 	.fm { padding: 28px 16px 120px; }
 	.fm-card-inner { padding-left: 14px; }
 	.fm-head { flex-direction: column; gap: 12px; }
 	.fm-count { align-items: flex-start; }
+	.fm-local-meter { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
 	.fm-check path { stroke-dashoffset: 0; animation: none; }
 	.fm-card-body, .fm-chev { transition: none; }
+	.fm-local-bar > i, .fm-local-progress::after { animation: none; }
+	.fm-local.is-flash { animation: none; }
 }
