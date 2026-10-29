@@ -136,7 +136,8 @@ function waitForQuit(target: string): string[] {
 
 /** Reopens the app after an update, only when the user chose to restart (the flag file exists). */
 function relaunchLine(platform: 'darwin' | 'linux', target: string, flag: string): string {
-	const open = platform === 'darwin' ? `open ${sh(target)}` : `nohup ${sh(target + '/bin/open-cursor')} >/dev/null 2>&1 &`;
+	// right after a quit, macOS may still count the old instance as running and `open` would only focus it
+	const open = platform === 'darwin' ? `{ sleep 1; open -n ${sh(target)}; }` : `nohup ${sh(target + '/bin/open-cursor')} >/dev/null 2>&1 &`;
 	return `[ -f ${sh(flag)} ] && ${open}`;
 }
 

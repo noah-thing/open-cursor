@@ -77,7 +77,7 @@ test('the right file for every install and processor', () => {
 test('scripts quote paths and only reopen when asked to', () => {
 	const s = swapScript({ platform: 'darwin', staged: "/Apps/Open Cursor's.app.new-update", target: "/Apps/Open Cursor's.app", relaunchFlag: '/tmp/x/relaunch', log: '/tmp/x/log' });
 	assert.ok(s.includes(`mv '/Apps/Open Cursor'\\''s.app.new-update' '/Apps/Open Cursor'\\''s.app'`));
-	assert.ok(s.includes(`[ -f '/tmp/x/relaunch' ] && open '/Apps/Open Cursor'\\''s.app'`));
+	assert.ok(s.includes(`[ -f '/tmp/x/relaunch' ] && { sleep 1; open -n '/Apps/Open Cursor'\\''s.app'; }`));
 	const w = windowsScript({ setup: 'C:\\T\\setup.exe', exe: 'C:\\P\\OpenCursor\\OpenCursor.exe', relaunchFlag: 'C:\\T\\relaunch', log: 'C:\\T\\log' });
 	assert.ok(w.includes('IMAGENAME eq OpenCursor.exe'));
 	assert.ok(w.includes('"C:\\T\\setup.exe" /VERYSILENT'));
