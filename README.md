@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/noah-thing/open-cursor/releases"><img alt="Release" src="https://img.shields.io/github/v/release/noah-thing/open-cursor?include_prereleases&style=flat-square&color=555"></a>
+  <a href="#download"><img alt="macOS, Windows and Linux" src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-555?style=flat-square"></a>
   <a href="LICENSE.txt"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-555?style=flat-square"></a>
   <a href="https://x.com/fsconfig"><img alt="Follow @fsconfig on X" src="https://img.shields.io/badge/follow-%40fsconfig-555?style=flat-square&logo=x&logoColor=white"></a>
 </p>

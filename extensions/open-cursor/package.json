@@ -5,6 +5,12 @@
 	"version": "0.1.0",
 	"publisher": "open-cursor",
 	"license": "MIT",
+	"author": "Noah",
+	"homepage": "https://github.com/noah-thing/open-cursor",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/noah-thing/open-cursor.git"
+	},
 	"private": true,
 	"engines": {
 		"vscode": "^1.100.0"
