@@ -58,6 +58,11 @@ export function diffStat(a: string | undefined, b: string | undefined): { added:
 	}
 	let added = 0;
 	let removed = 0;
+	// git may hand back CRLF for a file the CLI wrote with LF (autocrlf); that is not a change of every line
+	if (a.includes('\r') || b.includes('\r')) {
+		a = a.replace(/\r\n/g, '\n');
+		b = b.replace(/\r\n/g, '\n');
+	}
 	for (const part of diffLines(a, b)) {
 		if (part.added) {
 			added += part.count ?? 0;
@@ -245,6 +250,17 @@ const MAX_FILE_BYTES = 512 * 1024;
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 const MAX_WALK_MS = 3000;
 
+/** True when the file exists but cannot be opened for reading right now (EBUSY, EPERM, EACCES). */
+function isLocked(abs: string): boolean {
+	try {
+		fs.closeSync(fs.openSync(abs, 'r'));
+		return false;
+	} catch (e) {
+		const code = (e as NodeJS.ErrnoException).code;
+		return code === 'EBUSY' || code === 'EPERM' || code === 'EACCES';
+	}
+}
+
 interface FileStamp { readonly mtimeMs: number; readonly size: number }
 
 /**
@@ -359,12 +375,16 @@ export class FsTracker implements FileScanner {
 		}
 		for (const abs of candidates) {
 			const st = now.get(abs);
+			const current = st ? readTextFile(abs, MAX_FILE_BYTES) : undefined;
+			if (current === 'skip' && st && st.size <= MAX_FILE_BYTES && isLocked(abs)) {
+				// Windows: another program holds the file (antivirus, the editor saving); keep the old stamp so the next scan retries
+				continue;
+			}
 			if (st) {
 				this.stamps.set(abs, st);
 			} else {
 				this.stamps.delete(abs);
 			}
-			const current = st ? readTextFile(abs, MAX_FILE_BYTES) : undefined;
 			if (current === 'skip') {
 				continue;
 			}

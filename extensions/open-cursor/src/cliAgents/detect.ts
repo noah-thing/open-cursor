@@ -77,11 +77,16 @@ export function resetLoginShellCache(): void {
 	shellInfoPromise = undefined;
 }
 
+/** Windows allows quotes around a PATH entry with spaces or semicolons; path.join would keep them. */
+const unquote = (d: string): string => d.replace(/^"(.*)"$/, '$1');
+
 export async function resolveBinary(id: CliAgentId, cfg: DetectConfig): Promise<string | undefined> {
 	const override = cfg.paths[id]?.trim();
 	if (override) {
 		const p = override.startsWith('~') ? path.join(os.homedir(), override.slice(1)) : override;
-		for (const cand of [p, ...(process.platform === 'win32' && !path.extname(p) ? executableNames(p) : [])]) {
+		// `where claude` lists the extensionless sh script npm leaves beside claude.cmd first; it cannot be spawned, so it goes last
+		const bare = process.platform === 'win32' && !path.extname(p);
+		for (const cand of bare ? [...executableNames(p).filter(c => c !== p), p] : [p]) {
 			if (exists(cand)) {
 				return cand;
 			}
@@ -92,7 +97,7 @@ export async function resolveBinary(id: CliAgentId, cfg: DetectConfig): Promise<
 	if (fromShell && exists(fromShell)) {
 		return fromShell;
 	}
-	const dirs = [...COMMON_BIN_DIRS(), ...sh.path, ...(process.env.PATH ?? '').split(path.delimiter)];
+	const dirs = [...COMMON_BIN_DIRS(), ...sh.path, ...(process.env.PATH ?? '').split(path.delimiter).map(unquote)];
 	for (const d of dirs) {
 		if (!d) {
 			continue;
@@ -110,7 +115,7 @@ export async function resolveBinary(id: CliAgentId, cfg: DetectConfig): Promise<
 /** Environment for spawning a CLI: login-shell PATH first, then the usual dirs, then ours. */
 export async function cliEnv(binary: string | undefined): Promise<NodeJS.ProcessEnv> {
 	const sh = await loginShellInfo();
-	const dirs = [binary ? path.dirname(binary) : '', ...sh.path, ...COMMON_BIN_DIRS(), ...(process.env.PATH ?? '').split(path.delimiter)];
+	const dirs = [binary ? path.dirname(binary) : '', ...sh.path, ...COMMON_BIN_DIRS(), ...(process.env.PATH ?? '').split(path.delimiter).map(unquote)];
 	const seen = new Set<string>();
 	const merged = dirs.filter(d => d && !seen.has(d) && !!seen.add(d));
 	const env = withPath(process.env, merged.join(path.delimiter));

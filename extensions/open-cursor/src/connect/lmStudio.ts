@@ -29,7 +29,7 @@ export function commandWithBinary(command: string, binaryPath: string | undefine
 	if (!binaryPath) { return command; }
 	const rest = command.replace(/^\S+/, '');
 	const name = (shell ?? '').toLowerCase();
-	if (/pwsh|powershell/.test(name)) { return `& '${binaryPath.replace(/'/g, "''")}'${rest}`; }
+	if (/pwsh|powershell/.test(name)) { return `& '${binaryPath.replace(/['\u2018\u2019\u201a\u201b]/g, '$&$&')}'${rest}`; }
 	if (/cmd(\.exe)?$/.test(name)) { return `"${binaryPath}"${rest}`; }
 	return `'${binaryPath.replace(/'/g, `'\\''`)}'${rest}`;
 }

@@ -340,6 +340,8 @@ export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fi
 						) : action === 'openSettings' ? (
 							<button type="button" className="oc-btn" onClick={() => post({ type: 'openSettings', section: 'models' })}>Open settings</button>
 						) : null}
+						{/* after signing in, adding a key or trusting the folder, the same message goes again */}
+						{fix && onRetry ? <button type="button" className="oc-btn" onClick={onRetry}>Try again</button> : null}
 						{fix?.kind === 'signIn' || fix?.kind === 'addKey' || fix?.kind === 'trust' ? null : (
 							<button type="button" className="oc-linkbtn oc-error-report" onClick={() => post({ type: 'reportProblem', chatId, error: message })}>Report this</button>
 						)}

@@ -54,7 +54,8 @@ export function resolvePath(input: string): ResolvedPath {
 	if (nodePath.isAbsolute(p)) {
 		uri = vscode.Uri.file(nodePath.normalize(p));
 	} else {
-		const clean = p.replace(/^\.\//, '');
+		// Uri.joinPath keeps a backslash as a plain character, which would make `src\a.ts` a different file URI than `src/a.ts`
+		const clean = (process.platform === 'win32' ? p.replace(/\\/g, '/') : p).replace(/^\.\//, '');
 		let base = roots[0];
 		let rel = clean;
 		if (roots.length > 1) {

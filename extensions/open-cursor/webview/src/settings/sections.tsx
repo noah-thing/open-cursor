@@ -33,7 +33,7 @@ export function General({ state, set, send }: SectionProps): ReactElement {
 				<Row label={'Send with ' + MOD + 'Enter'} desc="Enter inserts a new line instead of sending.">
 					<Toggle label="Send with modifier plus Enter" checked={c['chat.submitWithModEnter']} onChange={v => set('chat.submitWithModEnter', v)} />
 				</Row>
-				<Row label="Thinking effort" desc="How hard models think before answering. Auto thinks at high on API models and keeps the default of Claude Code and Codex. Also in the chat box, next to the model.">
+				<Row label="Thinking effort" desc="How hard models think before answering. Auto uses each model's own default, a middle level on API models, and keeps the default of Claude Code, Codex and OpenCode. Also in the chat box, next to the model.">
 					<Select label="Thinking effort" value={c['agent.effort']} onChange={v => set('agent.effort', v)} options={[
 						{ value: 'auto', label: 'Auto' }, { value: 'off', label: 'Off' }, { value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }, { value: 'max', label: 'Max' },
 					]} />

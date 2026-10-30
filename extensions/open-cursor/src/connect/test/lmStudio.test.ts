@@ -5,6 +5,10 @@ test('PowerShell needs the call operator', () => {
 	assert.strictEqual(commandWithBinary('codex login', 'C:\\Users\\A B\\codex.cmd', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'), "& 'C:\\Users\\A B\\codex.cmd' login");
 });
 
+test('PowerShell doubles typographic apostrophes in a user name', () => {
+	assert.strictEqual(commandWithBinary('codex login', 'C:\\Users\\O\u2019Neil\\codex.cmd', 'pwsh.exe'), "& 'C:\\Users\\O\u2019\u2019Neil\\codex.cmd' login");
+});
+
 test('POSIX shells get single quotes', () => {
 	assert.strictEqual(commandWithBinary('opencode auth login', "/home/o'neil/bin/opencode", '/bin/zsh'), "'/home/o'\\''neil/bin/opencode' auth login");
 });

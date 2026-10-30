@@ -2,7 +2,9 @@
  *  OpenCursor. MIT License.
  *  The anonymous install counter. Once a day each copy of OpenCursor that has not turned the count
  *  off sends a random ID it made on first launch, its version and its OS. The ID is hashed before it
- *  is stored, IP addresses are never stored, and requests are not logged. /stats shows the totals
+ *  is stored, IP addresses are never stored, and requests are not logged. To stop one network from
+ *  flooding the counter or the report inbox, a one way hash of the address (salted with a server
+ *  secret and the day) is kept for a few days, and nothing else about it. /stats shows the totals
  *  to whoever holds STATS_KEY.
  *--------------------------------------------------------------------------------------------*/
 

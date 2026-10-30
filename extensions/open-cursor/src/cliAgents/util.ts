@@ -155,6 +155,14 @@ export function killTree(child: ChildProcess, signal: NodeJS.Signals): void {
 	}
 }
 
+/** Same file on this OS: Windows ignores case and accepts both slashes (`C:\\Foo\\a.ts` vs `c:/foo/a.ts`). */
+export function samePath(a: string, b: string): boolean {
+	if (process.platform !== 'win32') {
+		return a === b;
+	}
+	return path.normalize(a).toLowerCase() === path.normalize(b).toLowerCase();
+}
+
 export function exists(p: string): boolean {
 	try {
 		fs.accessSync(p, fs.constants.X_OK);

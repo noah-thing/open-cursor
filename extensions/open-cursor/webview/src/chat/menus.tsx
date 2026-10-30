@@ -184,7 +184,7 @@ export function PermissionMenu({ autoRun, modelId }: { readonly autoRun: AutoRun
 }
 
 const EFFORTS: readonly { readonly id: Effort; readonly label: string; readonly hint: string }[] = [
-	{ id: 'auto', label: 'Auto', hint: 'High on API models; CLIs keep their own default' },
+	{ id: 'auto', label: 'Auto', hint: "Each model's own default; a middle level on API models" },
 	{ id: 'off', label: 'Off', hint: 'Answers straight away, no thinking' },
 	{ id: 'low', label: 'Low', hint: 'Short thinking, faster answers' },
 	{ id: 'medium', label: 'Medium', hint: 'A middle amount of thinking' },
@@ -201,10 +201,10 @@ export function EffortMenu({ effort, model }: { readonly effort: Effort; readonl
 	const ref = useRef<HTMLDivElement>(null);
 	useDismiss(ref, open, () => setOpen(false));
 	const agent = model ? agentOf(model) : undefined;
-	if (!model || (agent ? !EFFORT_AGENTS.has(agent) : !model.supportsThinking)) { return null; }
-	// a CLI cannot switch thinking off; its lowest level is Low
-	const options = agent ? EFFORTS.filter(e => e.id !== 'off') : EFFORTS;
-	const cur = options.find(e => e.id === effort) ?? (agent && effort === 'off' ? options.find(e => e.id === 'low')! : options[0]);
+	if (!model || (agent ? !EFFORT_AGENTS.has(agent) : !model.effortLevels)) { return null; }
+	// a CLI, and some API models, cannot switch thinking off; their lowest level is Low
+	const options = agent || model.noOff ? EFFORTS.filter(e => e.id !== 'off') : EFFORTS;
+	const cur = options.find(e => e.id === effort) ?? ((agent || model.noOff) && effort === 'off' ? options.find(e => e.id === 'low')! : options[0]);
 	return (
 		<div className="oc-menu-wrap" ref={ref}>
 			<button type="button" className={'oc-chip oc-effort-chip is-' + cur.id} onClick={() => setOpen(o => !o)} aria-haspopup="menu" aria-expanded={open} title={'Thinking effort: ' + cur.label}>

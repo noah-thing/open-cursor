@@ -6,7 +6,8 @@
 import assert from 'node:assert/strict';
 import { buildAnthropicBody } from './anthropic';
 import { guessModelInfo, isReasoningName } from './catalog';
-import { buildOpenAIBody, createOpenAICompatible } from './openai';
+import { buildOpenAIBody, createOpenAICompatible, shouldDropThinking } from './openai';
+import { ProviderError } from './types';
 import { hasThinkingControl, thinkingParams, thinkingRejected, thinkingUnverified } from './thinking';
 import type { ApiEffort } from '../agent/effort';
 import type { ChatRequest, ProviderId } from './types';
@@ -109,9 +110,6 @@ test('Anthropic: Auto thinks at a moderate budget and keeps the cache breakpoint
 	assert.ok(b.system[0].cache_control && b.tools[0].cache_control && b.messages[0].content[0].cache_control);
 });
 
-console.log(failed ? `${failed} failed` : 'all passed');
-process.exit(failed ? 1 : 0);
-
 {
 	// DeepSeek V4.1 on NVIDIA: V4's field only when a level is picked, and gone for the session once refused
 	const tp = thinkingParams, has = hasThinkingControl, rej = thinkingRejected, unv = thinkingUnverified;
@@ -124,3 +122,14 @@ process.exit(failed ? 1 : 0);
 	assert.ok(!has('nvidia', m));
 	assert.deepStrictEqual(tp('nvidia', m, false, undefined), {});
 }
+
+test('V4.1 resend: only on a plain 400, not on a size error or another model', () => {
+	const e400 = new ProviderError('bad request', 'nvidia', 400, 'other');
+	assert.equal(shouldDropThinking(e400, 'nvidia', 'deepseek-ai/deepseek-v4.1-flash'), true);
+	assert.equal(shouldDropThinking(new ProviderError('maximum context length is 128000', 'nvidia', 400, 'other'), 'nvidia', 'deepseek-ai/deepseek-v4.1-flash'), false);
+	assert.equal(shouldDropThinking(e400, 'nvidia', 'deepseek-ai/deepseek-v4-flash'), false);
+	assert.equal(shouldDropThinking(new ProviderError('x', 'nvidia', 500, 'other'), 'nvidia', 'deepseek-ai/deepseek-v4.1-flash'), false);
+});
+
+console.log(failed ? `${failed} failed` : 'all passed');
+process.exit(failed ? 1 : 0);

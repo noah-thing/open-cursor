@@ -128,6 +128,10 @@ export interface ModelOption {
 	readonly provider: string;
 	readonly supportsImages: boolean;
 	readonly supportsThinking: boolean;
+	/** The thinking level picked in the chat box reaches this model. */
+	readonly effortLevels?: boolean;
+	/** Thinking cannot be switched off here; Off would quietly run at Low, so it is not offered. */
+	readonly noOff?: boolean;
 	readonly hasKey: boolean;
 	/** Costs nothing on the provider's free tier. */
 	readonly free?: boolean;
@@ -144,7 +148,7 @@ export interface PendingFileEdit {
 	readonly chatId?: string;
 }
 
-/** How hard models think. Auto: API models think at high, CLIs keep their own default. */
+/** How hard models think. Auto: each model's own default (a middle level on API models); CLIs keep theirs. */
 export type Effort = 'auto' | 'off' | 'low' | 'medium' | 'high' | 'max';
 
 export interface UiSettings {

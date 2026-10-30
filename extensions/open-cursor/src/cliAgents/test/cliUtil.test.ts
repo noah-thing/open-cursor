@@ -3,8 +3,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { assert, done, test } from '../../agent/test/harness';
 import { claudeSettingsAuth } from '../detect';
-import { FsTracker, matchEol, setMaxFilesForTest } from '../fileTracker';
-import { cmdQuote, friendlyError, isStaleSessionError, shimTarget } from '../util';
+import { diffStat, FsTracker, matchEol, setMaxFilesForTest } from '../fileTracker';
+import { cmdQuote, friendlyError, isStaleSessionError, samePath, shimTarget } from '../util';
 import { cliHint, installCommand } from '../../shared/cliHints';
 import { openCodeMajor } from '../opencodeSetup';
 
@@ -14,6 +14,19 @@ test('shim: node script, native exe, and the node.exe in the IF EXIST line is no
 	const exe = '@ECHO off\r\nIF EXIST "%dp0%\\node.exe" (\r\n  SET "_prog=%dp0%\\node.exe"\r\n)\r\n"%dp0%\\node_modules\\pkg\\vendor\\tool.exe"   %*\r\n';
 	assert.deepStrictEqual(shimTarget(exe), { kind: 'exe', rel: 'node_modules\\pkg\\vendor\\tool.exe' });
 	assert.strictEqual(shimTarget('@echo off\r\ncall something.bat'), undefined);
+});
+
+test('diff stat ignores a CRLF vs LF difference of the whole file', () => {
+	assert.deepStrictEqual(diffStat('a\r\nb\r\nc\r\n', 'a\nb\nc\n'), { added: 0, removed: 0 });
+	assert.deepStrictEqual(diffStat('a\r\nb\r\nc\r\n', 'a\nB\nc\n'), { added: 1, removed: 1 });
+});
+
+test('samePath is exact off Windows', () => {
+	if (process.platform !== 'win32') {
+		assert.ok(samePath('/a/b', '/a/b') && !samePath('/a/b', '/a/B'));
+	} else {
+		assert.ok(samePath('C:\\Foo\\a.ts', 'c:/foo/a.ts'));
+	}
 });
 
 test('cmd.exe quoting never lets a newline through', () => {

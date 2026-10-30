@@ -250,12 +250,15 @@ export function openCodePermission(o: Pick<RunOptions, 'mode' | 'autoRun' | 'com
 	return { '*': 'allow', bash, question: 'deny', external_directory: 'deny', doom_loop: 'deny' };
 }
 
+/** A run that failed because the model has no such variant (or no such model). Not a bare "resolve": that is also a DNS error. */
+export const VARIANT_ERROR = /variant|unknown model|model not found|ModelNotFound/i;
+
 /** Models that refused a thinking level this session: they run without one from then on. */
 const NO_VARIANT = new Set<string>();
 
 /** The thinking level OpenCode gets for this run, as a model variant; OpenCode 2 only, and only on a named model. */
 export function openCodeVariantFor(o: Pick<RunOptions, 'model' | 'version' | 'effort'>): string | undefined {
-	if (openCodeMajor(o.version) < 2 || !o.model || o.model === 'default' || NO_VARIANT.has(o.model)) { return undefined; }
+	if (openCodeMajor(o.version) < 2 || !o.model || o.model === 'default' || o.model.includes('#') || NO_VARIANT.has(o.model)) { return undefined; }
 	return openCodeVariant(o.effort);
 }
 
@@ -269,7 +272,8 @@ export function openCodeCommandNote(o: Pick<RunOptions, 'mode' | 'autoRun' | 'co
 	if (o.autoRun === 'auto') {
 		return 'Shell commands that delete files, install or publish packages, go online or reach outside the project are blocked and cannot be approved during the run, so do not retry them or try variations. If you need one, finish what you can and tell the user which command to run or to switch to Full access.\n\n';
 	}
-	const list = o.autoRun === 'ask' ? [] : o.commandAllowlist.slice(0, 60);
+	// the same entries openCodePermission lets through
+	const list = o.autoRun === 'ask' ? [] : o.commandAllowlist.map(e => e.trim()).filter(e => commandAllowed(e, [e])).slice(0, 60);
 	const allowed = list.length ? `Only these shell commands run in this session: ${list.join(', ')}.` : 'Shell commands are blocked in this session.';
 	return `${allowed} Other commands are blocked and cannot be approved during the run, so do not retry them or try variations. If you need one, finish what you can and tell the user which command to run or to switch to Full access.\n\n`;
 }
@@ -376,7 +380,7 @@ export async function runOpenCode(o: RunOptions, repaired = false): Promise<RunR
 	parser.finish();
 	// a model without that thinking level fails before doing anything: run once more at its default level
 	const failedEarly = parser.failure ?? (exit.code !== 0 ? proc.stderr() : '');
-	if (o.model && failedEarly && !watch.produced() && openCodeVariantFor(o) && /variant|resolve|unknown model|model not found/i.test(failedEarly)) {
+	if (o.model && failedEarly && !watch.produced() && openCodeVariantFor(o) && VARIANT_ERROR.test(failedEarly)) {
 		NO_VARIANT.add(o.model);
 		return runOpenCode(o, repaired);
 	}

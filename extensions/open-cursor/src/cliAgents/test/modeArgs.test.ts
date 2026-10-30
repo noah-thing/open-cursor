@@ -3,7 +3,7 @@ import { cliModeGuidance } from '../../agent/prompts';
 import { DEBUG_MARKER } from '../../agent/modes';
 import { claudeModeArgs, cliPromptPrefix, codexModeArgs, geminiModeArgs, CLAUDE_EDIT_TOOLS } from '../modeArgs';
 import { grokPermissionArgs } from '../grok';
-import { openCodeArgs, openCodeCommandNote, openCodeEnv, openCodePermission } from '../opencode';
+import { VARIANT_ERROR, openCodeArgs, openCodeCommandNote, openCodeEnv, openCodePermission } from '../opencode';
 import type { AutoRun } from '../types';
 import { effectiveAutoRun } from '../policy';
 import { DEFAULT_ALLOWLIST } from '../../agent/approval';
@@ -205,4 +205,16 @@ test('opencode: --auto only for agent/debug with auto-run always, only on OpenCo
 	assert.ok(note('agent', 'auto').includes('delete files') && !note('agent', 'auto').includes('Only these'));
 	assert.strictEqual(note('agent', 'always'), '');
 	assert.strictEqual(note('ask', 'allowlist'), '');
+}
+
+{
+	// the variant: never on a model id that already has one, and the early-failure test is not a DNS error
+	const base = { mode: 'agent' as const, autoRun: 'always' as const, version: '2.0.25', extraArgs: [] as string[], effort: 'high' as const };
+	assert.ok(openCodeArgs({ ...base, model: 'opencode/big-pickle' }).includes('opencode/big-pickle#high'));
+	assert.ok(openCodeArgs({ ...base, model: 'opencode/big-pickle#max' }).includes('opencode/big-pickle#max'));
+	assert.ok(!openCodeArgs({ ...base, model: 'opencode/big-pickle#max' }).some(a => a.includes('#max#')));
+	assert.ok(!openCodeArgs({ ...base, version: '1.4.0', model: 'opencode/big-pickle' }).some(a => a.includes('#')));
+	assert.ok(VARIANT_ERROR.test('Model variant "high" not found') && !VARIANT_ERROR.test('getaddrinfo: could not resolve host api.example.com'));
+	const noted = openCodeCommandNote({ mode: 'agent', autoRun: 'allowlist', commandAllowlist: ['npm test', 'ls && rm -rf x'] });
+	assert.ok(noted.includes('npm test') && !noted.includes('rm -rf'));
 }

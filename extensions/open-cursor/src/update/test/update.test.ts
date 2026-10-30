@@ -290,6 +290,34 @@ test('a second swap script exits cleanly while the first holds the lock, and a s
 	}
 });
 
+test('a script that loses the lock still reopens the app when Restart was pressed in its window', () => {
+	if (process.platform === 'win32') { return; }
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-lock2-'));
+	try {
+		const target = path.join(dir, 'App');
+		const staged = target + '.new-update-1-2';
+		fs.mkdirSync(path.join(target, 'bin'), { recursive: true });
+		const mark = path.join(dir, 'opened');
+		fs.writeFileSync(path.join(target, 'bin', 'open-cursor'), `#!/bin/sh\ntouch '${mark}'\n`, { mode: 0o755 });
+		fs.mkdirSync(staged);
+		const flag = path.join(dir, 'relaunch');
+		fs.writeFileSync(flag, '');
+		const script = path.join(dir, 'install.sh');
+		fs.writeFileSync(script, swapScript({ platform: 'linux', staged, target, relaunchFlag: flag, log: path.join(dir, 'log') }));
+		// the winner finishes a moment later and lets go of the lock
+		fs.mkdirSync(target + '.update-lock');
+		const winner = spawn('/bin/sh', ['-c', `sleep 1; rmdir '${target}.update-lock'`], { stdio: 'ignore' });
+		execFileSync('/bin/sh', [script], { timeout: 20_000 });
+		winner.kill();
+		const end = Date.now() + 3000;
+		while (!fs.existsSync(mark) && Date.now() < end) { execFileSync('/bin/sleep', ['0.1']); }
+		assert.ok(fs.existsSync(mark), 'the app was reopened');
+		assert.ok(!fs.existsSync(staged), 'its own staged copy is gone');
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
 void done('update');
 
 {

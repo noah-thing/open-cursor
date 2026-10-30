@@ -211,6 +211,11 @@ export async function* parseOpenAIStream(events: AsyncIterable<SseEvent>, opts: 
 	yield { type: 'done', stopReason: sawCalls || finish === 'tool_calls' ? 'tool_use' : finish === 'length' ? 'max_tokens' : finish === 'content_filter' ? 'stop' : 'end_turn' };
 }
 
+/** A 400 on a model whose thinking fields are unverified, and not about the size of the request. */
+export function shouldDropThinking(e: unknown, provider: ProviderId, model: string): boolean {
+	return e instanceof ProviderError && e.status === 400 && thinkingUnverified(provider, model) && !/context|too long|too many tokens|maximum/i.test(e.message);
+}
+
 export class OpenAICompatibleProvider implements LLMProvider {
 	readonly id: ProviderId;
 	readonly label: string;
@@ -237,6 +242,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
 	}
 
 	private async* run(req: ChatRequest): AsyncGenerator<StreamEvent> {
+		// only a request that carried thinking fields can have been refused for them
+		const sentThinking = Object.keys(thinkingParams(this.id, req.model.model, req.thinking, req.effort)).length > 0;
 		const send = async (): Promise<Response> => request(this.id, joinUrl(this.base(req.model.id), '/chat/completions'), {
 			method: 'POST', headers: { ...await this.headers(), accept: 'text/event-stream' }, body: JSON.stringify(buildOpenAIBody(req, this.o)),
 		}, req.signal, req.retries);
@@ -245,7 +252,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
 			res = await send();
 		} catch (e) {
 			// an undocumented thinking field the provider refuses: drop it for this model and ask again at its default
-			if (!(e instanceof ProviderError) || e.status !== 400 || !thinkingUnverified(this.id, req.model.model) || req.thinking === undefined) { throw e; }
+			if (!sentThinking || !shouldDropThinking(e, this.id, req.model.model)) { throw e; }
 			thinkingRejected(this.id, req.model.model);
 			res = await send();
 		}

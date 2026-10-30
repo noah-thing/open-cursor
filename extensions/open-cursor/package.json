@@ -649,15 +649,15 @@
 							"max"
 						],
 						"enumDescriptions": [
-							"API models think at high; Claude Code and Codex keep their own default.",
-							"No thinking on API models. Lowest level for Claude Code and Codex.",
+							"Each model's own default: a middle amount on API models. Claude Code, Codex and OpenCode keep theirs.",
+							"No thinking on API models. Lowest level for Claude Code, Codex and OpenCode.",
 							"Short thinking. Faster answers.",
 							"A middle amount of thinking.",
 							"Long thinking.",
 							"The most each model allows."
 						],
 						"default": "auto",
-						"markdownDescription": "How hard models think before answering. Also in the chat box, next to the model. Applies to models that can think, Claude Code and Codex."
+						"markdownDescription": "How hard models think before answering. Also in the chat box, next to the model. Applies to models that can think (Anthropic, OpenAI, DeepSeek and some NVIDIA, Z.ai and Groq models), Claude Code, Codex and OpenCode."
 					},
 					"openCursor.agent.thinking": {
 						"type": "boolean",

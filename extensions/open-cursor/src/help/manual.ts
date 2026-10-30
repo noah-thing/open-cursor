@@ -37,6 +37,7 @@ The model chip next to the mode chip picks the model for this chat. Models come 
 - Default models: Settings > Models > Defaults has the model for new chats, for inline edit (Cmd+K) and for Tab completion.
 - Turn individual models on or off in Settings > Models > Available models. Add any model id by hand under Custom models.
 - Switch model by typing /model name in the box.
+- Thinking effort: the effort button next to the model (Auto, Off, Low, Medium, High, Max), or Set Thinking Effort in the command palette. It works for models that can think (Anthropic, OpenAI, DeepSeek and some NVIDIA, Z.ai and Groq models) and for Claude Code, Codex and OpenCode. Auto uses each model's own default. [General settings](opencursor:settings/general)
 
 ## Free models
 Free models are on their own page, also reachable with the "Get Free Models" command. [Free models](opencursor:free-models)
@@ -101,10 +102,10 @@ The import brings settings, keybindings and extensions over from Cursor or VS Co
 - Open a project: File > Open Folder, or the start screen when no folder is open. [Open a folder](opencursor:open-folder)
 
 ## Updates
-Updates install themselves on Mac, Windows and unpacked Linux folders: OpenCursor checks GitHub at startup and every six hours, downloads a new version in the background, checks it against its published checksum, and installs it the next time you quit (or right away with the Restart to update item in the status bar). When a notice does appear, Update and restart is one click. Linux .deb and .rpm installs need a click and your password to update. Portable Windows copies update too and keep their data folder. Run "Check for Updates" from the command palette to check right away. Change it in Settings > General > Updates: Automatic, Ask first, or Off. [General settings](opencursor:settings/general)
+Updates install themselves on Mac, Windows and unpacked Linux folders: OpenCursor checks GitHub at startup and every six hours, downloads a new version in the background, checks it against its published checksum, and installs it the next time you quit (or right away with the Restart to update item in the status bar). When a notice does appear, Update and restart is one click. Linux .deb and .rpm installs need a click and your password to update. Portable Windows copies update too and keep their data folder. A copy OpenCursor cannot replace by itself, such as a Mac app in a folder you cannot write to, gets a notice with a Download button for the release page. If a background download fails twice, a notice says why and offers Try again. Run "Check for Updates" from the command palette to check right away. Change it in Settings > General > Updates: Automatic, Ask first, or Off. [General settings](opencursor:settings/general)
 
 ## Reporting a problem
-Report a Problem (command palette, or Report this on any error card) opens a short form: what happened, an optional way to reach you, and the app details it sends with it (version, system, model, mode, whether a folder was open, the error). No account needed, and never your code, chats or API keys. It goes straight to the developer. [Report a problem](opencursor:report-problem)
+Report a Problem (command palette, or Report this on any error card) opens a short form: what happened, an optional way to reach you, and the app details it sends with it (version, system, model, mode, whether a folder was open, the error, and the random ID of this install). No account needed, and never your code, chats or API keys. It goes straight to the developer. [Report a problem](opencursor:report-problem)
 Prefer GitHub? Help can also open a GitHub issue filled in with your description. [Report on GitHub](opencursor:report-issue)
 
 ## Privacy

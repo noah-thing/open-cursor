@@ -39,6 +39,7 @@ import {
 	buildEnv, editorSnapshot, parseDataUrl, readAutoRun, readDefaultMode, readLists, readMaxIterations, readUiSettings, referencedFiles, selectionItem, setAutoRun, readEffort, setEffort,
 } from './env';
 import { buildHistoryFromChat, mergeUserEntry, truncateTranscript } from './history';
+import { hasThinkingControl } from '../providers/thinking';
 import { compactTranscript, runAgentLoop, type LoopHooks } from './loop';
 import { buildEditorState, buildSystemPrompt, type PromptRule } from './prompts';
 import { SnapshotTrimmer } from './snapshot';
@@ -72,6 +73,8 @@ interface Runtime {
 	settled?: boolean;
 	/** The agent changed a build or script file this turn: allowlisted commands that run project code ask again. */
 	buildTouched?: boolean;
+	/** When streamed text last marked the chat as unsaved. */
+	lastStreamSave?: number;
 }
 
 interface TurnState {
@@ -196,10 +199,13 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.ready = this.store.init();
 	}
 
-	flush(): Promise<void> { return this.store.flush(); }
+	flush(): Promise<void> {
+		// a running chat has streamed since its last save mark: write it too
+		for (const [id, rt] of this.runtimes) { if (rt.running) { this.store.markDirty(id); } }
+		return this.store.flush();
+	}
 
 	private readonly trimmer = new SnapshotTrimmer();
-	private lastStreamSave = 0;
 
 	private setLastWork(id: string): void {
 		if (this.lastWorkChatId === id) { return; }
@@ -272,7 +278,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		}
 		disposeTerminalRunner();
 		this.agentWatch?.dispose();
-		void this.store.flush();
+		void this.flush();
 	}
 
 	resolveWebviewView(view: vscode.WebviewView): void {
@@ -506,6 +512,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			};
 			const options: ModelOption[] = await Promise.all(this.services.registry.getModels().map(async m => ({
 				id: m.id, label: m.label, provider: m.provider, supportsImages: m.supportsImages, supportsThinking: m.supportsThinking, hasKey: await hasKey(m.provider), free: isFreeModel(m.id),
+				...effortSupport(m),
 			})));
 			let cliOptions: ModelOption[] = [];
 			try {
@@ -861,10 +868,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		}
 		this.appendText(turn, hit.text);
 		const sc = turn.sc;
-		sc.transcript.push(
-			{ turn: userMsg.id, msg: { role: 'user', content: [{ type: 'text', text }] } },
-			{ turn: userMsg.id, msg: { role: 'assistant', content: [{ type: 'text', text: hit.text }] } },
-		);
+		mergeUserEntry(sc.transcript, userMsg.id, [{ type: 'text', text }]);
+		sc.transcript.push({ turn: userMsg.id, msg: { role: 'assistant', content: [{ type: 'text', text: hit.text }] } });
 		this.touch(sc);
 		return true;
 	}
@@ -980,8 +985,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private schedulePost(sc: StoredChat): void {
 		const now = Date.now();
-		if (now - this.lastStreamSave > STREAM_SAVE_MS) { this.lastStreamSave = now; this.store.markDirty(sc.chat.id); }
 		const rt = this.runtime(sc.chat.id);
+		if (now - (rt.lastStreamSave ?? 0) > STREAM_SAVE_MS) { rt.lastStreamSave = now; this.store.markDirty(sc.chat.id); }
 		if (rt.postTimer) { return; }
 		// nothing to draw while the chat is hidden; it gets one fresh snapshot when it shows again
 		if (this.view && !this.view.visible) { this.hiddenDirty.add(sc.chat.id); return; }
@@ -1162,14 +1167,17 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const sc = await this.store.get(chatId);
 		if (!sc) { return; }
 		const rt = this.runtime(chatId);
-		const wasRunning = rt.running;
-		if (wasRunning) { sc.chat.queued = []; await this.stop(chatId); await rt.idle; }
+		// a second click on Try again names a message that is already replaced: it must not stop the new turn
+		if (!sc.chat.messages.some(m => m.id === messageId && m.role === 'user')) { return; }
+		if (rt.running) { sc.chat.queued = []; await this.stop(chatId); await rt.idle; }
 		const idx = sc.chat.messages.findIndex(m => m.id === messageId && m.role === 'user');
 		if (idx === -1) { return; }
 		const target = sc.chat.messages[idx] as UserMessage;
 		if (revert && target.checkpointId) {
 			try { await this.services.checkpoints.restore(chatId, target.checkpointId); } catch (e) { void vscode.window.showWarningMessage(`Could not restore files: ${e instanceof Error ? e.message : String(e)}`); return; }
 		}
+		// the restore above yields; a repeated click may have resent this message meanwhile
+		if (sc.chat.messages[idx] !== target) { return; }
 		this.truncateFrom(sc, idx);
 		await this.startTurn(sc, { text, context, modelId });
 	}
@@ -1178,6 +1186,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const sc = await this.store.get(chatId);
 		if (!sc) { return; }
 		const rt = this.runtime(chatId);
+		if (!sc.chat.messages.some(m => m.id === messageId && m.role === 'user')) { return; }
 		if (rt.running) { sc.chat.queued = []; await this.stop(chatId); await rt.idle; }
 		const idx = sc.chat.messages.findIndex(m => m.id === messageId && m.role === 'user');
 		if (idx === -1) { return; }
@@ -1920,4 +1929,14 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			await this.submit({ text: 'Explain this code: what it does, how it works, and anything surprising.', context: [sel], mode: 'ask', newChat: true });
 		});
 	}
+}
+
+/** Whether the chat box's thinking level does anything for this API model, and whether Off is real. */
+function effortSupport(m: { provider: string; model: string; supportsThinking: boolean }): { effortLevels?: true; noOff?: true } {
+	if (!m.supportsThinking) { return {}; }
+	const levels = m.provider === 'anthropic' || m.provider === 'openai' || m.provider === 'openrouter' || hasThinkingControl(m.provider as never, m.model);
+	if (!levels) { return {}; }
+	// OpenAI style reasoning and gpt-oss cannot think less than low, and OpenRouter's Off leaves the model's default
+	const noOff = m.provider === 'openai' || m.provider === 'openrouter' || (m.provider === 'groq' && /gpt-oss/i.test(m.model));
+	return noOff ? { effortLevels: true, noOff: true } : { effortLevels: true };
 }

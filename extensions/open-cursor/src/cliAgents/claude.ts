@@ -16,7 +16,7 @@ import { isReadOnlyCommand } from '../agent/modes';
 import { claudeModeArgs } from './modeArgs';
 import { commandAllowed } from './policy';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
-import { arr, countLines, displayPath, friendlyError, num, oneLine, parseJson, readTextFile, rec, resolveInCwd, silentFailure, spawnCli, str, truncate, watchOutput } from './util';
+import { arr, countLines, displayPath, friendlyError, num, oneLine, parseJson, readTextFile, rec, resolveInCwd, samePath, silentFailure, spawnCli, str, truncate, watchOutput } from './util';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 // WebFetch and WebSearch reach the internet and could carry data out, so they follow the policy like commands
@@ -480,7 +480,7 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 				void tracker.scan().then(files => {
 					for (const f of files) {
 						// the broker already captured the original of files the file tools touch
-						if (f.first && !originals.has(f.absPath)) {
+						if (f.first && ![...originals.keys()].some(k => samePath(k, f.absPath))) {
 							host.fileOriginal(f.absPath, f.original);
 						}
 						host.fileChanged(f.absPath);

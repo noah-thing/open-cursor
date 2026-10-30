@@ -183,7 +183,18 @@ export function swapScript(o: { readonly platform: 'darwin' | 'linux'; readonly 
 		// a lock older than ten minutes was left by a script that died
 		'elif [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then rmdir "$lock" 2>/dev/null; mkdir "$lock" 2>/dev/null && got=1',
 		'fi',
-		`if [ "$got" != 1 ]; then echo "update: another window is already installing"; rm -rf ${sh(o.staged)}${o.work ? ' ' + sh(o.work) : ''}; exit 0; fi`,
+		// the person may have pressed Restart in this window: once the winner is done, still reopen the app
+		[
+			'if [ "$got" != 1 ]; then',
+			'	echo "update: another window is already installing"',
+			`	if [ -f ${sh(o.relaunchFlag)} ]; then`,
+			'		n=0; while [ -d "$lock" ] && [ "$n" -lt 120 ]; do sleep 0.5; n=$((n+1)); done',
+			'		' + relaunchLine(o.platform, o.target, o.relaunchFlag),
+			'	fi',
+			`	rm -rf ${sh(o.staged)}${o.work ? ' ' + sh(o.work) : ''}`,
+			'	exit 0',
+			'fi',
+		].join('\n'),
 		'trap \'rmdir "$lock" 2>/dev/null\' EXIT',
 		`rm -rf ${old}`,
 		'ok=0',

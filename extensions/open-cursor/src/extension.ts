@@ -57,7 +57,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	ctx.subscriptions.push(vscode.commands.registerCommand('openCursor.setEffort', async () => {
 		const cur = readEffort();
 		const levels: { id: Effort; label: string; detail: string }[] = [
-			{ id: 'auto', label: 'Auto', detail: 'High on API models; Claude Code and Codex keep their own default' },
+			{ id: 'auto', label: 'Auto', detail: "Each model's own default, a middle level on API models; Claude Code, Codex and OpenCode keep theirs" },
 			{ id: 'off', label: 'Off', detail: 'No thinking' },
 			{ id: 'low', label: 'Low', detail: 'Short thinking, faster answers' },
 			{ id: 'medium', label: 'Medium', detail: 'A middle amount of thinking' },
