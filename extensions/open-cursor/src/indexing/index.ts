@@ -9,7 +9,7 @@ import * as path from 'node:path';
 import { minimatch } from 'minimatch';
 import type { ICodebaseIndex, IProviderRegistry } from '../services';
 import { chunkText } from './chunker';
-import { makeIgnore } from './ignore';
+import { isSecretFile, makeNestedIgnore } from './ignore';
 import { VectorStore } from './vectorStore';
 import { resolveEmbedder, type Embedder } from './embed';
 import { keywordSearch } from './ripgrep';
@@ -51,14 +51,17 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 	const enabled = () => cfg().get<boolean>('enabled', true);
 	const fire = () => onDidChange.fire();
 
-	function loadIgnores(): FolderIgnore[] {
-		return (vscode.workspace.workspaceFolders ?? []).map(f => {
-			let text = '';
-			for (const name of ['.gitignore', '.cursorignore', '.open-cursorignore']) {
-				try { text += fs.readFileSync(path.join(f.uri.fsPath, name), 'utf8') + '\n'; } catch { /* absent */ }
-			}
-			return { root: f.uri.fsPath, ignored: makeIgnore(text) };
-		});
+	/** Every .gitignore, .cursorignore and .open-cursorignore in each folder, at any depth. */
+	async function loadIgnores(): Promise<FolderIgnore[]> {
+		return Promise.all((vscode.workspace.workspaceFolders ?? []).map(async f => {
+			const found = await vscode.workspace.findFiles(new vscode.RelativePattern(f, '**/{.gitignore,.cursorignore,.open-cursorignore}'), EXCLUDE_GLOB, 2000);
+			const files = found.map(u => {
+				let text = '';
+				try { text = fs.readFileSync(u.fsPath, 'utf8'); } catch { /* gone */ }
+				return { dir: path.relative(f.uri.fsPath, path.dirname(u.fsPath)).split(path.sep).join('/'), text };
+			});
+			return { root: f.uri.fsPath, ignored: makeNestedIgnore(files) };
+		}));
 	}
 
 	function acceptable(fsPath: string, ignores: FolderIgnore[]): boolean {
@@ -67,7 +70,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		const rel = path.relative(folder.root, fsPath).split(path.sep).join('/');
 		const base = path.basename(fsPath);
 		const ext = path.extname(base).slice(1).toLowerCase();
-		if (SKIP_DIR_RE.test(rel) || BINARY_EXT.has(ext) || SKIP_NAMES.has(base) || /\.min\.(js|css)$/.test(base)) { return false; }
+		if (SKIP_DIR_RE.test(rel) || BINARY_EXT.has(ext) || SKIP_NAMES.has(base) || /\.min\.(js|css)$/.test(base) || isSecretFile(rel)) { return false; }
 		return !folder.ignored(rel);
 	}
 
@@ -111,7 +114,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 
 	async function indexFiles(files: string[], signal: AbortSignal, onProgress?: (done: number, total: number) => void): Promise<void> {
 		const emb = embedder;
-		if (!emb) { return; }
+		if (!emb || (!vscode.workspace.isTrusted && !emb.id.startsWith('ollama/'))) { return; }
 		const keyOf = (p: string) => vscode.Uri.file(p).toString();
 		const todo: { fsPath: string; key: string; sig: string }[] = [];
 		for (const p of files) {
@@ -190,12 +193,36 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		return loaded;
 	}
 
+	// One time, per workspace: sending files to a cloud embedder needs a yes.
+	async function cloudConsent(embedderId: string, setting: string): Promise<boolean> {
+		const KEY = 'openCursor.index.cloudConsent';
+		const MODEL_KEY = 'openCursor.index.cloudConsentSetting';
+		const stored = ctx.workspaceState.get<boolean>(KEY);
+		const askedFor = ctx.workspaceState.get<string>(MODEL_KEY);
+		// asked again only when the user explicitly picks a different cloud model
+		const changed = setting !== 'auto' && askedFor !== undefined && askedFor !== setting;
+		if (stored !== undefined && !changed) { return stored; }
+		const who = embedderId.startsWith('google/') ? 'Google' : 'OpenAI';
+		const pick = await vscode.window.showInformationMessage(
+			`Index this project for semantic search? Files that are not ignored (never secret files) are sent to ${who} to make embeddings. Without it, search uses plain text matching on this computer.`,
+			'Allow', 'Not now');
+		if (pick === undefined) { return false; } // dismissed: no answer stored, ask next time
+		await ctx.workspaceState.update(KEY, pick === 'Allow');
+		await ctx.workspaceState.update(MODEL_KEY, setting);
+		return pick === 'Allow';
+	}
+
 	async function getEmbedder(refresh = false): Promise<Embedder | undefined> {
 		if (!embedderResolved || refresh) {
-			embedder = await resolveEmbedder(ctx, cfg().get<string>('embeddingModel', 'auto'));
+			const setting = cfg().get<string>('embeddingModel', 'auto');
+			embedder = await resolveEmbedder(ctx, setting);
+			if (embedder && !embedder.id.startsWith('ollama/') && vscode.workspace.isTrusted && !(await cloudConsent(embedder.id, setting))) {
+				embedder = undefined; // plain text search (ripgrep) takes over
+			}
 			embedderResolved = true;
 		}
-		return embedder;
+		// A folder that is not trusted never has its files sent to a cloud embedder; a local one is fine.
+		return embedder && (vscode.workspace.isTrusted || embedder.id.startsWith('ollama/')) ? embedder : undefined;
 	}
 
 	function saveSoon(): void {
@@ -220,7 +247,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 				if (!emb) { state = 'idle'; error = undefined; progress = undefined; fire(); return; }
 				if (store.embedder !== emb.id) { store.clear(); store.embedder = emb.id; }
 				state = 'indexing'; error = undefined; progress = 0; fire();
-				const ignores = loadIgnores();
+				const ignores = await loadIgnores();
 				const files = await listFiles(ignores, ac.signal);
 				const live = new Set(files.map(p => vscode.Uri.file(p).toString()));
 				for (const k of store.keys()) { if (!live.has(k)) { store.delete(k); } }
@@ -264,7 +291,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		if (!dirty.size || running || !embedder || !store.chunkCount && state !== 'ready') { dirty.clear(); return; }
 		const paths = [...dirty];
 		dirty.clear();
-		const ignores = loadIgnores();
+		const ignores = await loadIgnores();
 		const keep: string[] = [];
 		for (const p of paths) {
 			if (acceptable(p, ignores)) { keep.push(p); } else { store.delete(vscode.Uri.file(p).toString()); }
@@ -390,6 +417,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 			if (e.key === 'openCursor.key.openai' || e.key === 'openCursor.key.google') { reconfigure(); }
 		}),
 		vscode.workspace.onDidChangeWorkspaceFolders(() => reconfigure()),
+		vscode.workspace.onDidGrantWorkspaceTrust(() => reconfigure()),
 		vscode.commands.registerCommand('openCursor.index.rebuild', async () => {
 			await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'OpenCursor: indexing codebase' }, () => rebuild());
 		}),

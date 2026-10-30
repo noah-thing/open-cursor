@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import type { Services } from '../services';
 import { FenceParser } from './fence';
+import { holdSaves } from '../edits/fileOps';
 import { pickInlineModel } from './oneshot';
 import { INLINE_SYSTEM, buildInlinePrompt, computeRegion, type Region, type Sel } from './region';
 
@@ -73,6 +74,27 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		return true;
 	}
 
+	/**
+	 * Applies the session's replacement without saving the file (partial code must not hit disk or trigger
+	 * format on save). `expectedBefore` makes pendingEdits refuse if the buffer moved since we looked, so
+	 * keystrokes typed meanwhile are never reverted; on a mismatch we relocate and retry once.
+	 */
+	async function applyReplacement(s: Session, replacement: string): Promise<boolean> {
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const release = holdSaves(s.uri);
+			try {
+				await services.pendingEdits.applyContent(s.uri, s.before + replacement + s.after, 'inline', undefined, undefined, s.before + s.replacement + s.after);
+				return true;
+			} catch (e) {
+				if (attempt === 1 || !/changed since/.test(e instanceof Error ? e.message : '')) { throw e; }
+				if (!(await relocate(s))) { return false; }
+			} finally {
+				release();
+			}
+		}
+		return false;
+	}
+
 	function eolOf(doc: vscode.TextDocument): string { return doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n'; }
 
 	async function submit(args: InlineSubmitArgs): Promise<void> {
@@ -132,7 +154,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 				if (ac.signal.aborted) { return; }
 				if (!(await relocate(session))) { lost = true; ac.abort(); return; }
 				const repl = toDoc(code);
-				await services.pendingEdits.applyContent(uri, session.before + repl + session.after, 'inline');
+				if (!(await applyReplacement(session, repl))) { lost = true; ac.abort(); return; }
 				session.replacement = repl;
 				session.applied = true;
 			}).catch(() => undefined);
@@ -166,10 +188,10 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 				if (session.applied && await relocate(session)) {
 					const good = followUp ? previousReplacement : undefined;
 					if (good !== undefined) {
-						await services.pendingEdits.applyContent(uri, session.before + good + session.after, 'inline');
+						await applyReplacement(session, good);
 						session.replacement = good;
 					} else {
-						await services.pendingEdits.applyContent(uri, session.before + session.original + session.after, 'inline');
+						await applyReplacement(session, session.original);
 						session.replacement = session.original;
 						session.applied = false;
 					}
@@ -191,11 +213,11 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		try {
 			if (s.applied && await relocate(s)) {
 				if (s.prior === undefined) {
-					await services.pendingEdits.applyContent(s.uri, s.before + s.original + s.after, 'inline');
+					await applyReplacement(s, s.original);
 					s.applied = false;
 					s.replacement = '';
 				} else {
-					await services.pendingEdits.applyContent(s.uri, s.before + s.prior + s.after, 'inline');
+					await applyReplacement(s, s.prior);
 					s.replacement = s.prior;
 					s.instructions.pop();
 				}
@@ -208,7 +230,11 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		if (!s) { return; }
 		s.abort?.abort();
 		sessions.delete(sessionId);
-		if (s.applied) { await services.pendingEdits.acceptFile(s.uri); }
+		if (s.applied) {
+			await services.pendingEdits.acceptFile(s.uri);
+			// the one save, now that the edit is final
+			try { const d = await vscode.workspace.openTextDocument(s.uri); if (d.isDirty) { await d.save(); } } catch { /* leave it dirty */ }
+		}
 	}
 
 	async function reject(sessionId: string): Promise<void> {
@@ -220,7 +246,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 		// only the replaced range is undone; the user's edits elsewhere stay
 		try {
 			if (await relocate(s)) {
-				await services.pendingEdits.applyContent(s.uri, s.before + s.original + s.after, 'inline');
+				await applyReplacement(s, s.original);
 				return;
 			}
 		} catch { /* report below */ }

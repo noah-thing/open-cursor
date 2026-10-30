@@ -6,7 +6,9 @@
 import * as vscode from 'vscode';
 import type { Services } from '../services';
 import { collectText, pickInlineModel } from '../inline/oneshot';
-import { COMMIT_SYSTEM, buildCommitPrompt, cleanCommitMessage } from './logic';
+import { scrub } from '../report/scrub';
+import { isSecretFile } from '../indexing/ignore';
+import { COMMIT_SYSTEM, buildCommitPrompt, cleanCommitMessage, dropSecretSections } from './logic';
 
 interface GitRepo {
 	readonly rootUri: vscode.Uri;
@@ -52,11 +54,16 @@ export function registerCommitMessage(ctx: vscode.ExtensionContext, services: Se
 
 		const ac = new AbortController();
 		running = ac;
+		// never overwrite what the user already typed
+		const hadText = repo.inputBox.value.trim() !== '';
+		const before = repo.inputBox.value;
+		let done = false;
 		try {
 			await vscode.window.withProgress({ location: vscode.ProgressLocation.SourceControl, title: 'Writing commit message…' }, async () => {
 				let diff = repo.state.indexChanges.length > 0 ? await repo.diff(true) : '';
 				if (!diff.trim()) { diff = await repo.diff(false); }
-				const untracked = (repo.state.untrackedChanges ?? []).map(c => vscode.workspace.asRelativePath(c.uri, false));
+				diff = scrub(dropSecretSections(diff, isSecretFile));
+				const untracked = (repo.state.untrackedChanges ?? []).map(c => vscode.workspace.asRelativePath(c.uri, false)).filter(p => !isSecretFile(p));
 				if (!diff.trim() && untracked.length === 0) { void vscode.window.showInformationMessage('OpenCursor: no changes to describe.'); return; }
 				const recent = (await repo.log({ maxEntries: 8 }).catch(() => [])).map(c => c.message.split('\n')[0]);
 				let rules: { name: string; content: string }[] = [];
@@ -64,14 +71,20 @@ export function registerCommitMessage(ctx: vscode.ExtensionContext, services: Se
 				const prompt = buildCommitPrompt(diff, recent, rules, repo.state.indexChanges.length > 0 ? [] : untracked);
 				const text = await collectText(services, model, COMMIT_SYSTEM, prompt, ac.signal, {
 					maxTokens: 400, temperature: 0.2,
-					onText: soFar => { repo.inputBox.value = cleanCommitMessage(soFar); },
+					onText: soFar => { if (!hadText) { repo.inputBox.value = cleanCommitMessage(soFar); } },
 				});
 				const msg = cleanCommitMessage(text);
-				if (msg) { repo.inputBox.value = msg; }
+				done = true;
+				if (!msg) { return; }
+				if (!hadText) { repo.inputBox.value = msg; return; }
+				const pick = await vscode.window.showInformationMessage(`Suggested commit message: ${msg.split('\n')[0]}`, 'Use');
+				if (pick === 'Use') { repo.inputBox.value = msg; }
 			});
 		} catch (err) {
 			if (!ac.signal.aborted) { void vscode.window.showErrorMessage(`OpenCursor: ${err instanceof Error ? err.message : String(err)}`); }
 		} finally {
+			// cancelled or failed: do not leave a half written message behind
+			if (!done && !hadText) { repo.inputBox.value = before; }
 			if (running === ac) { running = undefined; }
 		}
 	}

@@ -16,6 +16,17 @@ export function thoughtTail(text: string, max = 2400): string[] {
 	return t.replace(/\*\*|__|`|^#+\s*/gm, '').split(/\n\s*\n/).map(p => p.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean);
 }
 
+/**
+ * The step the model is on, from the small headings models write while reasoning
+ * ("**Planning the fix**", "## Checking the tests"). Undefined until there is one.
+ */
+export function thoughtTopic(text: string): string | undefined {
+	const re = /^[ \t]*(?:\*\*([^*\n]{3,80})\*\*|#{1,4}[ \t]+([^\n]{3,80}))[ \t]*$/gm;
+	let last: string | undefined;
+	for (let m = re.exec(text); m; m = re.exec(text)) { last = (m[1] ?? m[2]).trim().replace(/[:.]$/, ''); }
+	return last && last.length > 52 ? last.slice(0, 51).trimEnd() + '…' : last;
+}
+
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const clip = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
 

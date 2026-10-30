@@ -29,6 +29,7 @@ export class FreeModelsPanel implements vscode.Disposable {
 	private pulling: LocalState['pulling'];
 	private pullAbort: AbortController | undefined;
 	private lastOllama: OllamaState | undefined;
+	private ollamaAbort: AbortController | undefined;
 	private poll: NodeJS.Timeout | undefined;
 	private focusLocal = false;
 	/** A model picked before Ollama was ready; it downloads as soon as Ollama runs. */
@@ -58,13 +59,14 @@ export class FreeModelsPanel implements vscode.Disposable {
 		panel.iconPath = vscode.Uri.joinPath(this.ctx.extensionUri, 'media', 'chat.svg');
 		panel.webview.html = this.html(panel.webview, dist);
 		panel.webview.onDidReceiveMessage((m: FreeWebviewMessage) => { void this.onMessage(m); }, undefined, this.disposables);
-		panel.onDidDispose(() => { this.panel = undefined; this.signIn?.cancel(); if (this.poll) { clearInterval(this.poll); this.poll = undefined; } }, undefined, this.disposables);
+		panel.onDidDispose(() => { this.panel = undefined; this.signIn?.cancel(); this.ollamaAbort?.abort(); this.queued = undefined; if (this.poll) { clearInterval(this.poll); this.poll = undefined; } }, undefined, this.disposables);
 		// Ollama can be opened, quit or installed outside the editor; follow it while the page is open.
 		this.poll = setInterval(() => {
 			if (this.localBusy || this.pulling) { return; }
 			void ollamaState().then(s => {
-				if (s === this.lastOllama) { return; }
+				// a queued pull starts even when a pushState already recorded 'running'
 				if (s === 'running' && this.queued) { const tag = this.queued; this.queued = undefined; void this.onMessage({ type: 'pullModel', tag }); return; }
+				if (s === this.lastOllama) { return; }
 				void this.pushState();
 			});
 		}, 4000);
@@ -127,17 +129,21 @@ export class FreeModelsPanel implements vscode.Disposable {
 
 	/** Gets Ollama installed and running. False when it is not running yet (failed, or finishing in a terminal). */
 	private async ensureOllama(queue?: string): Promise<boolean> {
-		const state = await ollamaState();
-		if (state === 'running') { return true; }
+		// claim the slot before the first await, so a double click cannot start two installs
+		if (this.localBusy) { return false; }
+		this.localBusy = 'Checking Ollama';
 		const say = (s: string): void => { this.localBusy = s; void this.pushState(); };
+		const abort = this.ollamaAbort = new AbortController();
 		try {
+			const state = await ollamaState();
+			if (state === 'running') { return true; }
 			if (state === 'stopped') {
 				say('Starting Ollama');
 				if (await startOllama()) { return true; }
 				throw new Error('it did not start. Open Ollama once from your apps, then try again.');
 			}
 			say('Downloading Ollama');
-			const r = await installOllama(say, new AbortController().signal);
+			const r = await installOllama(say, abort.signal);
 			if (r === 'terminal') {
 				this.queued = queue;
 				this.post({ type: 'result', id: 'local', ok: true, message: 'Finish the install in the terminal below; it asks for your password.' + (queue ? ` ${queue} downloads as soon as Ollama runs.` : '') });
@@ -148,6 +154,7 @@ export class FreeModelsPanel implements vscode.Disposable {
 			this.post({ type: 'result', id: 'local', ok: false, message: `Could not get Ollama running: ${e instanceof Error ? e.message : String(e)}` });
 			return false;
 		} finally {
+			if (this.ollamaAbort === abort) { this.ollamaAbort = undefined; }
 			this.localBusy = undefined;
 			await this.services.registry.refreshModels().catch(() => undefined);
 		}
@@ -221,6 +228,7 @@ export class FreeModelsPanel implements vscode.Disposable {
 				await this.hooks.useModel(m.modelId);
 				return this.pushState();
 			case 'installOllama':
+				if (this.localBusy) { return; }
 				await this.ensureOllama();
 				return this.pushState();
 			case 'startOllama':

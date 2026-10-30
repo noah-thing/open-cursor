@@ -8,6 +8,12 @@ import * as path from 'node:path';
 import { spawn } from 'node:child_process';
 import { keywordsOf, rankHits, type KeywordHit } from './keywords';
 
+// secrets and heavy dirs never reach the search results
+const EXCLUDE_GLOBS = [
+	'.env*', '*.pem', '*.key', '*.p12', '*.pfx', 'id_rsa*', 'id_ed25519*', '.npmrc', 'credentials*', 'secrets.*', 'service-account*.json',
+	'node_modules', '.git', 'dist', 'build', 'out', 'target', '.venv', '__pycache__', '.next',
+];
+
 export function findRipgrep(): string | undefined {
 	const tail = path.join('@vscode', 'ripgrep', 'bin', process.platform === 'win32' ? 'rg.exe' : 'rg');
 	for (const mod of ['node_modules', 'node_modules.asar.unpacked']) {
@@ -23,7 +29,8 @@ export async function keywordSearch(query: string, folders: readonly vscode.Work
 	if (!rg || !kws.length || !folders.length) { return []; }
 	const perFile = new Map<string, { line: number; kws: Set<string> }[]>();
 	for (const folder of folders) {
-		const args = ['--line-number', '--no-heading', '--with-filename', '--ignore-case', '--fixed-strings', '--max-columns', '300', '--max-count', '30', '--max-filesize', '300K', '--color', 'never'];
+		const args = ['--line-number', '--no-heading', '--with-filename', '--ignore-case', '--fixed-strings', '--max-columns', '300', '--max-count', '30', '--max-filesize', '300K', '--color', 'never', '--no-require-git'];
+		for (const g of EXCLUDE_GLOBS) { args.push('--glob', '!' + g); }
 		for (const k of kws) { args.push('-e', k); }
 		for (const name of ['.cursorignore', '.open-cursorignore']) {
 			const f = path.join(folder.uri.fsPath, name);
@@ -34,6 +41,7 @@ export async function keywordSearch(query: string, folders: readonly vscode.Work
 		await new Promise<void>(resolve => {
 			const child = spawn(rg, args, { cwd: folder.uri.fsPath, stdio: ['ignore', 'pipe', 'ignore'] });
 			const onAbort = () => child.kill();
+			if (opts.signal.aborted) { child.kill(); }
 			opts.signal.addEventListener('abort', onAbort, { once: true });
 			let buf = '';
 			const eat = (final: boolean) => {

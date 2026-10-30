@@ -7,6 +7,7 @@ import * as os from 'os';
 import * as vscode from 'vscode';
 import type { Services } from '../services';
 import { collectText, pickInlineModel } from '../inline/oneshot';
+import { scrub } from '../report/scrub';
 import { OutputBuffer, TERMINAL_SYSTEM, buildTerminalPrompt, cleanCommand } from './logic';
 
 export function registerTerminalCmdK(ctx: vscode.ExtensionContext, services: Services): void {
@@ -53,7 +54,7 @@ export function registerTerminalCmdK(ctx: vscode.ExtensionContext, services: Ser
 		if (!model) { void vscode.window.showErrorMessage('OpenCursor: no model available. Add an API key or start a local model.'); return; }
 		const user = buildTerminalPrompt(request, {
 			os: `${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : 'Linux'} ${os.release()} (${process.arch})`,
-			shell: shellName(terminal), cwd: cwdOf(terminal), output: bufferOf(terminal).tail(50),
+			shell: shellName(terminal), cwd: cwdOf(terminal), output: scrub(bufferOf(terminal).tail(50)),
 		});
 		const ac = new AbortController();
 		try {

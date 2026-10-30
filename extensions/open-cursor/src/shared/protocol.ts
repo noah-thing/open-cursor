@@ -195,6 +195,8 @@ export type WebviewMessage =
 	| { readonly type: 'setAutoRun'; readonly autoRun: UiSettings['autoRun'] }
 	/** After a limit: carry on in a new turn on `modelId`, or on one the user picks when it is missing. */
 	| { readonly type: 'continueOn'; readonly chatId: string; readonly modelId?: string }
+	/** Report a Problem, opened from an error card with that error filled in. */
+	| { readonly type: 'reportProblem'; readonly chatId?: string; readonly error?: string }
 	| { readonly type: 'setEffort'; readonly effort: Effort }
 	| { readonly type: 'approveTool'; readonly chatId: string; readonly toolCallId: string; readonly decision: 'run' | 'skip' | 'allowAlways' }
 	| { readonly type: 'restoreCheckpoint'; readonly chatId: string; readonly messageId: string }

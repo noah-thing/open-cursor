@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import type { ToolDef } from '../agent/tools/types';
-import { actionLabel, helpTarget, HELP_TARGETS, validateAction, type HelpAction } from './targets';
+import { actionLabel, helpTarget, HELP_TARGETS, stripAutoOpenArg, validateAction, type HelpAction } from './targets';
 
 export interface HelpChatHooks {
 	/** A new normal chat, with `text` typed into the box (not sent). */
@@ -55,6 +55,7 @@ export class HelpNavigator {
 			case 'import': await cmd('openCursor.import'); break;
 			case 'open-folder': await cmd('workbench.action.files.openFolder'); break;
 			case 'report-issue': await this.hooks.reportIssue(a.arg); break;
+			case 'report-problem': await cmd('openCursor.reportProblem'); break;
 		}
 		return label;
 	}
@@ -83,7 +84,7 @@ export class HelpNavigator {
 				if (!stillHere()) { return { content: 'The user has left Help, so nothing was opened. Answer in text.', isError: true }; }
 				if (!helpTarget(a.target)?.inPlace) { return { content: `${a.target} moves the chat away, so offer it as a link instead.`, isError: true }; }
 				try {
-					const label = await this.run(a);
+					const label = await this.run(stripAutoOpenArg(a)); // the model may not start an install
 					return { content: `Opened: ${label}. It is on screen now.`, output: label };
 				} catch (e) {
 					return { content: `Could not open it: ${e instanceof Error ? e.message : String(e)}`, isError: true };

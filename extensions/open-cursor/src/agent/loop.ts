@@ -62,7 +62,7 @@ export type StopReason = 'done' | 'aborted' | 'error' | 'max_iterations';
 
 const MAX_TOOL_RESULT_CHARS = 40000;
 const UI_OUTPUT_CHARS = 8000;
-const COMPACT_THRESHOLD = 0.8;
+const COMPACT_THRESHOLD = 0.85;
 
 const SUMMARY_SYSTEM = 'You compress a coding assistant conversation so work can continue after older messages are dropped. Write a dense, factual summary in markdown with these sections: Goal (the user\'s original request and any later changes, near verbatim), Done (files changed with what changed, commands run and their outcomes), Findings (facts about the codebase that matter: paths, function names, conventions, errors seen), State (what is in progress, open problems, next step). Keep exact paths, identifiers, commands and error messages. No preamble.';
 
@@ -125,7 +125,7 @@ export async function summarizeMessages(registry: IProviderRegistry, model: Mode
 	try {
 		const text = await collectText(registry, {
 			model, system: SUMMARY_SYSTEM, signal, maxTokens: Math.min(3000, model.maxOutputTokens || 3000),
-			messages: [{ role: 'user', content: [{ type: 'text', text: `Conversation to compress:\n\n${renderForSummary(older)}` }] }],
+			messages: [{ role: 'user', content: [{ type: 'text', text: `Conversation to compress:\n\n${renderForSummary(older, Math.max(16_000, Math.min(120_000, Math.floor((model.contextWindow || 128000) * 0.5 * 3))))}` }] }],
 		});
 		if (text) { return text; }
 	} catch {
@@ -214,11 +214,13 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 	const manageContext = async (force: boolean): Promise<void> => {
 		let est = estimateRequestTokens(p.system, transcriptMessages(transcript), p.tools.schemas);
 		hooks.onContextUsage(est, limit);
-		if (!force && est <= limit * COMPACT_THRESHOLD) { return; }
+		// the answer needs room too: providers count input plus max_tokens against the window
+		const reserve = Math.min(Math.min(model.maxOutputTokens || 8192, 32000), limit * 0.25);
+		if (!force && est + reserve <= limit * COMPACT_THRESHOLD) { return; }
 		const pruned = pruneOldToolResults(transcriptMessages(transcript), 8, 800);
 		pruned.forEach((m, i) => { transcript[i] = { turn: transcript[i].turn, msg: m }; });
 		est = estimateRequestTokens(p.system, pruned, p.tools.schemas);
-		if (!force && est <= limit * COMPACT_THRESHOLD) { hooks.onContextUsage(est, limit); return; }
+		if (!force && est + reserve <= limit * COMPACT_THRESHOLD) { hooks.onContextUsage(est, limit); return; }
 		const id = `summarize_${Date.now()}`;
 		hooks.onToolPart({ type: 'tool', id, name: 'summarize', status: 'running', title: 'Summarizing earlier context' });
 		let ok = false;
@@ -362,8 +364,10 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 			if (!c.finished) { hooks.onToolPart({ type: 'tool', id: c.id, name: c.name, status: 'cancelled', title: c.name }); }
 		}
 		const content: LLMContent[] = [];
-		if (thinking && signature) { content.push({ type: 'thinking', text: thinking, signature }); }
-		if (text) { content.push({ type: 'text', text }); }
+		// unsigned reasoning is kept too: DeepSeek and others need it back; Anthropic drops blocks without a signature
+		if (thinking || signature) { content.push({ type: 'thinking', text: thinking, ...(signature ? { signature } : {}) }); }
+		// a reply of only whitespace is not text; Anthropic rejects such a block for the rest of the chat
+		if (text.trim()) { content.push({ type: 'text', text }); }
 		for (const c of finished) { content.push({ type: 'tool_use', id: c.id, name: c.name, input: asArgs(c.input) ?? {} }); }
 
 		if (!text && !finished.length && thinking && !thinkingOff && stopReason !== 'error') {
@@ -376,6 +380,11 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 		}
 		push({ role: 'assistant', content });
 		hooks.onTranscript();
+		// the connection closed mid answer: keep what arrived, and say so instead of passing it off as finished
+		if (stopReason === 'error' && !finished.length) {
+			hooks.onError('The connection to the model ended before the answer finished.', 'retry');
+			return 'error';
+		}
 
 		if (!finished.length) {
 			if (stopReason === 'max_tokens' && continuations < 2) {
@@ -445,8 +454,8 @@ async function executeToolCall(p: LoopParams, c: PendingCall, recent: string[], 
 	const isCommand = c.name === 'run_terminal_cmd';
 	const policy = p.settings.getPolicy();
 	const command = isCommand && typeof args.command === 'string' ? args.command : undefined;
-	// MCP tools reach outside the editor: ask unless the user chose Full access. fetch_url only reads, so Auto lets it through.
-	const mcpAsk = (c.name.startsWith('mcp_') || (c.name === 'fetch_url' && policy.autoRun !== 'auto')) && policy.autoRun !== 'always';
+	// MCP tools and fetch_url reach outside the editor, and a URL can carry data out: ask unless the user chose Full access
+	const mcpAsk = (c.name.startsWith('mcp_') || c.name === 'fetch_url') && policy.autoRun !== 'always';
 	const agentSaysAsk = typeof args.requires_approval === 'boolean' ? args.requires_approval : undefined;
 	if ((command !== undefined && needsApproval(command, policy, agentSaysAsk)) || mcpAsk) {
 		part = {
@@ -496,7 +505,7 @@ async function executeToolCall(p: LoopParams, c: PendingCall, recent: string[], 
 		if (c.name === 'todo_write') { tracking.todoWritten = true; }
 	}
 	if (signal.aborted && res.isError) {
-		hooks.onToolPart({ ...part, status: 'cancelled', title: safeTitle(tool, args, 'cancelled', res), output: res.output ?? res.content, durationMs });
+		hooks.onToolPart({ ...part, status: 'cancelled', title: safeTitle(tool, args, 'cancelled', res), output: capText(res.output ?? res.content, UI_OUTPUT_CHARS), durationMs });
 		return { type: 'tool_result', toolUseId: c.id, content: res.content, isError: true };
 	}
 	const status: ToolPart['status'] = res.isError ? 'error' : 'done';

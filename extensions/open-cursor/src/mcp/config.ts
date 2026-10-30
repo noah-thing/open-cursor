@@ -150,7 +150,14 @@ export function isProjectSource(source: string, folders: readonly string[]): boo
 
 /** What the server would do, in words the user can check: the exact command line or URL. */
 export function describeServer(cfg: ServerConfig): string {
-	if (isHttp(cfg)) { return `Connect to ${cfg.url}`; }
+	const pairs = (o: Record<string, string> | undefined): string => Object.entries(o ?? {}).map(([k, v]) => `${k}=${String(v).length > 80 ? String(v).slice(0, 77) + '...' : v}`).join(', ');
+	// everything that decides what runs or where data goes is shown: an innocent command with
+	// NODE_OPTIONS in its env, or a token header to an unknown host, must not hide behind the command line
+	if (isHttp(cfg)) {
+		const h = pairs(cfg.headers);
+		return `Connect to ${cfg.url}` + (h ? `, sending headers ${h}` : '');
+	}
 	const quote = (a: string) => /^[\w@%+=:,./-]+$/.test(a) ? a : JSON.stringify(a);
-	return `Run ${[cfg.command, ...(cfg.args ?? [])].map(quote).join(' ')}`;
+	const env = pairs(cfg.env);
+	return `Run ${[cfg.command, ...(cfg.args ?? [])].map(quote).join(' ')}` + (cfg.cwd ? ` in ${cfg.cwd}` : '') + (env ? `, with ${env}` : '');
 }

@@ -71,7 +71,14 @@ export function within<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 }
 
 export function ollamaRunning(): Promise<boolean> {
-	return within(fetch(ollamaBase() + '/api/version', { signal: AbortSignal.timeout(1500) }).then(r => r.ok), 2000, false);
+	// any other server on the port also answers 200; only Ollama sends {"version": "..."}
+	const probe = async (): Promise<boolean> => {
+		const r = await fetch(ollamaBase() + '/api/version', { signal: AbortSignal.timeout(1500) });
+		if (!r.ok) { return false; }
+		const j = await r.json() as { version?: unknown } | null;
+		return !!j && typeof j.version === 'string';
+	};
+	return within(probe(), 2000, false);
 }
 
 export async function ollamaState(): Promise<OllamaState> {
@@ -103,7 +110,8 @@ export async function startOllama(): Promise<boolean> {
 	const found = findOllama();
 	if (!found) { return false; }
 	const detach = (cmd: string, args: string[]): void => {
-		cp.spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+		// a failed spawn must not become an uncaught exception; waitRunning reports it
+		cp.spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).on('error', () => undefined).unref();
 	};
 	if (process.platform === 'darwin') {
 		if (found.endsWith('.app')) { detach('open', ['-g', found]); } else { detach(found, ['serve']); }

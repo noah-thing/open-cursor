@@ -10,6 +10,8 @@ export function stripAnsi(s: string): string {
 	return s.replace(ANSI, '').replace(/\r\n/g, '\n').replace(/[^\n]*\r(?!\n)/g, '');
 }
 
+const MAX_LINE = 4000;
+
 export class OutputBuffer {
 	private lines: string[] = [''];
 	constructor(private readonly max = 200) { }
@@ -17,6 +19,10 @@ export class OutputBuffer {
 		const parts = stripAnsi(chunk).split('\n');
 		this.lines[this.lines.length - 1] += parts[0];
 		for (let i = 1; i < parts.length; i++) { this.lines.push(parts[i]); }
+		// one endless line (a minified file, a progress bar) must not grow memory without limit
+		for (let i = Math.max(0, this.lines.length - parts.length); i < this.lines.length; i++) {
+			if (this.lines[i].length > MAX_LINE) { this.lines[i] = this.lines[i].slice(0, MAX_LINE); }
+		}
 		if (this.lines.length > this.max) { this.lines.splice(0, this.lines.length - this.max); }
 	}
 	tail(n: number): string {

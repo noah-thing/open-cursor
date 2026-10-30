@@ -32,8 +32,8 @@ esac
 if [ -n "${OPENCURSOR_VERSION:-}" ]; then
 	API="https://api.github.com/repos/$REPO/releases/tags/$OPENCURSOR_VERSION"
 else
-	# newest first; a release still uploading its files is skipped for the systems it does not have yet
-	API="https://api.github.com/repos/$REPO/releases?per_page=20"
+	# the latest published release; never a prerelease or a draft
+	API="https://api.github.com/repos/$REPO/releases/latest"
 fi
 
 step "Finding the latest OpenCursor release"
@@ -47,12 +47,32 @@ asset() {
 }
 
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
+MOUNT=""
+# also runs when a step fails: never leave the disk image mounted or the download behind
+cleanup() {
+	[ -z "$MOUNT" ] || hdiutil detach -quiet "$MOUNT" >/dev/null 2>&1 || true
+	rm -rf "$TMP"
+}
+trap cleanup EXIT
+
+# The sha256 GitHub computed for the asset at URL $1, if the API gave one. In the API's asset
+# objects the digest comes before the download URL; no braces sit between them.
+digest_of() {
+	printf '%s' "$RELEASE" | tr -d '\n' | grep -o "\"digest\": *\"sha256:[0-9a-fA-F]*\"[^{}]*\"browser_download_url\": *\"$1\"" | head -1 | sed 's/.*sha256:\([0-9a-fA-F]*\)".*/\1/'
+}
+
+sha_of() {
+	if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
+}
 
 download() {
 	TAG=$(tag_of "$1")
 	say "Downloading $(basename "$1")"
 	curl -fL --progress-bar -o "$TMP/$2" "$1" || fail "download failed"
+	WANT=$(digest_of "$1" | tr 'A-F' 'a-f')
+	if [ -n "$WANT" ]; then
+		[ "$(sha_of "$TMP/$2" | tr 'A-F' 'a-f')" = "$WANT" ] || fail "the download does not match the checksum GitHub published"
+	fi
 }
 
 SUDO=""
@@ -67,11 +87,17 @@ if [ "$OS" = macos ]; then
 	DEST="${OPENCURSOR_DIR:-/Applications}"
 	if [ ! -w "$DEST" ] && [ -z "${OPENCURSOR_DIR:-}" ]; then DEST="$HOME/Applications"; fi
 	mkdir -p "$DEST"
-	MOUNT=$(hdiutil attach -nobrowse -readonly "$TMP/OpenCursor.dmg" | awk -F'\t' '/\/Volumes\//{print $NF}')
-	[ -d "$MOUNT/OpenCursor.app" ] || { hdiutil detach -quiet "$MOUNT" 2>/dev/null; fail "the disk image has no OpenCursor.app"; }
+	# attach into our own folder, so the mount point is known even when hdiutil prints several /Volumes lines
+	MOUNT="$TMP/mount"
+	mkdir -p "$MOUNT"
+	hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$MOUNT" "$TMP/OpenCursor.dmg" >/dev/null || { MOUNT=""; fail "could not open the disk image"; }
+	[ -d "$MOUNT/OpenCursor.app" ] || fail "the disk image has no OpenCursor.app"
+	# copy first, swap after: a failed copy leaves the app that is already installed untouched
+	rm -rf "$DEST/OpenCursor.app.new"
+	ditto "$MOUNT/OpenCursor.app" "$DEST/OpenCursor.app.new" || { rm -rf "$DEST/OpenCursor.app.new"; fail "could not copy the app to $DEST"; }
 	rm -rf "$DEST/OpenCursor.app"
-	ditto "$MOUNT/OpenCursor.app" "$DEST/OpenCursor.app"
-	hdiutil detach -quiet "$MOUNT"
+	mv "$DEST/OpenCursor.app.new" "$DEST/OpenCursor.app" || fail "could not move the app into place"
+	hdiutil detach -quiet "$MOUNT" >/dev/null 2>&1 && MOUNT=""
 
 	say ""
 	say "OpenCursor $TAG is installed in $DEST."
@@ -96,8 +122,11 @@ else
 	download "$URL" opencursor.tar.gz
 	step "Installing to ~/.local/share/opencursor"
 	ROOT="$HOME/.local/share/opencursor"
-	rm -rf "$ROOT" && mkdir -p "$ROOT" "$HOME/.local/bin"
-	tar -xzf "$TMP/opencursor.tar.gz" -C "$ROOT" --strip-components=1
+	mkdir -p "$HOME/.local/share" "$HOME/.local/bin"
+	rm -rf "$ROOT.new" && mkdir -p "$ROOT.new"
+	tar -xzf "$TMP/opencursor.tar.gz" -C "$ROOT.new" --strip-components=1 || { rm -rf "$ROOT.new"; fail "could not unpack the download"; }
+	[ -x "$ROOT.new/bin/open-cursor" ] || { rm -rf "$ROOT.new"; fail "the download has no bin/open-cursor"; }
+	rm -rf "$ROOT" && mv "$ROOT.new" "$ROOT"
 	ln -sf "$ROOT/bin/open-cursor" "$HOME/.local/bin/open-cursor"
 	WHERE="a terminal: open-cursor (make sure ~/.local/bin is on your PATH)"
 fi

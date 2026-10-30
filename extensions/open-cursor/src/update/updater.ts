@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
-	detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, swapScript, windowsScript,
+	assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, swapScript, windowsScript,
 	type InstallKind, type Release, type ReleaseAsset,
 } from './plan';
 
@@ -43,6 +43,25 @@ function run(file: string, args: string[]): Promise<{ code: number; out: string 
 			resolve({ code, out: `${stdout}${stderr}`.trim() });
 		});
 	});
+}
+
+/** Removes staged copies a crashed or abandoned update left beside the install, once they are a day old. */
+function cleanStale(root: string): void {
+	const dir = path.dirname(root);
+	const prefix = path.basename(root) + '.new-update';
+	try {
+		for (const n of fs.readdirSync(dir)) {
+			if (!n.startsWith(prefix)) { continue; }
+			const p = path.join(dir, n);
+			try {
+				if (Date.now() - fs.statSync(p).mtimeMs > 24 * 60 * 60 * 1000) { fs.rmSync(p, { recursive: true, force: true }); }
+			} catch { /* in use or gone: leave it */ }
+		}
+	} catch { /* unreadable folder: nothing to clean */ }
+}
+
+function macBinaries(app: string): string[] {
+	try { return fs.readdirSync(path.join(app, 'Contents', 'MacOS')); } catch { return []; }
 }
 
 function writable(dir: string): boolean {
@@ -134,7 +153,8 @@ class Updater implements vscode.Disposable {
 
 	/** Installs that need no password or manual step can update in the background. */
 	private silent(kind: InstallKind, release: Release): boolean {
-		return (kind === 'mac-app' || kind === 'linux-tar' || kind === 'win-setup' || kind === 'win-portable') && !!pickAsset(release, kind, process.arch);
+		const asset = pickAsset(release, kind, process.arch);
+		return (kind === 'mac-app' || kind === 'linux-tar' || kind === 'win-setup' || kind === 'win-portable') && !!asset && !assetProblem(asset);
 	}
 
 	private kind(): InstallKind {
@@ -158,6 +178,14 @@ class Updater implements vscode.Disposable {
 			const go = await vscode.window.showInformationMessage(
 				'This copy of OpenCursor cannot update itself. Download the new version from the release page.',
 				'Open release page');
+			if (go) { void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || 'https://github.com/noah-thing/open-cursor/releases')); }
+			return;
+		}
+		const problem = assetProblem(asset);
+		if (problem) {
+			// a background attempt stays quiet; the notice still offers the release page
+			if (quiet) { return; }
+			const go = await vscode.window.showErrorMessage(`OpenCursor will not install this update: ${problem}.`, 'Open release page');
 			if (go) { void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || 'https://github.com/noah-thing/open-cursor/releases')); }
 			return;
 		}
@@ -228,6 +256,19 @@ class Updater implements vscode.Disposable {
 
 	private async prepare(release: Release, asset: ReleaseAsset, kind: InstallKind, progress: vscode.Progress<{ message?: string; increment?: number }>, token: vscode.CancellationToken): Promise<Ready | undefined> {
 		const work = fs.mkdtempSync(path.join(os.tmpdir(), 'opencursor-update-'));
+		// the scripts run later from the work folder, so it stays only once one is on its way
+		const state: { keep: boolean; staged?: string } = { keep: false };
+		try {
+			return await this.build(work, state, release, asset, kind, progress, token);
+		} finally {
+			if (!state.keep) {
+				fs.rmSync(work, { recursive: true, force: true });
+				if (state.staged) { fs.rmSync(state.staged, { recursive: true, force: true }); }
+			}
+		}
+	}
+
+	private async build(work: string, state: { keep: boolean; staged?: string }, release: Release, asset: ReleaseAsset, kind: InstallKind, progress: vscode.Progress<{ message?: string; increment?: number }>, token: vscode.CancellationToken): Promise<Ready | undefined> {
 		const file = path.join(work, asset.name);
 		const log = path.join(work, 'update.log');
 		const relaunchFlag = path.join(work, 'relaunch');
@@ -237,17 +278,22 @@ class Updater implements vscode.Disposable {
 		const root = installRoot(process.platform, vscode.env.appRoot);
 		const script = (name: string, body: string): string => {
 			const p = path.join(work, name);
-			fs.writeFileSync(p, body, { mode: 0o755 });
+			// UTF-8 without a BOM; the cmd scripts switch to that code page themselves
+			fs.writeFileSync(p, body, { mode: 0o755, encoding: 'utf8' });
 			return p;
 		};
 		const detach = (cmd: string, args: string[]): void => {
-			cp.spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+			// a failed spawn must not become an uncaught exception
+			cp.spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).on('error', () => undefined).unref();
+			state.keep = true;
 		};
+		// one folder per run, so two windows updating at once never share a staging path
+		const stagedName = (): string => `${root}.new-update-${process.pid}-${Date.now()}`;
 
 		if (kind === 'mac-app' || kind === 'linux-tar') {
 			// staged beside the install, so the final swap is a rename on the same disk
-			const staged = root + '.new-update';
-			fs.rmSync(staged, { recursive: true, force: true });
+			cleanStale(root);
+			const staged = state.staged = stagedName();
 			if (kind === 'mac-app') {
 				const mount = path.join(work, 'mount');
 				fs.mkdirSync(mount);
@@ -262,19 +308,21 @@ class Updater implements vscode.Disposable {
 					await run('hdiutil', ['detach', '-quiet', mount]);
 				}
 				await run('xattr', ['-dr', 'com.apple.quarantine', staged]);
+				if (!macBinaries(staged).length) { throw new Error('the new version is incomplete'); }
 			} else {
 				fs.mkdirSync(staged);
 				const x = await run('tar', ['-xzf', file, '-C', staged, '--strip-components=1']);
 				if (x.code !== 0) { throw new Error(`could not unpack the new version (${x.out})`); }
+				if (!fs.existsSync(path.join(staged, 'bin', 'open-cursor'))) { throw new Error('the new version is incomplete'); }
 			}
-			detach('/bin/sh', [script('install.sh', swapScript({ platform: process.platform === 'darwin' ? 'darwin' : 'linux', staged, target: root, relaunchFlag, log }))]);
+			detach('/bin/sh', [script('install.sh', swapScript({ platform: process.platform === 'darwin' ? 'darwin' : 'linux', staged, target: root, relaunchFlag, log, download: file }))]);
 			return { version: release.version, relaunchFlag, installed: false };
 		}
 
 		if (kind === 'win-portable') {
 			// unzipped beside the copy (same disk), checked, and copied over it once the app quits
-			const staged = root + '.new-update';
-			fs.rmSync(staged, { recursive: true, force: true });
+			cleanStale(root);
+			const staged = state.staged = stagedName();
 			fs.mkdirSync(staged);
 			progress.report({ message: 'Unpacking the new version' });
 			let x = await run('tar', ['-xf', file, '-C', staged]);
@@ -286,14 +334,14 @@ class Updater implements vscode.Disposable {
 				fs.rmSync(staged, { recursive: true, force: true });
 				throw new Error(`could not unpack the new version${x.out ? ` (${x.out.slice(-200)})` : ''}`);
 			}
-			detach('cmd.exe', ['/d', '/c', script('install.cmd', portableScript({ staged, root, exe, relaunchFlag, log }))]);
+			detach('cmd.exe', ['/d', '/c', script('install.cmd', portableScript({ staged, root, exe, relaunchFlag, log, download: file }))]);
 			return { version: release.version, relaunchFlag, installed: false };
 		}
 
 		if (kind === 'win-setup') {
 			// newer Windows installs keep the versioned files one folder below the launcher
 			const exe = [root, path.dirname(root)].map(d => path.join(d, 'OpenCursor.exe')).find(p => fs.existsSync(p)) ?? path.join(root, 'OpenCursor.exe');
-			detach('cmd.exe', ['/d', '/c', script('install.cmd', windowsScript({ setup: file, exe, relaunchFlag, log }))]);
+			detach('cmd.exe', ['/d', '/c', script('install.cmd', windowsScript({ setup: file, exe, relaunchFlag, log, download: file }))]);
 			return { version: release.version, relaunchFlag, installed: false };
 		}
 
@@ -301,6 +349,7 @@ class Updater implements vscode.Disposable {
 			const command = linuxPackageCommand(kind, file);
 			if (!fs.existsSync('/usr/bin/pkexec')) {
 				const manual = `sudo sh -c '${command.replace(/'/g, `'\\''`)}'`;
+				state.keep = true;
 				await vscode.env.clipboard.writeText(manual);
 				void vscode.window.showInformationMessage('Run the copied command in a terminal to finish the update, then restart OpenCursor.');
 				return undefined;

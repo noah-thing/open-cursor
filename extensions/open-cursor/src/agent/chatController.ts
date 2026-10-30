@@ -3,6 +3,8 @@
  *  Chat controller: owns chats, runs turns (native loop or CLI agent), talks to the webview.
  *--------------------------------------------------------------------------------------------*/
 
+import { resolvePath } from '../context/paths';
+import { stripAnsi } from '../terminal/logic';
 import { handoffBrief, isLimitError } from './handoff';
 import { apiEffort } from './effort';
 import * as vscode from 'vscode';
@@ -62,6 +64,10 @@ interface Runtime {
 	resolveIdle?: () => void;
 	postTimer?: ReturnType<typeof setTimeout>;
 	stopped: boolean;
+	/** finishTurn ran for the current turn. */
+	settled?: boolean;
+	/** The agent changed a build or script file this turn: allowlisted commands that run project code ask again. */
+	buildTouched?: boolean;
 }
 
 interface TurnState {
@@ -81,6 +87,18 @@ interface SendRequest {
 	readonly context: ContextItem[];
 	readonly mode?: ChatMode;
 	readonly modelId?: string;
+}
+
+/** Allowlist entries that run the project's own scripts and build files. */
+const RUNS_PROJECT_CODE = /^(npm|pnpm|yarn|bun|npx|make|just|pytest|python3? -m pytest|cargo|go (build|test|run|generate)|tsc|gradle|\.\/gradlew|mvn|dotnet|deno|node|tox|nox|poetry run|uv run)(\s|$)/;
+
+/**
+ * After the agent changed a build or script file in this turn, `npm test` and the like run what it
+ * just wrote, so they stop being allowed without asking until the next turn.
+ */
+function withBuildGuard<T extends { allowlist: readonly string[]; sessionAllow?: ReadonlySet<string> }>(policy: T, touched: boolean): T {
+	if (!touched) { return policy; }
+	return { ...policy, allowlist: policy.allowlist.filter(a => !RUNS_PROJECT_CODE.test(a.trim())), sessionAllow: new Set([...(policy.sessionAllow ?? [])].filter(a => !RUNS_PROJECT_CODE.test(a.trim()))) };
 }
 
 const POST_INTERVAL_MS = 33;
@@ -248,7 +266,11 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		sub.push(view.onDidChangeVisibility(() => {
 			this.setChatFocused(view.visible);
 			void this.ctx.globalState.update(CHAT_VISIBLE_KEY, view.visible);
-			if (view.visible) { this.post({ type: 'pendingEdits', files: this.services.pendingEdits.getFiles() }); }
+			if (view.visible) {
+				this.post({ type: 'pendingEdits', files: this.services.pendingEdits.getFiles() });
+				for (const id of this.hiddenDirty) { void this.store.get(id).then(sc => { if (sc) { this.postChatNow(sc); } }); }
+				this.hiddenDirty.clear();
+			}
 		}));
 		sub.push(view.onDidDispose(() => {
 			sub.forEach(s => s.dispose());
@@ -392,6 +414,11 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'setMode': return this.setMode(m.chatId, m.mode);
 			case 'setModel': return this.setModel(m.chatId, m.modelId);
 			case 'continueOn': return this.continueOn(m.chatId, m.modelId);
+			case 'reportProblem': {
+				const sc = m.chatId ? await this.store.get(m.chatId) : undefined;
+				await vscode.commands.executeCommand('openCursor.reportProblem', { error: typeof m.error === 'string' ? m.error.slice(0, 3000) : undefined, modelId: sc?.chat.modelId, mode: sc?.chat.mode });
+				return;
+			}
 			case 'approveTool': this.runtime(m.chatId).approvals.get(m.toolCallId)?.(m.decision); return;
 			case 'restoreCheckpoint': return this.restoreCheckpoint(m.chatId, m.messageId);
 			case 'searchMentions': {
@@ -412,8 +439,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'acceptFile': await this.services.pendingEdits.acceptFile(vscode.Uri.parse(m.uri)); return;
 			case 'rejectFile': await this.services.pendingEdits.rejectFile(vscode.Uri.parse(m.uri)); return;
 			case 'openSettings': return this.openSettings(m.section);
-			case 'setAutoRun': void setAutoRun(m.autoRun); return;
-			case 'setEffort': void setEffort(m.effort); return;
+			case 'setAutoRun': void setAutoRun(m.autoRun).then(undefined, () => undefined); return;
+			case 'setEffort': void setEffort(m.effort).then(undefined, () => undefined); return;
 			case 'copy': await vscode.env.clipboard.writeText(m.text); return;
 			case 'insertCode': return this.insertCode(m.code);
 			case 'applyCode': return this.applyCode(m.code, m.path);
@@ -902,11 +929,17 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	private schedulePost(sc: StoredChat): void {
 		const rt = this.runtime(sc.chat.id);
 		if (rt.postTimer) { return; }
+		// nothing to draw while the chat is hidden; it gets one fresh snapshot when it shows again
+		if (this.view && !this.view.visible) { this.hiddenDirty.add(sc.chat.id); return; }
+		// a long chat is a big snapshot: send it less often so typing and scrolling stay smooth
+		const every = sc.chat.messages.length > 120 ? POST_INTERVAL_MS * 4 : sc.chat.messages.length > 40 ? POST_INTERVAL_MS * 2 : POST_INTERVAL_MS;
 		rt.postTimer = setTimeout(() => {
 			rt.postTimer = undefined;
 			this.post({ type: 'chat', chat: sc.chat });
-		}, POST_INTERVAL_MS);
+		}, every);
 	}
+
+	private readonly hiddenDirty = new Set<string>();
 
 	private postChatNow(sc: StoredChat): void {
 		const rt = this.runtime(sc.chat.id);
@@ -1095,16 +1128,41 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const cut = truncateTranscript(sc.transcript, target.id);
 		sc.chat.messages = sc.chat.messages.slice(0, idx);
 		sc.transcript = cut ?? buildHistoryFromChat(sc.chat.messages);
+		// the CLI's own session still holds the turns cut here: start it fresh, with a handoff of what remains
+		if (sc.cliSessionId && !sc.chat.messages.some(m => m.id === sc.cliSessionUpTo)) {
+			sc.cliSessionId = undefined; sc.cliSessionAgent = undefined; sc.cliSessionCwd = undefined; sc.cliSessionUpTo = undefined;
+		}
 		sc.chat.status = 'idle';
 		sc.chat.todos = [];
 		this.touch(sc);
 	}
 
+	/** A turn that throws before it is under way must not leave the chat stuck on running, with every later message queued. */
 	private async startTurn(sc: StoredChat, req: SendRequest): Promise<void> {
+		const rt = this.runtime(sc.chat.id);
+		rt.settled = false;
+		try {
+			await this.runTurn(sc, req);
+		} catch (e) {
+			if (!rt.settled) {
+				rt.running = false;
+				rt.abort = undefined;
+				sc.chat.status = 'idle';
+				rt.resolveIdle?.();
+				this.touch(sc);
+				this.postChatNow(sc);
+				this.postChats();
+			}
+			throw e;
+		}
+	}
+
+	private async runTurn(sc: StoredChat, req: SendRequest): Promise<void> {
 		const chatId = sc.chat.id;
 		const rt = this.runtime(chatId);
 		rt.running = true;
 		rt.stopped = false;
+		rt.buildTouched = false;
 		rt.abort = new AbortController();
 		rt.idle = new Promise<void>(res => { rt.resolveIdle = res; });
 
@@ -1202,12 +1260,17 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		void this.store.flush();
 		rt.running = false;
 		rt.abort = undefined;
+		rt.settled = true;
 		rt.resolveIdle?.();
 
 		if (isFirst && !turn.errored && sc.titleSource === 'auto') {
 			void this.generateChatTitle(sc, userText).catch(() => undefined);
 		}
-		// queued messages go out in order
+		// queued messages go out in order; after an error they wait, so one failure does not repeat per message
+		if (!turn.errored) { this.dequeue(sc, rt); }
+	}
+
+	private dequeue(sc: StoredChat, rt: Runtime): void {
 		const next = rt.stopped ? undefined : sc.chat.queued[0];
 		if (next && !this.disposed) {
 			sc.chat.queued = sc.chat.queued.slice(1);
@@ -1279,11 +1342,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (part.status === 'done' || part.status === 'error' || ready) { this.postChatNow(turn.sc); } else { this.schedulePost(turn.sc); }
 	}
 
-	private addError(turn: TurnState, message: string, action?: 'openSettings' | 'retry'): void {
+	private addError(turn: TurnState, raw: string, action?: 'openSettings' | 'retry'): void {
 		this.closeThinking(turn);
+		const message = stripAnsi(raw).trim();
 		if (isLimitError(message)) {
 			// A limit is not the end of the work: offer the next model, which gets the whole conversation.
-			const next = this.fallbackFor(turn.sc.chat.modelId);
+			const next = this.fallbackFor(turn.msg.modelId ?? turn.sc.chat.modelId);
 			turn.parts.push({ type: 'error', message, action: 'retry', limit: true, ...(next ? { switchTo: { id: next.id, label: next.label } } : { fix: { kind: 'freeModels' } }) });
 			turn.errored = true;
 			this.postChatNow(turn.sc);
@@ -1392,6 +1456,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			toolCtx: {
 				checkpointId,
 				confirmOutsideWorkspace: (p, action) => this.confirmOutside(p, action, signal),
+				onBuildFileWrite: () => { this.runtime(sc.chat.id).buildTouched = true; },
 				getTodos: () => sc.chat.todos,
 				setTodos: todos => { sc.chat.todos = todos; this.touch(sc); this.postChatNow(sc); },
 				getAgentRules: async () => (await this.services.context.getRules(files).catch(() => [])).filter(r => r.agentRequested).map(r => ({ name: r.name, description: r.description, content: r.content })),
@@ -1401,7 +1466,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 				// Help looks things up in the manual it was handed; thinking only adds seconds.
 				thinking: mode === 'help' ? false : apiEffort(readEffort()) !== undefined,
 				effort: apiEffort(readEffort()),
-				getPolicy: () => ({ autoRun: readAutoRun(), ...readLists(), sessionAllow: this.sessionAllow }),
+				getPolicy: () => withBuildGuard({ autoRun: readAutoRun(), ...readLists(), sessionAllow: this.sessionAllow }, !!this.runtime(sc.chat.id).buildTouched),
 				addSessionAllow: prefix => { this.sessionAllow.add(prefix); },
 			},
 			hooks, signal,
@@ -1449,6 +1514,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.touch(sc);
 		this.postChatNow(sc);
 		this.postChats();
+		void this.store.flush();
+		this.dequeue(sc, rt);
 	}
 
 	/**
@@ -1487,6 +1554,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			return;
 		}
 		const help = sc.chat.mode === 'help';
+		// A command line agent reads the project's own settings (.claude/settings.json, .gemini/, hooks), which
+		// can run programs. In a folder the user has not trusted, it does not start.
+		if (!help && vscode.workspace.workspaceFolders?.length && !vscode.workspace.isTrusted) {
+			this.addError(turn, `This folder is in Restricted Mode, and ${info.label} would read the project's own settings, which can run programs. Trust the folder (Manage Workspace Trust in the command palette) to use it here, or pick an API or local model, which work in Restricted Mode.`);
+			return;
+		}
 		const cwd = help ? this.helpDir() : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? this.chatFolder(turn);
 		const files = referencedFiles(req.context);
 		const rules = help ? [] : await this.services.context.getRules(files).catch(() => []);
@@ -1521,7 +1594,11 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const handleChanged = async (uri: vscode.Uri): Promise<void> => {
 			const key = uri.toString();
 			let after: string | undefined;
-			try { after = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)); } catch { after = undefined; }
+			let bytes: Uint8Array | undefined;
+			try { bytes = await vscode.workspace.fs.readFile(uri); } catch { bytes = undefined; }
+			// a binary file (an image, an archive) is not reviewed as text: decoding and writing it back would corrupt it
+			if (bytes && bytes.subarray(0, 8000).includes(0)) { return; }
+			after = bytes ? new TextDecoder().decode(bytes) : undefined;
 			const hasOriginal = originals.has(key);
 			const before = originals.get(key);
 			if (after === undefined) {
@@ -1564,7 +1641,14 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			},
 		});
 		await chain;
-		if (result.sessionId) { sc.cliSessionId = result.sessionId; sc.cliSessionAgent = agent; sc.cliSessionCwd = cwd; sc.cliSessionUpTo = turn.msg.id; }
+		if (result.stopReason === 'error' && /no conversation found|session not found|could not find session|no such session|unknown session/i.test(result.error ?? '')) {
+			// the CLI lost this session (its history was cleared): the next turn starts fresh with a full handoff
+			sc.cliSessionId = undefined; sc.cliSessionAgent = undefined; sc.cliSessionCwd = undefined; sc.cliSessionUpTo = undefined;
+		} else if (result.sessionId) {
+			sc.cliSessionId = result.sessionId; sc.cliSessionAgent = agent; sc.cliSessionCwd = cwd;
+			// only a finished turn counts as seen; a failed one is handed over again next time
+			if (result.stopReason === 'done') { sc.cliSessionUpTo = turn.msg.id; }
+		}
 		// OpenCode's free models share one quota. When it runs out before anything was produced, the same
 		// message carries on with the free keys the user connected, instead of stopping the work.
 		const answered = turn.parts.some(p => p.type === 'text' || p.type === 'tool');
@@ -1579,7 +1663,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private async openFile(uri: string, range?: { startLine: number; endLine: number }): Promise<void> {
 		try {
-			const u = vscode.Uri.parse(uri);
+			// a path the model wrote (`src/foo.ts`) has no scheme: resolve it in the project, not at the disk root
+			const u = /^[a-z][a-z0-9+.-]+:\/\//i.test(uri) ? vscode.Uri.parse(uri) : resolvePath(uri).uri;
 			const sel = range ? new vscode.Range(Math.max(0, range.startLine - 1), 0, Math.max(0, range.endLine - 1), 0) : undefined;
 			await vscode.window.showTextDocument(u, { selection: sel, preview: false });
 		} catch (e) {

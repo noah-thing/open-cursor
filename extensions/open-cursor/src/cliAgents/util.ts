@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { CliAgentId } from './types';
+import { stripAnsi } from '../terminal/logic';
 
 export const COMMON_BIN_DIRS = (): string[] => {
 	const h = os.homedir();
@@ -211,10 +212,11 @@ export interface SpawnedCli {
  * shell and tool it started. stdout is delivered line by line.
  */
 /** Every CLI turn still running, so a window reload or quit can end them instead of leaving them behind. */
-const live = new Set<() => void>();
+const live = new Set<(now?: boolean) => void>();
 
 export function killAllClis(): void {
-	for (const k of [...live]) { k(); }
+	// timers never fire once the host is quitting, so there is no grace period here
+	for (const k of [...live]) { k(true); }
 	live.clear();
 }
 
@@ -251,18 +253,25 @@ export function spawnCli(
 	}
 
 	let killTimer: NodeJS.Timeout | undefined;
-	const kill = (): void => {
+	const send = (sig: NodeJS.Signals): void => {
+		try {
+			killTree(child, sig);
+		} catch {
+			/* already gone */
+		}
+	};
+	const kill = (now = false): void => {
 		const pid = child.pid;
 		if (!pid || child.exitCode !== null) {
 			return;
 		}
-		const send = (sig: NodeJS.Signals): void => {
-			try {
-				killTree(child, sig);
-			} catch {
-				/* already gone */
-			}
-		};
+		if (now) {
+			send('SIGKILL');
+			return;
+		}
+		if (killTimer) {
+			return;
+		}
 		send('SIGTERM');
 		killTimer = setTimeout(() => send('SIGKILL'), 3000);
 		killTimer.unref();
@@ -287,6 +296,11 @@ export function spawnCli(
 			splitter.end();
 			if (killTimer) {
 				clearTimeout(killTimer);
+				killTimer = undefined;
+				// grandchildren that ignored SIGTERM outlive their parent; end the group once (ESRCH is fine)
+				if (process.platform !== 'win32') {
+					send('SIGKILL');
+				}
 			}
 			opts.signal.removeEventListener('abort', onAbort);
 			resolve({ code, signal, spawnError });
@@ -295,11 +309,16 @@ export function spawnCli(
 	return { child, stderr: () => err, exited, kill };
 }
 
-/** Runs a short command and returns stdout (or undefined on failure/timeout). Never throws. */
-export function runQuick(binary: string, args: string[], opts: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs: number }): Promise<{ stdout: string; stderr: string; code: number | null } | undefined> {
+/**
+ * Runs a short command and returns its output (or undefined on failure/timeout). Never throws.
+ * Output is capped (4 MB unless `maxBytes`): the process is killed at the cap and the call fails.
+ * With `keepPartial`, a timeout or the cap returns what was collected so far, with `timedOut` set on a timeout.
+ */
+export function runQuick(binary: string, args: string[], opts: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs: number; maxBytes?: number; keepPartial?: boolean }): Promise<{ stdout: string; stderr: string; code: number | null; timedOut?: boolean } | undefined> {
 	return new Promise(resolve => {
 		let out = '';
 		let err = '';
+		let size = 0;
 		let done = false;
 		let child: ChildProcess;
 		try {
@@ -309,26 +328,42 @@ export function runQuick(binary: string, args: string[], opts: { cwd?: string; e
 			resolve(undefined);
 			return;
 		}
-		const finish = (code: number | null, ok: boolean): void => {
+		const finish = (code: number | null, ok: boolean, timedOut = false): void => {
 			if (done) {
 				return;
 			}
 			done = true;
 			clearTimeout(timer);
-			resolve(ok ? { stdout: out, stderr: err, code } : undefined);
+			resolve(ok ? { stdout: out, stderr: err, code, ...(timedOut ? { timedOut } : {}) } : undefined);
 		};
-		const timer = setTimeout(() => {
+		const stop = (): void => {
 			try {
 				killTree(child, 'SIGKILL');
 			} catch {
 				/* gone */
 			}
-			finish(null, false);
+		};
+		const timer = setTimeout(() => {
+			stop();
+			finish(null, !!opts.keepPartial, true);
 		}, opts.timeoutMs);
+		const cap = opts.maxBytes ?? 4 * 1024 * 1024;
+		const take = (d: string, into: 'out' | 'err'): void => {
+			if (done) {
+				return;
+			}
+			size += Buffer.byteLength(d);
+			if (size > cap) {
+				stop();
+				finish(null, !!opts.keepPartial);
+				return;
+			}
+			if (into === 'out') { out += d; } else { err += d; }
+		};
 		child.stdout?.setEncoding('utf8');
 		child.stderr?.setEncoding('utf8');
-		child.stdout?.on('data', (d: string) => (out += d));
-		child.stderr?.on('data', (d: string) => (err += d));
+		child.stdout?.on('data', (d: string) => take(d, 'out'));
+		child.stderr?.on('data', (d: string) => take(d, 'err'));
 		child.on('error', () => finish(null, false));
 		child.on('close', code => finish(code, true));
 	});
@@ -368,7 +403,9 @@ export function readTextFile(p: string, maxBytes = 2_000_000): string | undefine
 }
 
 /** Short friendly hints for common failures. */
-export function friendlyError(agent: CliAgentId, raw: string): string {
+export function friendlyError(agent: CliAgentId, text: string): string {
+	// CLIs color their errors for a terminal; the codes would show as junk in the chat
+	const raw = stripAnsi(text).trim();
 	const login = { 'claude-code': '`claude login`', codex: '`codex login`', grok: '`grok login`', 'gemini-cli': '`gemini` (and sign in)', opencode: '`opencode auth login`' }[agent];
 	const label = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI', opencode: 'OpenCode' }[agent];
 	if (agent === 'gemini-cli' && /IneligibleTierError|no longer supported for Gemini Code Assist/i.test(raw)) {

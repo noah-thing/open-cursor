@@ -4,6 +4,7 @@
 
 import * as vscode from 'vscode';
 import * as os from 'os';
+import * as fs from 'fs';
 import * as nodePath from 'path';
 
 export function workspaceRoots(): vscode.Uri[] {
@@ -62,7 +63,35 @@ export function resolvePath(input: string): ResolvedPath {
 		}
 		uri = base ? vscode.Uri.joinPath(base, rel) : vscode.Uri.file(nodePath.resolve(clean));
 	}
-	return { uri, inWorkspace: !!vscode.workspace.getWorkspaceFolder(uri) };
+	return { uri, inWorkspace: !!vscode.workspace.getWorkspaceFolder(uri) && !leavesThroughLink(uri) };
+}
+
+/** Real path of the deepest part of `p` that exists, so a path through a symlink resolves to where it really points. */
+function realOf(p: string): string {
+	let cur = p;
+	let rest = '';
+	for (let i = 0; i < 64; i++) {
+		try { return nodePath.join(fs.realpathSync.native(cur), rest); } catch { /* not there yet */ }
+		const up = nodePath.dirname(cur);
+		if (up === cur) { return p; }
+		rest = nodePath.join(nodePath.basename(cur), rest);
+		cur = up;
+	}
+	return p;
+}
+
+/**
+ * A path inside the project that a symlink sends elsewhere (a `docs` link to ~/.ssh, say) is treated as
+ * outside, so reading, writing or deleting through it asks first like any outside path.
+ */
+function leavesThroughLink(uri: vscode.Uri): boolean {
+	if (uri.scheme !== 'file') { return false; }
+	const real = realOf(uri.fsPath);
+	if (real === uri.fsPath) { return false; }
+	const roots = workspaceRoots().filter(r => r.scheme === 'file').map(r => realOf(r.fsPath));
+	const sep = nodePath.sep;
+	const norm = (s: string): string => (process.platform === 'win32' || process.platform === 'darwin' ? s.toLowerCase() : s);
+	return !roots.some(r => norm(real) === norm(r) || norm(real).startsWith(norm(r.endsWith(sep) ? r : r + sep)));
 }
 
 export function homeDir(): string {

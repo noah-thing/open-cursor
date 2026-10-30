@@ -40,7 +40,8 @@
 				"openCursor.providers.ollama.baseUrl",
 				"openCursor.providers.lmstudio.baseUrl",
 				"openCursor.providers.custom.baseUrl",
-				"openCursor.providers.openai.baseUrl"
+				"openCursor.providers.openai.baseUrl",
+				"openCursor.models.custom"
 			]
 		},
 		"virtualWorkspaces": false
@@ -268,6 +269,11 @@
 				"title": "Generate Commit Message",
 				"category": "OpenCursor",
 				"icon": "$(sparkle)"
+			},
+			{
+				"command": "openCursor.reportProblem",
+				"title": "Report a Problem",
+				"category": "OpenCursor"
 			},
 			{
 				"command": "openCursor.setEffort",
@@ -825,6 +831,7 @@
 					},
 					"openCursor.models.custom": {
 						"type": "array",
+						"scope": "machine",
 						"default": [],
 						"markdownDescription": "Extra models. `provider` is one of anthropic, openai, google, openrouter, deepseek, xai, mistral, groq, ollama, lmstudio, custom.",
 						"items": {
@@ -928,7 +935,10 @@
 						},
 						"default": [
 							"plaintext",
-							"scminput"
+							"scminput",
+							"dotenv",
+							"properties",
+							"ini"
 						],
 						"markdownDescription": "Language ids where Tab is off."
 					},

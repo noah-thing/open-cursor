@@ -30,12 +30,13 @@ function toolResultBlock(c: Extract<LLMContent, { type: 'tool_result' }>): Rec {
 
 function block(c: LLMContent): Rec | undefined {
 	switch (c.type) {
-		case 'text': return c.text ? { type: 'text', text: c.text } : undefined;
+		case 'text': return c.text.trim() ? { type: 'text', text: c.text } : undefined;
 		case 'image': return { type: 'image', source: { type: 'base64', media_type: c.mediaType, data: c.data } };
 		case 'tool_use': return { type: 'tool_use', id: c.id, name: c.name, input: c.input && typeof c.input === 'object' ? c.input : {} };
 		case 'tool_result': return toolResultBlock(c);
 		case 'thinking':
-			if (!c.signature) { return undefined; }
+			// unsigned reasoning, or a Gemini signature from earlier in the chat, is not Anthropic's to verify
+			if (!c.signature || c.signature.startsWith('gsig:')) { return undefined; }
 			if (c.signature.startsWith(REDACTED)) { return { type: 'redacted_thinking', data: c.signature.slice(REDACTED.length) }; }
 			return { type: 'thinking', thinking: c.text, signature: c.signature };
 	}
@@ -183,7 +184,7 @@ export class AnthropicProvider implements LLMProvider {
 		const j = await res.json() as Rec;
 		const known = new Map(ANTHROPIC_MODELS.map(m => [m.model, m]));
 		return (j.data as Rec[] ?? []).filter(m => isChatModelId('anthropic', m.id)).map(m =>
-			known.get(m.id) ?? guessModelInfo('anthropic', m.id, { label: m.display_name ?? m.id, supportsThinking: !/claude-3-haiku|claude-3-5/.test(m.id) }));
+			known.get(m.id) ?? guessModelInfo('anthropic', m.id, { label: m.display_name ?? m.id, supportsThinking: !/claude-3-haiku|claude-3-5/.test(m.id), ...(/claude-3-(haiku|opus|sonnet)/.test(m.id) ? { maxOutputTokens: 4096 } : /claude-3-5/.test(m.id) ? { maxOutputTokens: 8192 } : {}) }));
 	}
 
 	verify(signal?: AbortSignal) { return verifyByListing(s => this.listModels(s), signal); }

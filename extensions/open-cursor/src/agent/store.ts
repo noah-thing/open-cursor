@@ -3,6 +3,7 @@
  *  Chat persistence: one JSON file per chat plus an index, debounced writes, titles.
  *--------------------------------------------------------------------------------------------*/
 
+import { ensureValid } from './history';
 import * as fs from 'fs';
 import * as nodePath from 'path';
 import type { ModelInfo } from '../providers/types';
@@ -152,9 +153,18 @@ export class ChatStore {
 			const sc = JSON.parse(raw) as StoredChat;
 			if (!sc?.chat) { return undefined; }
 			sc.chat.status = 'idle';
+			sc.chat.messages ??= [];
 			sc.chat.queued ??= [];
 			sc.chat.todos ??= [];
 			sc.transcript ??= [];
+			// The window closed mid turn: nothing is running any more. Tool rows stop spinning, and a tool call
+			// saved without its result is answered, or providers would reject every later message in this chat.
+			sc.chat.messages = sc.chat.messages.map(m => m.role !== 'assistant' || m.done ? m : {
+				...m, done: true,
+				parts: m.parts.map(p => p.type === 'tool' && (p.status === 'running' || p.status === 'streaming' || p.status === 'awaiting-approval') ? { ...p, status: 'cancelled' as const }
+					: p.type === 'thinking' && !p.done ? { ...p, done: true } : p),
+			});
+			sc.transcript = ensureValid(sc.transcript);
 			sc.titleSource ??= 'auto';
 			const again = this.cache.get(id);
 			if (again) { return again; }
@@ -204,12 +214,32 @@ export class ChatStore {
 	async delete(id: string): Promise<void> {
 		this.cache.delete(id);
 		this.dirty.delete(id);
+		this.deleted.add(id);
 		this.index.chats = this.index.chats.filter(c => c.id !== id);
 		this.index.openChatIds = this.index.openChatIds.filter(c => c !== id);
 		if (this.index.activeChatId === id) { this.index.activeChatId = undefined; }
 		this.markIndex();
 		await this.writing;
 		try { await fs.promises.unlink(nodePath.join(this.dir, `${id}.json`)); } catch { /* already gone */ }
+	}
+
+	/** Chats deleted in this window, so a merge with the index on disk does not bring them back. */
+	private readonly deleted = new Set<string>();
+
+	/**
+	 * Windows without a folder share this store. Before writing the index, chats another window added
+	 * are taken in (when their file exists), so neither window erases the other's history.
+	 */
+	private async mergeDiskIndex(): Promise<void> {
+		try {
+			const disk = JSON.parse(await fs.promises.readFile(nodePath.join(this.dir, 'index.json'), 'utf8')) as IndexFile;
+			if (!disk || !Array.isArray(disk.chats)) { return; }
+			const known = new Set(this.index.chats.map(c => c.id));
+			for (const c of disk.chats) {
+				if (!c?.id || known.has(c.id) || this.deleted.has(c.id)) { continue; }
+				if (fs.existsSync(nodePath.join(this.dir, `${c.id}.json`))) { this.index.chats.push({ ...c, status: 'idle' }); }
+			}
+		} catch { /* no index yet, or unreadable: ours stands */ }
 	}
 
 	flush(): Promise<void> {
@@ -221,22 +251,31 @@ export class ChatStore {
 		const snapshot = ids.map(id => ({ id, sc: this.cache.get(id) })).filter((x): x is { id: string; sc: StoredChat } => !!x.sc);
 		const run = async (): Promise<void> => {
 			try { await fs.promises.mkdir(this.dir, { recursive: true }); } catch { /* ignore */ }
+			let failed = false;
 			for (const { id, sc } of snapshot) {
-				await atomicWrite(nodePath.join(this.dir, `${id}.json`), JSON.stringify({ chat: { ...sc.chat, status: 'idle' }, transcript: sc.transcript, cliSessionId: sc.cliSessionId, cliSessionAgent: sc.cliSessionAgent, cliSessionCwd: sc.cliSessionCwd, cliSessionUpTo: sc.cliSessionUpTo, scratchDir: sc.scratchDir, titleSource: sc.titleSource }));
+				const ok = await atomicWrite(nodePath.join(this.dir, `${id}.json`), JSON.stringify({ chat: { ...sc.chat, status: 'idle' }, transcript: sc.transcript, cliSessionId: sc.cliSessionId, cliSessionAgent: sc.cliSessionAgent, cliSessionCwd: sc.cliSessionCwd, cliSessionUpTo: sc.cliSessionUpTo, scratchDir: sc.scratchDir, titleSource: sc.titleSource }));
+				// a full disk or a locked file: keep the change and try again later instead of dropping it
+				if (!ok) { this.dirty.add(id); failed = true; }
 			}
-			if (writeIndex) { await atomicWrite(nodePath.join(this.dir, 'index.json'), JSON.stringify(this.index)); }
+			if (writeIndex) {
+				await this.mergeDiskIndex();
+				if (!(await atomicWrite(nodePath.join(this.dir, 'index.json'), JSON.stringify(this.index)))) { this.indexDirty = true; failed = true; }
+			}
+			if (failed) { this.timer = setTimeout(() => { void this.flush(); }, SAVE_DELAY_MS * 10); }
 		};
 		this.writing = this.writing.then(run, run).catch(() => undefined);
 		return this.writing;
 	}
 }
 
-async function atomicWrite(file: string, data: string): Promise<void> {
+async function atomicWrite(file: string, data: string): Promise<boolean> {
 	const tmp = `${file}.${process.pid}.tmp`;
 	try {
 		await fs.promises.writeFile(tmp, data, 'utf8');
 		await fs.promises.rename(tmp, file);
+		return true;
 	} catch {
 		try { await fs.promises.unlink(tmp); } catch { /* ignore */ }
+		return false;
 	}
 }

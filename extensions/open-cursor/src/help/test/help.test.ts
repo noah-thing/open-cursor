@@ -6,7 +6,7 @@ import { instantAnswer } from '../answers';
 import { issueBody, issueTitle, issueUrl, modelKind } from '../issue';
 import { MANUAL } from '../manual';
 import { buildHelpSystemPrompt } from '../prompt';
-import { actionLabel, firstInPlaceLink, formatHelpLink, HELP_TARGETS, parseHelpLink, validateAction } from '../targets';
+import { actionLabel, firstInPlaceLink, formatHelpLink, HELP_TARGETS, parseHelpLink, stripAutoOpenArg, validateAction } from '../targets';
 
 test('links parse into catalog actions', () => {
 	assert.deepStrictEqual(parseHelpLink('opencursor:settings/models'), { target: 'settings', arg: 'models' });
@@ -138,6 +138,12 @@ test('report issue: link, prefilled body, no keys, length cap', () => {
 	const long = issueUrl({ ...f, userMessages: ['x'.repeat(20000)] });
 	assert.ok(long.length <= 7000, String(long.length));
 	assert.ok(decodeURIComponent(long).includes('(cut short)'));
+});
+
+test('an automatic open never carries the install argument', () => {
+	assert.deepStrictEqual(parseHelpLink('opencursor:free-models/install'), { target: 'free-models', arg: 'install' }, 'a click may');
+	assert.deepStrictEqual(firstInPlaceLink('[Get OpenCode](opencursor:free-models/install)'), { target: 'free-models' });
+	assert.deepStrictEqual(stripAutoOpenArg({ target: 'free-models', arg: 'local' }), { target: 'free-models', arg: 'local' });
 });
 
 void done('help');

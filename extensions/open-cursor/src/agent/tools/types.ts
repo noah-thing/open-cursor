@@ -25,6 +25,8 @@ export interface ToolContext {
 	readonly checkpointId?: string;
 	/** Ask the user before a mutating tool touches a path outside the workspace. */
 	confirmOutsideWorkspace(absPath: string, action: string): Promise<boolean>;
+	/** The agent changed a build or script file; commands that run it should ask again this turn. */
+	onBuildFileWrite?(): void;
 	getTodos(): TodoItem[];
 	setTodos(todos: TodoItem[]): void;
 	/** Agent requested rules (description only rules) with content, by name. */

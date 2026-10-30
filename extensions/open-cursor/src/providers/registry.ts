@@ -241,7 +241,10 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 			supportsTools: true, supportsImages: false, supportsThinking: false,
 		});
 		this.overrides.clear();
-		for (const e of this.cfg<CustomEntry[]>('models.custom', [])) {
+		// Custom models can carry their own server address, and their provider's key goes with every
+		// request. Only the user's own settings may define them, never a project's .vscode/settings.json.
+		const custom = vscode.workspace.getConfiguration('openCursor').inspect<CustomEntry[]>('models.custom')?.globalValue ?? [];
+		for (const e of Array.isArray(custom) ? custom : []) {
 			if (!e || !(PROVIDERS as readonly string[]).includes(e.provider) || !e.model) { continue; }
 			const provider = e.provider as ProviderId;
 			const id = modelId(provider, e.model);
@@ -331,6 +334,8 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 			let started = false;
 			try {
 				for await (const ev of this.getProvider(fm.provider).stream({ ...req, model, signal: attempt.signal, retries: 0 })) {
+					// our own timer aborting shows up as a clean 'aborted' end: that is a model that never answered
+					if (!started && ev.type === 'done' && ev.stopReason === 'aborted' && attempt.signal.aborted && !req.signal?.aborted) { throw new Error('no answer in time'); }
 					if (!started) { started = true; clearTimeout(timer); }
 					yield ev;
 				}

@@ -5,12 +5,17 @@
 import * as vscode from 'vscode';
 import * as nodePath from 'path';
 import { execFile } from 'child_process';
+import { promises as fsp } from 'fs';
 import type { ContextItem, ContextKind } from '../shared/protocol';
 import { formatDiagnostics } from './diagnostics';
 import { fuzzyScore } from './fuzzy';
 import { htmlToText, stripAnsi } from './html';
+import { safeFetch } from './safeFetch';
 import { primaryRoot, toDisplayPath } from './paths';
 import type { RulesStore } from './rules';
+
+const MAX_READ_BYTES = 4 * 1024 * 1024;
+const HEAD_BYTES = 1024 * 1024;
 
 export const MAX_FILE_LINES = 2000;
 const MAX_LINE_CHARS = 2000;
@@ -385,19 +390,14 @@ export class Mentions {
 	}
 
 	private async docsText(url: string): Promise<string> {
-		const ctrl = new AbortController();
-		const timer = setTimeout(() => ctrl.abort(), 15000);
 		try {
-			const res = await fetch(url, { signal: ctrl.signal, headers: { 'user-agent': 'OpenCursor/0.1', accept: 'text/html,text/plain,*/*' } });
-			if (!res.ok) { return `[Docs ${url}: HTTP ${res.status}]`; }
-			const raw = await res.text();
-			const ct = res.headers.get('content-type') ?? '';
-			const text = ct.includes('html') || /^\s*<(!doctype|html)/i.test(raw) ? htmlToText(raw) : raw;
+			const res = await safeFetch(url, { maxBytes: 2 * 1024 * 1024, timeoutMs: 15000 });
+			if (res.status < 200 || res.status >= 300) { return `[Docs ${url}: HTTP ${res.status}]`; }
+			const raw = res.text;
+			const text = res.contentType.includes('html') || /^\s*<(!doctype|html)/i.test(raw) ? htmlToText(raw) : raw;
 			return `Documentation from ${url}:\n${text.length > 20000 ? text.slice(0, 20000) + '\n[truncated]' : text}`;
 		} catch (e) {
 			return `[Docs ${url} could not be fetched: ${e instanceof Error ? e.message : String(e)}]`;
-		} finally {
-			clearTimeout(timer);
 		}
 	}
 }
@@ -419,6 +419,17 @@ export async function readDocumentText(uri: vscode.Uri): Promise<string | undefi
 		return open.getText();
 	}
 	try {
+		// stat first: a multi GB file must not be pulled into memory just to be truncated to a few hundred lines
+		const size = (await vscode.workspace.fs.stat(uri)).size;
+		if (size > MAX_READ_BYTES) {
+			if (uri.scheme !== 'file') { return undefined; }
+			const fh = await fsp.open(uri.fsPath, 'r');
+			try {
+				const buf = Buffer.alloc(HEAD_BYTES);
+				const { bytesRead } = await fh.read(buf, 0, HEAD_BYTES, 0);
+				return new TextDecoder('utf-8').decode(buf.subarray(0, bytesRead)) + '\n[file is larger than 4 MB, only the start was read]';
+			} finally { await fh.close(); }
+		}
 		const bytes = await vscode.workspace.fs.readFile(uri);
 		return new TextDecoder('utf-8').decode(bytes);
 	} catch {

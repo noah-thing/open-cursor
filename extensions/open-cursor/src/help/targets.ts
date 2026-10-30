@@ -12,7 +12,7 @@ export interface HelpAction {
 export type HelpTargetId =
 	| 'free-models' | 'settings' | 'editor-settings' | 'shortcuts' | 'color-theme' | 'icon-theme'
 	| 'command-palette' | 'extensions' | 'view' | 'mcp-config' | 'connect' | 'new-chat' | 'past-chats'
-	| 'import' | 'open-folder' | 'report-issue';
+	| 'import' | 'open-folder' | 'report-issue' | 'report-problem';
 
 export interface HelpTarget {
 	readonly id: HelpTargetId;
@@ -55,6 +55,7 @@ export const HELP_TARGETS: readonly HelpTarget[] = [
 	{ id: 'past-chats', label: 'Past chats', use: 'The list of earlier chats, with search.', inPlace: false },
 	{ id: 'import', label: 'Import from Cursor or VS Code', use: 'Starts the import of settings, keybindings and extensions. It asks the user before doing anything.', inPlace: false },
 	{ id: 'open-folder', label: 'Open a folder', use: 'The system dialog to open a project folder.', inPlace: false },
+	{ id: 'report-problem', label: 'Report a problem', use: 'The Report a Problem form: the user describes what went wrong and sends it to the developer with a few app details. No account needed. Prefer this over GitHub.', inPlace: false },
 	{ id: 'report-issue', label: 'Report on GitHub', use: 'A new GitHub issue in the browser, filled in with what the user wrote in this chat and the app details. The argument is a short issue title. The user reads it and submits it.', inPlace: false },
 ];
 
@@ -119,12 +120,17 @@ export function actionLabel(a: HelpAction): string {
 	}
 }
 
+/** Arguments that start an install: only a click on a link may carry them, never an automatic open. */
+export function stripAutoOpenArg(a: HelpAction): HelpAction {
+	return a.target === 'free-models' && a.arg === 'install' ? { target: a.target } : a;
+}
+
 /** The first link in a reply that may open on its own, for agents that answer in text only. */
 export function firstInPlaceLink(text: string): HelpAction | undefined {
 	const re = /\]\((opencursor:[^)\s]+)\)/gi;
 	for (let m = re.exec(text); m; m = re.exec(text)) {
 		const a = parseHelpLink(m[1]);
-		if (a && helpTarget(a.target)?.inPlace) { return a; }
+		if (a && helpTarget(a.target)?.inPlace) { return stripAutoOpenArg(a); }
 	}
 	return undefined;
 }

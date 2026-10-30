@@ -70,16 +70,26 @@ function isForeignSetting(key: string): boolean {
 	return /^(cursor|aipopup|composer|github\.copilot|chat|windsurf|codeium)\b/i.test(key) || key === 'workbench.colorTheme' || key === 'workbench.activityBar.location';
 }
 
-async function copySettings(src: Source, userDir: string): Promise<number> {
+async function copySettings(src: Source, userDir: string): Promise<{ count: number; error?: string }> {
 	let incoming: Record<string, unknown>;
 	try {
 		incoming = parseJsonc(await fs.readFile(path.join(src.userDir, 'settings.json'), 'utf8'));
 	} catch {
-		return 0;
+		return { count: 0 };
 	}
 	const target = path.join(userDir, 'settings.json');
 	let current: Record<string, unknown> = {};
-	try { current = parseJsonc(await fs.readFile(target, 'utf8')); } catch { /* new file */ }
+	let existing: string | undefined;
+	try { existing = await fs.readFile(target, 'utf8'); } catch { /* new file */ }
+	if (existing !== undefined) {
+		try {
+			current = parseJsonc(existing);
+		} catch {
+			// treating a broken file as {} would wipe the user's settings on write
+			return { count: 0, error: 'Your settings.json could not be read (invalid JSON), so settings were not imported. Fix it and import again.' };
+		}
+		await fs.copyFile(target, target + '.bak');
+	}
 	let count = 0;
 	for (const [k, v] of Object.entries(incoming)) {
 		if (!isForeignSetting(k) && !(k in current)) {
@@ -89,7 +99,7 @@ async function copySettings(src: Source, userDir: string): Promise<number> {
 	}
 	await fs.mkdir(userDir, { recursive: true });
 	await fs.writeFile(target, JSON.stringify(current, null, '\t') + '\n');
-	return count;
+	return { count };
 }
 
 async function copyIfMissing(from: string, to: string): Promise<boolean> {
@@ -103,9 +113,9 @@ async function copyIfMissing(from: string, to: string): Promise<boolean> {
 
 /** Lenient JSON with comments and trailing commas, as VS Code writes it. */
 function parseJsonc(text: string): Record<string, unknown> {
-	const noComments = text.replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (_m, str: string | undefined) => str ?? '');
+	const noComments = text.replace(/^\uFEFF/, '').replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (_m, str: string | undefined) => str ?? '');
 	const noTrailing = noComments.replace(/,(\s*[}\]])/g, '$1');
-	const parsed = JSON.parse(noTrailing || '{}');
+	const parsed = JSON.parse(noTrailing.replace(/^\uFEFF/, '') || '{}');
 	return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
 }
 
@@ -114,7 +124,8 @@ async function runImport(ctx: vscode.ExtensionContext, src: Source): Promise<voi
 	const userDir = path.dirname(path.dirname(ctx.globalStorageUri.fsPath));
 	const summary = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Importing from ${src.label}`, cancellable: true }, async (progress, token) => {
 		progress.report({ message: 'Settings' });
-		const settings = await copySettings(src, userDir);
+		const settingsResult = await copySettings(src, userDir);
+		const settings = settingsResult.count;
 		const keybindings = await copyIfMissing(path.join(src.userDir, 'keybindings.json'), path.join(userDir, 'keybindings.json'));
 		const snippets = await copyIfMissing(path.join(src.userDir, 'snippets'), path.join(userDir, 'snippets'));
 
@@ -140,7 +151,8 @@ async function runImport(ctx: vscode.ExtensionContext, src: Source): Promise<voi
 		if (snippets) { parts.push('snippets'); }
 		parts.push(`${done - failed.length} extensions`);
 		const tail = failed.length ? ` ${failed.length} extensions are not on Open VSX: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}.` : '';
-		return `Imported ${parts.join(', ')} from ${src.label}.${tail}`;
+		const warn = settingsResult.error ? ` ${settingsResult.error}` : '';
+		return `Imported ${parts.join(', ')} from ${src.label}.${tail}${warn}`;
 	});
 	// Asked after the progress closes, so the spinner does not hang around until the user answers.
 	const reload = await vscode.window.showInformationMessage(summary, 'Reload Window');

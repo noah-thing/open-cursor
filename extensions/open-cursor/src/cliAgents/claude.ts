@@ -19,7 +19,8 @@ import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from '.
 import { arr, countLines, displayPath, friendlyError, num, oneLine, parseJson, readTextFile, rec, resolveInCwd, spawnCli, str, truncate } from './util';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
-const SAFE_TOOLS = new Set(['Read', 'Grep', 'Glob', 'LS', 'NotebookRead', 'TodoWrite', 'Task', 'Agent', 'ToolSearch', 'WebFetch', 'WebSearch', 'BashOutput', 'KillShell', 'TaskOutput', 'TaskStop', 'Skill', 'SlashCommand']);
+// WebFetch and WebSearch reach the internet and could carry data out, so they follow the policy like commands
+const SAFE_TOOLS = new Set(['Read', 'Grep', 'Glob', 'LS', 'NotebookRead', 'TodoWrite', 'Task', 'Agent', 'ToolSearch', 'BashOutput', 'KillShell', 'TaskOutput', 'TaskStop', 'Skill', 'SlashCommand']);
 
 /** Claude Code tool name -> the tool names the chat UI already knows (icons, grouping). */
 const UI_NAME: Record<string, string> = {
@@ -398,7 +399,7 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 		const isBash = toolName === 'Bash';
 		const command = isBash ? str(input.command) ?? '' : undefined;
 		// "allow always" remembers the exact normalised command, never a prefix; the denylist always wins
-		const denied = isBash && isDenied(command ?? '', DEFAULT_DENYLIST);
+		const denied = isBash && isDenied(command ?? '', o.commandDenylist ?? DEFAULT_DENYLIST);
 		const key = isBash ? 'Bash:' + (command ?? '').replace(/\s+/g, ' ').trim() : toolName;
 		const listed = isBash && (o.autoRun === 'allowlist' || o.autoRun === 'auto') && commandAllowed(command ?? '', o.commandAllowlist);
 		// Auto: Claude Code says nothing about risk per command, so the rule decides: everything runs except careful commands

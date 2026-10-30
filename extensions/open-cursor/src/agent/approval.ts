@@ -57,9 +57,16 @@ function collapse(s: string): string {
 /** Splits a command line on shell control operators. Returns undefined when it holds constructs we cannot reason about. */
 export function splitSegments(cmd: string): string[] | undefined {
 	if (/\$\(|`|<\(|>\(/.test(cmd)) { return undefined; }
+	// zsh's $'...' quoting hides a quote from the scan below, and Windows line separators end a statement
+	if (/\$'/.test(cmd) || /[\r\u0085\u2028\u2029]/.test(cmd)) { return undefined; }
+	// Outside quotes, ( ) and { } run commands of their own: PowerShell evaluates `Get-Content (Remove-Item x)`
+	// and `@(...)`, script blocks run with &, POSIX shells start subshells. A command that looks allowed
+	// could hide another one there, so such a command is never read as allowed.
+	const unquoted = cmd.replace(/'[^']*'/g, "''").replace(/"(?:[^"\\]|\\.)*"/g, '""');
+	if (/[(){}]/.test(unquoted)) { return undefined; }
 	if (/<<|\bsource\b|\beval\b/.test(cmd)) { return undefined; }
 	// redirection to a file (allow 2>&1, >/dev/null, &>/dev/null)
-	const noSafeRedir = cmd.replace(/\d*>&\d+|&?>\s*\/dev\/null|2>\s*\/dev\/null/g, '');
+	const noSafeRedir = cmd.replace(/\d*>&\d+(?![\w./-])|&?>\s*\/dev\/null(?![\w./-])|2>\s*\/dev\/null(?![\w./-])/g, '');
 	if (/>/.test(noSafeRedir)) { return undefined; }
 	return noSafeRedir.split(/&&|\|\||;|\||&|\n/).map(collapse).filter(Boolean);
 }
@@ -129,15 +136,42 @@ function autoNeedsApproval(cmd: string, policy: ApprovalPolicy, agentSaysAsk: bo
 	return agentSaysAsk !== false || isCareful(cmd);
 }
 
+/** Programs that run another command given as their arguments: what they run is what counts. */
+const WRAPPERS = new Set(['env', 'command', 'builtin', 'exec', 'nohup', 'time', 'nice', 'ionice', 'timeout', 'setsid', 'stdbuf', 'unbuffer', 'caffeinate', 'watch', 'script', 'start', 'call', 'invoke-command', 'icm', 'start-job', 'invoke-item', 'ii', '&', '.']);
+/** Interpreters: with inline code (-c, -e, --eval, -Command) they can do anything at all. */
+const INTERPRETERS = /^(bash|sh|zsh|dash|ksh|fish|csh|tcsh|cmd|cmd\.exe|powershell|powershell\.exe|pwsh|python[\d.]*|py|node|nodejs|deno|bun|perl|ruby|php|lua|tclsh|osascript|wscript|cscript|mshta|rundll32|regsvr32)$/;
+const INLINE_CODE = /^(-c|-e|-r|-x|-p|-command|-encodedcommand|-enc|-ec|--eval|--print|\/c|\/k|-m)$/i;
+
+/** The program a segment runs, as the shell would see it: quotes and escapes removed, folders dropped (`c''url`, `/usr/bin/curl`). */
+export function programOf(segment: string): string {
+	const first = segment.trim().split(/\s+/)[0] ?? '';
+	const bare = first.replace(/['"\\^]/g, '');
+	return (bare.split(/[\/\\]/).pop() ?? bare).toLowerCase();
+}
+
+/** A token that names a place outside the project: `../x`, `~/x`, an absolute path, a drive or a network share. */
+function leavesProject(token: string): boolean {
+	const t = token.replace(/^['"]|['"]$/g, '');
+	if (t === '/dev/null' || t === 'nul' || t === '$null') { return false; }
+	return /^(\.\.([\/\\]|$)|~([\/\\]|$)|\/|[a-z]:[\/\\]|\\\\)/i.test(t);
+}
+
 /** The command deletes, installs, publishes, goes online, or is something we cannot read: Auto always asks for it. */
 export function isCareful(cmd: string): boolean {
 	const segments = splitSegments(cmd);
 	if (!segments || segments.length === 0) { return true; }
 	return segments.some(raw => {
 		const seg = stripGitGlobals(stripLeading(raw)).toLowerCase();
-		// a path that leaves the project (`../x`, `..\\x`, `~/x`) is beyond what the review can undo
-		const leaves = seg.split(' ').slice(1).some(t => /^['"]?(\.\.([\/\\]|$)|~([\/\\]|$))/.test(t));
-		return ENV_ASSIGN.test(raw) || hasRiskyFlag(seg) || CAREFUL.some(c => matchesPrefix(seg, c)) || /^(sudo|su|doas)\b/.test(seg) || /\s-delete\b/.test(seg) || leaves;
+		const tokens = seg.split(' ');
+		const program = programOf(seg);
+		// what the shell runs is the bare program name: `c''url` and `/usr/bin/curl` are curl
+		const normal = [program, ...tokens.slice(1)].join(' ');
+		const wrapped = WRAPPERS.has(program);
+		const inline = INTERPRETERS.test(program) && tokens.slice(1).some(t => INLINE_CODE.test(t.replace(/['"]/g, '')));
+		// a path that leaves the project is beyond what the review can undo
+		const leaves = tokens.slice(1).some(leavesProject);
+		return ENV_ASSIGN.test(raw) || hasRiskyFlag(seg) || wrapped || inline || CAREFUL.some(c => matchesPrefix(seg, c) || matchesPrefix(normal, c))
+			|| /^(sudo|su|doas|runas)\b/.test(program) || /\s-delete\b/.test(seg) || leaves;
 	});
 }
 
@@ -151,6 +185,8 @@ function listed(cmd: string, policy: ApprovalPolicy): boolean {
 		if (ENV_ASSIGN.test(seg)) { return false; }
 		if (/^cd(\s|$)/.test(seg)) { return true; }
 		if (hasRiskyFlag(seg)) { return false; }
+		// `cat ~/.ssh/id_rsa` or a network share: an allowed reader pointed outside the project still asks
+		if (seg.split(' ').slice(1).some(leavesProject)) { return false; }
 		return policy.allowlist.some(a => matchesPrefix(seg, a)) || [...(policy.sessionAllow ?? [])].some(a => matchesPrefix(seg, a));
 	});
 }

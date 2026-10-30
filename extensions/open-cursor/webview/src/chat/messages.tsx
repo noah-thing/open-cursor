@@ -118,7 +118,7 @@ export const AssistantBlock = memo(function AssistantBlock({ message, chatId, sh
 				const p = n.part;
 				switch (p.type) {
 					case 'text':
-						return p.text.trim() ? <Markdown key={n.key} text={p.text} /> : null;
+						return p.text.trim() ? <Markdown key={n.key} text={p.text} streaming={!message.done} /> : null;
 					case 'thinking':
 						return <Thinking key={n.key} part={p} show={showThinking} />;
 					case 'tool':
@@ -176,7 +176,7 @@ export const UserBubble = memo(function UserBubble({ message, chatId, running, e
 	readonly chatId: string;
 	readonly running: boolean;
 	readonly editing: boolean;
-	readonly onEditChange: (editing: boolean) => void;
+	readonly onEditChange: (id: string | undefined) => void;
 }): ReactElement {
 	const [text, setText] = useState(message.text);
 	const [revert, setRevert] = useState(true);
@@ -195,10 +195,10 @@ export const UserBubble = memo(function UserBubble({ message, chatId, running, e
 		const t = text.trim();
 		if (!t) { return; }
 		post({ type: 'resend', chatId, messageId: message.id, text: t, context: message.context, revert: revert && !!message.checkpointId });
-		onEditChange(false);
+		onEditChange(undefined);
 	};
 	const onKey = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
-		if (e.key === 'Escape') { e.preventDefault(); onEditChange(false); }
+		if (e.key === 'Escape') { e.preventDefault(); onEditChange(undefined); }
 		else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); }
 	};
 
@@ -219,7 +219,7 @@ export const UserBubble = memo(function UserBubble({ message, chatId, running, e
 							</label>
 						) : null}
 						<span className="oc-spacer" />
-						<button type="button" className="oc-btn" onClick={() => onEditChange(false)}>Cancel</button>
+						<button type="button" className="oc-btn" onClick={() => onEditChange(undefined)}>Cancel</button>
 						<button type="button" className="oc-btn is-primary" onClick={submit} disabled={!text.trim()}>Resubmit</button>
 					</div>
 				</div>
@@ -236,9 +236,11 @@ export const UserBubble = memo(function UserBubble({ message, chatId, running, e
 				onClick={e => {
 					if ((e.target as HTMLElement).closest('button,a,textarea')) { return; }
 					if (window.getSelection()?.toString()) { return; }
-					onEditChange(true);
+					onEditChange(message.id);
 				}}
-				onKeyDown={e => { if (e.key === 'Enter' && e.target === e.currentTarget) { onEditChange(true); } }}
+				onKeyDown={e => {
+					if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); onEditChange(message.id); }
+				}}
 				title="Click to edit and resubmit"
 			>
 				{message.context.length ? (

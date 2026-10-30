@@ -11,6 +11,7 @@ import {
 	extractWindow, indentOf, numberLines, parseNextEdit, postProcess, restOfLineAllowsTab,
 	type Snippet,
 } from './logic';
+import { isSecretFile } from '../indexing/ignore';
 
 const CFG = 'openCursor.tab';
 const MAX_RECENT = 12;
@@ -29,6 +30,12 @@ class LatencyLog {
 		this.out.appendLine(`${new Date().toISOString().slice(11, 23)} ${kind} ${model} ttft=${ttftMs === undefined ? '-' : Math.round(ttftMs) + 'ms'} total=${Math.round(totalMs)}ms chars=${chars} p50=${Math.round(p50)}ms n=${sorted.length}`);
 	}
 	line(s: string): void { this.out.appendLine(`${new Date().toISOString().slice(11, 23)} ${s}`); }
+}
+
+/** Only real files that are not secrets may be read for or completed by Tab. */
+function tabAllowed(d: vscode.TextDocument): boolean {
+	if (d.uri.scheme !== 'file') { return false; }
+	return !isSecretFile(vscode.workspace.asRelativePath(d.uri, false));
 }
 
 function sleep(ms: number, token: vscode.CancellationToken): Promise<boolean> {
@@ -67,6 +74,7 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 		const snippets: Snippet[] = [];
 		const seen = new Set<string>();
 		const take = (d: vscode.TextDocument, from: number, to: number) => {
+			if (!tabAllowed(d)) { return; }
 			const key = `${d.uri.toString()}:${Math.floor(from / 10)}`;
 			if (seen.has(key)) { return; }
 			seen.add(key);
@@ -104,7 +112,7 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 			if (context.selectedCompletionInfo) { return undefined; }
 			const editor = vscode.window.activeTextEditor;
 			if (editor && editor.document === doc && !editor.selection.isEmpty) { return undefined; }
-			if (doc.uri.scheme === 'output' || doc.uri.scheme === 'vscode-terminal') { return undefined; }
+			if (!tabAllowed(doc)) { return undefined; }
 
 			const line = doc.lineAt(pos.line).text;
 			const linePrefix = line.slice(0, pos.character);
@@ -112,11 +120,14 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 			const automatic = context.triggerKind === vscode.InlineCompletionTriggerKind.Automatic;
 			if (automatic && !restOfLineAllowsTab(lineSuffix)) { return undefined; }
 
-			const text = doc.getText();
-			const offset = doc.offsetAt(pos);
+			// CRLF files: compare against the model output with plain \n, or closing lines get duplicated
+			const raw0 = doc.getText();
+			const rawOffset = doc.offsetAt(pos);
+			const prefixAll = raw0.slice(0, rawOffset).replace(/\r\n/g, '\n');
+			const suffixAll = raw0.slice(rawOffset).replace(/\r\n/g, '\n');
+			const text = prefixAll + suffixAll;
+			const offset = prefixAll.length;
 			const fileKey = doc.uri.toString();
-			const prefixAll = text.slice(0, offset);
-			const suffixAll = text.slice(offset);
 
 			const cached = cache.get(fileKey, prefixAll, suffixAll);
 			if (cached) {

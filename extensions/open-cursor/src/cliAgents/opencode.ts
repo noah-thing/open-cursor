@@ -214,9 +214,13 @@ export function openCodePermission(o: Pick<RunOptions, 'mode' | 'autoRun' | 'com
 	const bash: Record<string, 'allow' | 'deny'> = { '*': o.autoRun === 'auto' ? 'allow' : 'deny' };
 	if (o.autoRun === 'auto') {
 		// Auto: every command runs except the careful ones (delete, install, publish, network), which are refused
-		for (const c of [...CAREFUL, 'sudo']) {
-			bash[c] = 'deny';
-			bash[`${c} *`] = 'deny';
+		for (const word of [...CAREFUL, 'sudo']) {
+			// PowerShell ignores case (Remove-Item, remove-item) and runs commands nested in ( ), @( ) and { }
+			for (const c of new Set([word, word.replace(/(^|-)([a-z])/g, (_m, d: string, ch: string) => d + ch.toUpperCase())])) {
+				bash[c] = 'deny';
+				bash[`${c} *`] = 'deny';
+				for (const open of ['(', '( ', '{', '{ ']) { bash[`*${open}${c} *`] = 'deny'; bash[`*${open}${c})*`] = 'deny'; }
+			}
 		}
 		// and nothing that names a path outside the project
 		for (const p of ['* ../*', '* ..', '* ~/*', '* ~']) {
@@ -261,7 +265,26 @@ export function openCodeEnv(o: Pick<RunOptions, 'env' | 'cwd' | 'mode' | 'autoRu
 	return { ...o.env, PWD: o.cwd, OPENCODE_CONFIG_CONTENT: JSON.stringify({ permission: openCodePermission(o) }), OPENCODE_DISABLE_AUTOUPDATE: '1' };
 }
 
-export async function runOpenCode(o: RunOptions): Promise<RunResult> {
+/** Where OpenCode keeps its database: OPENCODE_DB, else opencode.db in its data folder (the release channel's name). */
+export function openCodeDbPath(env: NodeJS.ProcessEnv, home = os.homedir()): string | undefined {
+	if (env.OPENCODE_DB) { return env.OPENCODE_DB === ':memory:' ? undefined : env.OPENCODE_DB; }
+	return path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'opencode', 'opencode.db');
+}
+
+/** OpenCode refuses to start on a database that has tables but no session table. */
+export const BROKEN_DB = /database is not empty and has no session table/i;
+
+/** Renames a damaged OpenCode database (and its -wal and -shm files) aside, so OpenCode starts a fresh one. Nothing is deleted. */
+export function setAsideOpenCodeDb(db: string, stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')): string | undefined {
+	if (!fs.existsSync(db)) { return undefined; }
+	const aside = `${db}.broken-${stamp}`;
+	for (const ext of ['', '-wal', '-shm']) {
+		if (fs.existsSync(db + ext)) { fs.renameSync(db + ext, aside + ext); }
+	}
+	return aside;
+}
+
+export async function runOpenCode(o: RunOptions, repaired = false): Promise<RunResult> {
 	const args = openCodeArgs(o);
 	let tmpDir: string | undefined;
 	let prompt = cliPromptPrefix(o.mode) + o.prompt;
@@ -308,6 +331,17 @@ export async function runOpenCode(o: RunOptions): Promise<RunResult> {
 		return { stopReason: 'error', error: `Could not start OpenCode: ${exit.spawnError}` };
 	}
 	parser.finish();
+	// A damaged database stops OpenCode on every run. Set it aside once and run again on a fresh one.
+	const failed = parser.failure ?? (exit.code !== 0 ? proc.stderr() : '');
+	if (!repaired && failed && BROKEN_DB.test(failed)) {
+		const db = openCodeDbPath(o.env);
+		let aside: string | undefined;
+		try { aside = db ? setAsideOpenCodeDb(db) : undefined; } catch { aside = undefined; }
+		if (aside) {
+			o.host.text(`_OpenCode's own database was damaged, so OpenCursor renamed it to \`${path.basename(aside)}\` and OpenCode started a fresh one. Your OpenCursor chats are not affected._\n\n`);
+			return runOpenCode({ ...o, sessionId: undefined }, true);
+		}
+	}
 	if (parser.failure) {
 		return { sessionId: sid, stopReason: 'error', error: friendlyError('opencode', parser.failure) };
 	}

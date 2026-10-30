@@ -22,7 +22,7 @@ import { effectiveAutoRun } from './policy';
 const REDETECT_MS = 5 * 60_000;
 const RETRY_MISSING_MS = 30_000;
 
-function readConfig(): DetectConfig & { extraArgs: Record<CliAgentId, string[]>; allowlist: string[] } {
+function readConfig(): DetectConfig & { extraArgs: Record<CliAgentId, string[]>; allowlist: string[]; denylist?: string[] } {
 	const c = vscode.workspace.getConfiguration('openCursor');
 	const paths = c.get<Record<string, string>>('cli.paths') ?? {};
 	const list = (key: string): string[] => (c.get<unknown[]>(key) ?? []).filter((x): x is string => typeof x === 'string');
@@ -31,6 +31,7 @@ function readConfig(): DetectConfig & { extraArgs: Record<CliAgentId, string[]>;
 		paths: { 'claude-code': paths['claude-code'] ?? paths.claude, codex: paths.codex, grok: paths.grok, 'gemini-cli': paths['gemini-cli'] ?? paths.gemini, opencode: paths.opencode },
 		extraArgs: { 'claude-code': list('cli.claudeCode.extraArgs'), codex: list('cli.codex.extraArgs'), grok: list('cli.grok.extraArgs'), 'gemini-cli': list('cli.gemini.extraArgs'), opencode: list('cli.opencode.extraArgs') },
 		allowlist: list('agent.commandAllowlist'),
+		...(Array.isArray(c.get('agent.commandDenylist')) ? { denylist: list('agent.commandDenylist') } : {}),
 	};
 }
 
@@ -158,6 +159,7 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 				autoRun: effectiveAutoRun(opts.agent, opts.autoRun),
 				effort: opts.effort,
 				commandAllowlist: cfg.allowlist,
+				commandDenylist: cfg.denylist,
 				extraArgs: cfg.extraArgs[opts.agent],
 				env: await cliEnv(info.binaryPath),
 				signal: opts.signal,

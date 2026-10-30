@@ -40,3 +40,12 @@ export function cleanCommitMessage(raw: string): string {
 	if (/^"[\s\S]*"$/.test(t) || /^'[\s\S]*'$/.test(t)) { t = t.slice(1, -1); }
 	return t.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
+
+/** Drops the sections of a unified diff that touch secret files (matched on the new path). */
+export function dropSecretSections(diff: string, isSecret: (relPath: string) => boolean): string {
+	const parts = diff.split(/^(?=diff --git )/m);
+	return parts.filter(sec => {
+		const m = /^diff --git a\/(.+?) b\/(.+)$/m.exec(sec);
+		return !m || !(isSecret(m[2]) || isSecret(m[1]));
+	}).join('');
+}

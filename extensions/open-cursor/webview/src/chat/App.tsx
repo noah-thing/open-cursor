@@ -19,7 +19,8 @@ import { initialState, lastAssistant, reducer, type State } from './store';
 
 const scrollPositions: Record<string, number> = {};
 
-const BOTTOM_SLACK = 48;
+// Small on purpose: a larger slack kept following the stream after the user had scrolled up a little.
+const BOTTOM_SLACK = 8;
 
 const MessageList = memo(function MessageList({ chat, showThinking, editingId, setEditingId, scrollTo }: {
 	readonly chat: Chat;
@@ -85,6 +86,14 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 		el?.scrollIntoView({ block: 'center' });
 	}, [scrollTo]);
 
+	// Wheel up or a touch drag is the user taking over, before any scroll event can say so.
+	const unstick = useCallback((): void => {
+		stick.current = false;
+	}, []);
+	const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>): void => {
+		if (e.deltaY < 0) { stick.current = false; }
+	}, []);
+
 	const onScroll = (): void => {
 		const el = scroller.current;
 		if (!el) { return; }
@@ -95,15 +104,19 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 		persist();
 	};
 
+	// Read through a ref so retry keeps one identity and streamed tokens do not re-render every AssistantBlock.
+	const chatRef = useRef(chat);
+	chatRef.current = chat;
 	const retry = useCallback((modelId?: string) => {
-		for (let i = chat.messages.length - 1; i >= 0; i--) {
-			const m = chat.messages[i];
+		const c = chatRef.current;
+		for (let i = c.messages.length - 1; i >= 0; i--) {
+			const m = c.messages[i];
 			if (m.role === 'user') {
-				post({ type: 'resend', chatId: chat.id, messageId: m.id, text: m.text, context: m.context, revert: false, modelId });
+				post({ type: 'resend', chatId: c.id, messageId: m.id, text: m.text, context: m.context, revert: false, modelId });
 				return;
 			}
 		}
-	}, [chat]);
+	}, []);
 
 	const last = lastAssistant(chat);
 	const showBuild = chat.mode === 'plan' && chat.status === 'idle' && !!last && last.done && chat.messages[chat.messages.length - 1] === last && last.parts.some(p => p.type === 'text' && p.text.trim().length > 0);
@@ -111,12 +124,12 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 	return (
 		<CodeActions.Provider value={chat.mode !== 'help'}>
 		<div className="oc-scroll-wrap">
-			<div className="oc-scroll" ref={scroller} onScroll={onScroll}>
+			<div className="oc-scroll" ref={scroller} onScroll={onScroll} onWheel={onWheel} onTouchMove={unstick}>
 				<div className="oc-messages" ref={content}>
 					{chat.messages.map(m => (
 						<div key={m.id} className={'oc-msg is-' + m.role + (seen.current!.ids.has(m.id) ? ' is-history' : '')} data-mid={m.id}>
 							{m.role === 'user' ? (
-								<UserBubble message={m} chatId={chat.id} running={running} editing={editingId === m.id} onEditChange={e => setEditingId(e ? m.id : undefined)} />
+								<UserBubble message={m} chatId={chat.id} running={running} editing={editingId === m.id} onEditChange={setEditingId} />
 							) : (
 								<AssistantBlock message={m} chatId={chat.id} showThinking={showThinking} onRetry={retry} />
 							)}
@@ -176,7 +189,7 @@ interface Ghost { readonly el: HTMLElement; readonly top: number; readonly left:
  * layouts, so after React lays out the new one it is played back from where it was (FLIP). The start
  * screen pieces are already detached by then; they are put back where they stood and faded out.
  */
-function useStageMotion(home: boolean): { stageRef: React.RefObject<HTMLDivElement | null>; dockRef: React.RefObject<HTMLDivElement | null> } {
+function useStageMotion(home: boolean, staged: boolean): { stageRef: React.RefObject<HTMLDivElement | null>; dockRef: React.RefObject<HTMLDivElement | null> } {
 	const stageRef = useRef<HTMLDivElement>(null);
 	const dockRef = useRef<HTMLDivElement>(null);
 	const last = useRef<{ home: boolean; dockTop: number; ghosts: Ghost[] } | undefined>(undefined);
@@ -195,6 +208,7 @@ function useStageMotion(home: boolean): { stageRef: React.RefObject<HTMLDivEleme
 		last.current = { home: isHome, dockTop: dockRect.top, ghosts };
 	}, []);
 	// Scrolling the start screen or resizing the panel moves things without a render; keep the snapshot true.
+	// Subscribed once per stage mount, not per render; the dock is watched too since it moves when the composer grows.
 	useEffect(() => {
 		const stage = stageRef.current;
 		if (!stage) { return; }
@@ -202,8 +216,9 @@ function useStageMotion(home: boolean): { stageRef: React.RefObject<HTMLDivEleme
 		stage.addEventListener('scroll', again, { passive: true });
 		const ro = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(again);
 		ro?.observe(stage);
+		if (dockRef.current) { ro?.observe(dockRef.current); }
 		return () => { stage.removeEventListener('scroll', again); ro?.disconnect(); };
-	});
+	}, [staged, capture]);
 	useLayoutEffect(() => {
 		const stage = stageRef.current;
 		const dock = dockRef.current;
@@ -227,7 +242,7 @@ function useStageMotion(home: boolean): { stageRef: React.RefObject<HTMLDivEleme
 			}
 		}
 		capture(home);
-	});
+	}, [home, staged, capture]);
 	return { stageRef, dockRef };
 }
 
@@ -278,7 +293,8 @@ export function App(): ReactElement {
 	// Esc stops the agent even when the input does not have focus.
 	useEffect(() => {
 		const h = (e: KeyboardEvent): void => {
-			if (e.key !== 'Escape' || e.defaultPrevented) { return; }
+			// Esc during an IME composition cancels the composition, not the agent.
+			if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) { return; }
 			const s = stateRef.current;
 			const chat = s.activeId ? s.chats[s.activeId] : undefined;
 			if (chat && (chat.status === 'running' || chat.status === 'awaiting-approval') && s.view === 'chat') { post({ type: 'stop', chatId: chat.id }); return; }
@@ -298,7 +314,7 @@ export function App(): ReactElement {
 	shown.current = chat;
 	const wide = useWide();
 	const isHome = !!chat && chat.messages.length === 0;
-	const { stageRef, dockRef } = useStageMotion(isHome);
+	const { stageRef, dockRef } = useStageMotion(isHome, state.ready && !!chat && state.view !== 'history');
 	// Coming back to the start screen, the connect panel waits until the composer has glided into
 	// place; building it mid-glide is what made the first New chat stutter.
 	const [connectReady, setConnectReady] = useState(true);

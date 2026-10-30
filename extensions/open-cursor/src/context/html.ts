@@ -18,22 +18,91 @@ export function decodeEntities(s: string): string {
 	});
 }
 
+interface Tok { tag: boolean; name: string; closing: boolean; raw: string }
+
+const SKIP = new Set(['script', 'style', 'noscript', 'svg', 'template', 'head', 'nav', 'footer', 'iframe']);
+const BLOCK_END = new Set(['p', 'div', 'section', 'article', 'tr', 'table', 'ul', 'ol', 'blockquote', 'header', 'main']);
+const MAX_HTML_CHARS = 2_000_000;
+
+/** One pass with indexOf only, so thousands of unclosed tags cannot make it quadratic. */
+function tokenize(html: string): Tok[] {
+	const out: Tok[] = [];
+	let pos = 0;
+	while (pos < html.length) {
+		const lt = html.indexOf('<', pos);
+		if (lt < 0) { out.push({ tag: false, name: '', closing: false, raw: html.slice(pos) }); break; }
+		if (lt > pos) { out.push({ tag: false, name: '', closing: false, raw: html.slice(pos, lt) }); }
+		if (html.startsWith('<!--', lt)) {
+			const end = html.indexOf('-->', lt + 4);
+			pos = end < 0 ? html.length : end + 3;
+			continue;
+		}
+		const gt = html.indexOf('>', lt + 1);
+		if (gt < 0 || !/[a-z/!?]/i.test(html[lt + 1])) {
+			out.push({ tag: false, name: '', closing: false, raw: '<' });
+			pos = lt + 1;
+			continue;
+		}
+		const raw = html.slice(lt + 1, gt);
+		const m = /^(\/?)([a-z][a-z0-9]*)/i.exec(raw.slice(0, 40));
+		out.push({ tag: true, name: m ? m[2].toLowerCase() : '', closing: !!m && m[1] === '/', raw });
+		pos = gt + 1;
+	}
+	return out;
+}
+
 export function htmlToText(html: string): string {
-	let s = html;
-	const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(s)?.[1];
-	s = s.replace(/<!--[\s\S]*?-->/g, '');
-	s = s.replace(/<(script|style|noscript|svg|template|head|nav|footer|iframe)[\s\S]*?<\/\1>/gi, '');
-	s = s.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gi, (_m, inner: string) => '\n```\n' + inner.replace(/<[^>]+>/g, '') + '\n```\n');
-	s = s.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, n: string, inner: string) => `\n\n${'#'.repeat(Number(n))} ${inner.replace(/<[^>]+>/g, '').trim()}\n\n`);
-	s = s.replace(/<a\s[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href: string, inner: string) => {
-		const text = inner.replace(/<[^>]+>/g, '').trim();
-		return text && !href.startsWith('#') && !href.startsWith('javascript:') ? `[${text}](${href})` : text;
-	});
-	s = s.replace(/<li[^>]*>/gi, '\n- ');
-	s = s.replace(/<(br|hr)\s*\/?>/gi, '\n');
-	s = s.replace(/<\/(p|div|section|article|tr|table|ul|ol|blockquote|header|main)>/gi, '\n\n');
-	s = s.replace(/<\/t[dh]>/gi, '\t');
-	s = s.replace(/<[^>]+>/g, '');
+	const toks = tokenize(html.slice(0, MAX_HTML_CHARS));
+	// last index of each closing tag: a skip/pre/heading/link only opens when a close exists later
+	const lastClose = new Map<string, number>();
+	toks.forEach((t, i) => { if (t.tag && t.closing) { lastClose.set(t.name, i); } });
+	const hasClose = (name: string, from: number) => (lastClose.get(name) ?? -1) > from;
+	const innerText = (from: number, name: string): { text: string; end: number } => {
+		let text = '';
+		let i = from + 1;
+		for (; i < toks.length; i++) {
+			const t = toks[i];
+			if (t.tag && t.closing && t.name === name) { break; }
+			if (!t.tag) { text += t.raw; }
+		}
+		return { text, end: i };
+	};
+
+	let title: string | undefined;
+	for (let i = 0; i < toks.length; i++) {
+		if (toks[i].tag && !toks[i].closing && toks[i].name === 'title' && hasClose('title', i)) { title = innerText(i, 'title').text; break; }
+	}
+
+	let s = '';
+	for (let i = 0; i < toks.length; i++) {
+		const t = toks[i];
+		if (!t.tag) { s += t.raw; continue; }
+		if (t.closing) {
+			if (BLOCK_END.has(t.name)) { s += '\n\n'; } else if (t.name === 'td' || t.name === 'th') { s += '\t'; }
+			continue;
+		}
+		if (SKIP.has(t.name) && hasClose(t.name, i)) {
+			while (i < toks.length && !(toks[i].tag && toks[i].closing && toks[i].name === t.name)) { i++; }
+		} else if (t.name === 'pre' && hasClose('pre', i)) {
+			const r = innerText(i, 'pre');
+			s += '\n```\n' + r.text + '\n```\n';
+			i = r.end;
+		} else if (/^h[1-6]$/.test(t.name) && hasClose(t.name, i)) {
+			const r = innerText(i, t.name);
+			s += `\n\n${'#'.repeat(Number(t.name[1]))} ${r.text.trim()}\n\n`;
+			i = r.end;
+		} else if (t.name === 'a' && hasClose('a', i)) {
+			const r = innerText(i, 'a');
+			const href = /\shref=["']([^"']+)["']/i.exec(t.raw)?.[1];
+			const text = r.text.trim();
+			s += href && text && !href.startsWith('#') && !href.startsWith('javascript:') ? `[${text}](${href})` : text;
+			i = r.end;
+		} else if (t.name === 'li') {
+			s += '\n- ';
+		} else if (t.name === 'br' || t.name === 'hr') {
+			s += '\n';
+		}
+	}
 	s = decodeEntities(s);
 	s = s.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
 	if (title && !/^# /.test(s)) {

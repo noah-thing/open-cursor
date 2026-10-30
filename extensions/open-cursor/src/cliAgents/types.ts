@@ -37,6 +37,8 @@ export interface RunOptions {
 	/** From the chat box; Auto leaves the CLI's own default. */
 	effort?: import('../shared/protocol').Effort;
 	commandAllowlist: string[];
+	/** The user's denylist; commands matching it always ask. */
+	commandDenylist?: string[];
 	extraArgs: string[];
 	/** Environment for the child (login shell PATH merged in). */
 	env: NodeJS.ProcessEnv;

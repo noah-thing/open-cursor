@@ -111,16 +111,41 @@ function CopyIcon({ code }: { readonly code: string }): ReactElement {
 }
 
 const COLLAPSE_LINES = 22;
+const FENCE_CLOSED = /\n\s*(`{3,}|~{3,})\s*$/;
 
 /** False in Help: its answers only explain, so code in them gets Copy and nothing that runs or writes. */
 export const CodeActions = createContext(true);
 
-export const CodeBlock = memo(function CodeBlock({ code, info }: { readonly code: string; readonly info?: string }): ReactElement {
+/** Past these, highlighting costs more than it is worth: show escaped text. */
+const HIGHLIGHT_MAX_CHARS = 200_000;
+const HIGHLIGHT_MAX_LINES = 5000;
+/** A collapsed block only shows about COLLAPSE_LINES lines, so only a few more are built. */
+const COLLAPSED_RENDER_LINES = 30;
+
+function countLines(code: string): number {
+	let n = 1;
+	for (let i = code.indexOf('\n'); i !== -1; i = code.indexOf('\n', i + 1)) { n++; }
+	return n;
+}
+
+function firstLines(code: string, count: number): string {
+	let end = -1;
+	for (let i = 0; i < count; i++) {
+		end = code.indexOf('\n', end + 1);
+		if (end === -1) { return code; }
+	}
+	return code.slice(0, end);
+}
+
+export const CodeBlock = memo(function CodeBlock({ code, info, streaming }: { readonly code: string; readonly info?: string; readonly streaming?: boolean }): ReactElement {
 	const { lang, path } = useMemo(() => parseFence(info), [info]);
-	const html = useMemo(() => highlight(code, lang), [code, lang]);
-	const lineCount = useMemo(() => code.split('\n').length, [code]);
+	const lineCount = useMemo(() => countLines(code), [code]);
 	const [expanded, setExpanded] = useState(false);
 	const collapsible = lineCount > COLLAPSE_LINES;
+	const shown = collapsible && !expanded ? firstLines(code, COLLAPSED_RENDER_LINES) : code;
+	// A block still being written is plain text: highlighting every prefix is quadratic and fills the cache with dead entries.
+	const plain = streaming || code.length > HIGHLIGHT_MAX_CHARS || lineCount > HIGHLIGHT_MAX_LINES;
+	const html = useMemo(() => (plain ? escapeHtml(shown) : highlight(shown, lang)), [plain, shown, lang]);
 	const isShell = !!lang && SHELL_LANGS.has(lang.toLowerCase());
 	const label = path ?? (lang && lang !== 'text' ? lang : '');
 	const actions = useContext(CodeActions);
@@ -170,10 +195,10 @@ const HtmlBlock = memo(
 );
 
 const CodeToken = memo(
-	function CodeToken({ token }: { readonly token: Tokens.Code }): ReactElement {
-		return <CodeBlock code={token.text} info={token.lang} />;
+	function CodeToken({ token, streaming }: { readonly token: Tokens.Code; readonly streaming: boolean }): ReactElement {
+		return <CodeBlock code={token.text} info={token.lang} streaming={streaming} />;
 	},
-	(a, b) => a.token.text === b.token.text && a.token.lang === b.token.lang,
+	(a, b) => a.token.text === b.token.text && a.token.lang === b.token.lang && a.streaming === b.streaming,
 );
 
 function openPath(raw: string): void {
@@ -185,7 +210,7 @@ function openPath(raw: string): void {
 }
 
 /** Renders markdown block by block so streaming only re-renders the block that is still growing. */
-export const Markdown = memo(function Markdown({ text, className }: { readonly text: string; readonly className?: string }): ReactElement {
+export const Markdown = memo(function Markdown({ text, className, streaming }: { readonly text: string; readonly className?: string; readonly streaming?: boolean }): ReactElement {
 	const tokens = useMemo(() => parseBlocks(text).filter(t => t.type !== 'space'), [text]);
 	const onClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
 		const target = e.target as HTMLElement;
@@ -203,7 +228,7 @@ export const Markdown = memo(function Markdown({ text, className }: { readonly t
 	}, []);
 	return (
 		<div className={'oc-md' + (className ? ' ' + className : '')} onClick={onClick}>
-			{tokens.map((t, i) => (t.type === 'code' ? <CodeToken key={i} token={t as Tokens.Code} /> : <HtmlBlock key={i} token={t} />))}
+			{tokens.map((t, i) => (t.type === 'code' ? <CodeToken key={i} token={t as Tokens.Code} streaming={!!streaming && i === tokens.length - 1 && !FENCE_CLOSED.test(t.raw)} /> : <HtmlBlock key={i} token={t} />))}
 		</div>
 	);
 });

@@ -122,9 +122,97 @@ footer{color:var(--mute);font-size:12px;margin-top:20px}
 </main></body></html>`;
 }
 
+const clipText = (v: unknown, n: number): string => String(v ?? '').replace(/\u0000/g, '').trim().slice(0, n);
+
+/** The first line of an error with numbers, paths and ids blurred, so the same problem groups together. */
+function signature(error: string, message: string): string {
+	const line = (error || message).split('\n').find(l => l.trim()) ?? '';
+	return line.replace(/[A-Za-z]:\\[^\s"']+|\/[^\s"']+/g, '<path>').replace(/\b[0-9a-f]{8,}\b/gi, '<id>').replace(/\d+/g, '#').trim().slice(0, 140);
+}
+
+async function report(req: Request, env: Env): Promise<Response> {
+	let b: Record<string, unknown>;
+	try { b = await req.json(); } catch { return new Response('bad json', { status: 400 }); }
+	const message = clipText(b.message, 4000);
+	const version = clipText(b.version, 24);
+	const os = clipText(b.os, 12);
+	const arch = clipText(b.arch, 8);
+	const id = String(b.id ?? '').toLowerCase();
+	if (message.length < 3 || !VERSION.test(version) || !OS.has(os) || !ARCH.has(arch) || !UUID.test(id)) {
+		return new Response('bad report', { status: 400 });
+	}
+	const hash = await sha256(id);
+	const hour = new Date().toISOString().slice(0, 13);
+	const used = Number((await env.DB.prepare('SELECT n FROM report_limits WHERE hash = ?1 AND hour = ?2').bind(hash, hour).first<{ n: number }>())?.n ?? 0);
+	const today = Number((await env.DB.prepare('SELECT COUNT(*) AS n FROM reports WHERE time >= ?1').bind(Date.now() - 86_400_000).first<{ n: number }>())?.n ?? 0);
+	if (used >= 10 || today >= 2000) { return new Response('too many reports, try again later', { status: 429 }); }
+	const error = clipText(b.error, 3000);
+	const rid = crypto.randomUUID();
+	await env.DB.batch([
+		env.DB.prepare(
+			'INSERT INTO reports (id, time, version, os, arch, model, mode, folder, error, message, contact, sig) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)',
+		).bind(rid, Date.now(), version, os, arch, clipText(b.model, 120) || null, clipText(b.mode, 12) || null, b.folder === true ? 1 : b.folder === false ? 0 : null, error || null, message, clipText(b.contact, 120) || null, signature(error, message)),
+		env.DB.prepare('INSERT INTO report_limits (hash, hour, n) VALUES (?1, ?2, 1) ON CONFLICT (hash, hour) DO UPDATE SET n = n + 1').bind(hash, hour),
+		env.DB.prepare('DELETE FROM report_limits WHERE hour < ?1').bind(new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 13)),
+	]);
+	return Response.json({ id: rid.slice(0, 8) });
+}
+
+interface ReportRow { id: string; time: number; version: string; os: string; arch: string; model: string | null; mode: string | null; folder: number | null; error: string | null; message: string; contact: string | null; sig: string | null; status: string }
+
+function reportsPage(rows: ReportRow[], key: string, show: string): string {
+	const groups = new Map<string, number>();
+	for (const r of rows) { if (r.status === 'new' && r.sig) { groups.set(r.sig, (groups.get(r.sig) ?? 0) + 1); } }
+	const top = [...groups.entries()].filter(([, n]) => n > 1).sort((a, b) => b[1] - a[1]).slice(0, 8);
+	const when = (t: number): string => new Date(t).toISOString().slice(0, 16).replace('T', ' ');
+	const cards = rows.map(r => `<article class="${r.status === 'fixed' ? 'is-fixed' : ''}" id="r-${esc(r.id)}">
+<header><span class="when">${when(r.time)} UTC</span><span class="facts">${esc(r.version)} · ${esc(OS_NAME[r.os] ?? r.os)} ${esc(r.arch)}${r.model ? ' · ' + esc(r.model) : ''}${r.mode ? ' · ' + esc(r.mode) : ''}${r.folder === 0 ? ' · no folder open' : ''}</span>
+<button data-id="${esc(r.id)}" data-to="${r.status === 'fixed' ? 'new' : 'fixed'}">${r.status === 'fixed' ? 'Reopen' : 'Mark fixed'}</button></header>
+<p class="msg">${esc(r.message)}</p>${r.error ? `<pre>${esc(r.error)}</pre>` : ''}${r.contact ? `<p class="contact">Reply to: ${esc(r.contact)}</p>` : ''}</article>`).join('') || '<p class="none">No reports.</p>';
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>OpenCursor reports</title>
+<style>
+:root{--bg:#fafaf9;--fg:#1c1917;--mute:#78716c;--line:#e7e5e4;--card:#fff;--hi:#b45309}
+@media (prefers-color-scheme:dark){:root{--bg:#141414;--fg:#f5f5f4;--mute:#a8a29e;--line:#2a2a2a;--card:#1b1b1b;--hi:#f59e0b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:40px 20px 60px}h1{font-size:20px;margin:0 0 4px}.lead{color:var(--mute);margin:0 0 20px}
+nav{display:flex;gap:14px;margin-bottom:18px}nav a{color:var(--mute);text-decoration:none}nav a.on{color:var(--fg);font-weight:600}
+.groups{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:18px}.groups h2{font-size:13px;color:var(--mute);font-weight:500;margin:0 0 6px}.groups li{margin:2px 0}.groups b{color:var(--hi)}
+article{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px}article.is-fixed{opacity:.55}
+header{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;color:var(--mute);font-size:12.5px}.facts{flex:1}
+button{font:inherit;font-size:12px;border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:7px;padding:3px 9px;cursor:pointer}
+.msg{margin:8px 0 0;white-space:pre-wrap}pre{margin:8px 0 0;padding:8px 10px;background:var(--bg);border-radius:8px;overflow:auto;font-size:12px;white-space:pre-wrap}
+.contact{margin:8px 0 0;color:var(--mute);font-size:12.5px}.none{color:var(--mute)}ul{margin:0;padding-left:18px}
+</style></head><body><main>
+<h1>OpenCursor reports</h1><p class="lead">Sent from Report a Problem in the app. Newest first. Times are UTC.</p>
+<nav><a class="${show === 'new' ? 'on' : ''}" href="?key=${encodeURIComponent(key)}">Open</a><a class="${show === 'all' ? 'on' : ''}" href="?key=${encodeURIComponent(key)}&show=all">All</a></nav>
+${top.length ? `<section class="groups"><h2>Reported more than once</h2><ul>${top.map(([s, n]) => `<li><b>${n}×</b> ${esc(s)}</li>`).join('')}</ul></section>` : ''}
+${cards}
+<script>document.addEventListener('click',async e=>{const b=e.target.closest('button[data-id]');if(!b)return;b.disabled=true;const r=await fetch('/reports/status?key=${encodeURIComponent(key)}',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:b.dataset.id,status:b.dataset.to})});if(r.ok)location.reload();else b.disabled=false;});</script>
+</main></body></html>`;
+}
+
 export default {
 	async fetch(req: Request, env: Env): Promise<Response> {
 		const url = new URL(req.url);
+		if (url.pathname === '/v1/report' && req.method === 'POST') {
+			return report(req, env);
+		}
+		if (url.pathname === '/reports' || url.pathname === '/reports.json' || url.pathname === '/reports/status') {
+			const key = url.searchParams.get('key') ?? '';
+			if (!sameKey(key, env.STATS_KEY ?? '')) { return new Response('Not found', { status: 404 }); }
+			const headers = { 'cache-control': 'no-store', 'x-robots-tag': 'noindex' };
+			if (url.pathname === '/reports/status' && req.method === 'POST') {
+				const b = await req.json().catch(() => ({})) as { id?: string; status?: string };
+				if (!b.id || (b.status !== 'new' && b.status !== 'fixed')) { return new Response('bad', { status: 400 }); }
+				await env.DB.prepare('UPDATE reports SET status = ?1 WHERE id = ?2').bind(b.status, b.id).run();
+				return new Response(null, { status: 204 });
+			}
+			const show = url.searchParams.get('show') === 'all' ? 'all' : 'new';
+			const rows = (await env.DB.prepare(`SELECT * FROM reports ${show === 'new' ? "WHERE status = 'new'" : ''} ORDER BY time DESC LIMIT 300`).all<ReportRow>()).results;
+			return url.pathname === '/reports.json'
+				? Response.json(rows, { headers })
+				: new Response(reportsPage(rows, key, show), { headers: { ...headers, 'content-type': 'text/html; charset=utf-8' } });
+		}
 		if (url.pathname === '/v1/ping' && req.method === 'POST') {
 			return ping(req, env);
 		}

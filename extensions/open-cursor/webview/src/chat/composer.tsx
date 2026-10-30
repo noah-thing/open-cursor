@@ -17,6 +17,8 @@ import { KIND_ICON, KIND_LABEL, MODE_META, MODE_ORDER, formatTokens, fuzzyScore,
 
 interface Category { readonly kind: ContextKind; readonly label: string; readonly hint: string }
 
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 const CATEGORIES: Category[] = [
 	{ kind: 'file', label: 'Files', hint: 'Search the workspace' },
 	{ kind: 'folder', label: 'Folders', hint: 'Add a whole directory' },
@@ -90,15 +92,29 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 	const [index, setIndex] = useState(0);
 	const [dismissedAt, setDismissedAt] = useState<number | undefined>(undefined);
 	const [dragging, setDragging] = useState(false);
+	const [imageNote, setImageNote] = useState<string | undefined>(undefined);
 	const reqId = useRef(0);
+	useEffect(() => {
+		if (!imageNote) { return; }
+		const t = setTimeout(() => setImageNote(undefined), 4000);
+		return () => clearTimeout(t);
+	}, [imageNote]);
 	const popupRef = useRef<HTMLDivElement>(null);
 	const running = chat.status === 'running' || chat.status === 'awaiting-approval';
 
 	useLayoutEffect(() => {
 		const el = ref.current;
 		if (!el) { return; }
-		el.style.height = 'auto';
-		el.style.height = Math.min(el.scrollHeight, 220) + 'px';
+		const fit = (): void => {
+			el.style.height = 'auto';
+			el.style.height = Math.min(el.scrollHeight, 220) + 'px';
+		};
+		// Measuring a huge paste forces a full layout; coalesce those to one per frame.
+		if (text.length > 20000) {
+			const raf = requestAnimationFrame(fit);
+			return () => cancelAnimationFrame(raf);
+		}
+		fit();
 	}, [text]);
 
 	useEffect(() => {
@@ -261,7 +277,7 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 				return;
 			}
 		}
-		if (e.key === 'Escape' && running) {
+		if (e.key === 'Escape' && running && !composing) {
 			e.preventDefault();
 			post({ type: 'stop', chatId: chat.id });
 			return;
@@ -276,6 +292,10 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 	};
 
 	const addImageFile = (file: File): void => {
+		if (file.size > MAX_IMAGE_BYTES) {
+			setImageNote('Image is over 5 MB and was not added.');
+			return;
+		}
 		const reader = new FileReader();
 		reader.onload = () => {
 			const dataUrl = String(reader.result);
@@ -307,7 +327,9 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 			for (const line of uriList.split(/\r?\n/)) {
 				const u = line.trim();
 				if (!u || u.startsWith('#')) { continue; }
-				const label = decodeURIComponent(u.split('/').pop() ?? u);
+				const tail = u.split('/').pop() ?? u;
+				let label = tail;
+				try { label = decodeURIComponent(tail); } catch { /* malformed escape: show it as written */ }
 				added.push({ id: 'drop:' + u, kind: /\/$/.test(u) ? 'folder' : 'file', label, uri: u });
 			}
 			if (added.length) { onContexts([...contexts, ...added.filter(a => !contexts.some(c => c.id === a.id))]); }
@@ -320,6 +342,7 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 
 	return (
 		<div className="oc-composer-wrap">
+			{imageNote ? <div className="oc-notice" role="status"><span>{imageNote}</span></div> : null}
 			{!hasUsableModel ? (
 				<div className="oc-notice">
 					<span>No model is ready. Add an API key or sign in to an agent CLI.</span>

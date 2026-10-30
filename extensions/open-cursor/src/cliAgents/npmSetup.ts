@@ -74,13 +74,24 @@ async function ensureNode(report: (message: string) => void): Promise<string> {
 		const archive = path.join(tmp, file);
 		fs.writeFileSync(archive, data);
 		report('Unpacking Node.js');
-		// Windows 10 and later ship a tar that also reads zip files
-		const x = await runQuick('tar', ['-xf', archive, '-C', tmp], { timeoutMs: 180_000 });
+		// Windows: the tar that ships with the system reads zips; a Git for Windows tar earlier on PATH does not
+		const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+		const x = await runQuick(tar, ['-xf', archive, '-C', tmp], { timeoutMs: 180_000 });
 		if (!x || x.code !== 0) { throw new Error(`could not unpack Node.js${x ? `: ${tail(x.stderr, 200)}` : ''}`); }
 		const unpacked = path.join(tmp, file.replace(/\.(tar\.gz|zip)$/, ''));
-		fs.rmSync(dirs.node, { recursive: true, force: true });
-		fs.mkdirSync(path.dirname(dirs.node), { recursive: true });
-		fs.cpSync(unpacked, dirs.node, { recursive: true, verbatimSymlinks: true });
+		// copy beside the final folder and rename into place, so an interrupted copy never leaves a half node that ensureNode accepts
+		const parent = path.dirname(dirs.node);
+		fs.mkdirSync(parent, { recursive: true });
+		const next = `${dirs.node}.new-${process.pid}-${Date.now()}`;
+		try {
+			fs.cpSync(unpacked, next, { recursive: true, verbatimSymlinks: true });
+			if (!fs.existsSync(path.join(next, win ? 'npm.cmd' : path.join('bin', 'npm')))) { throw new Error('Node.js unpacked without npm'); }
+			fs.rmSync(dirs.node, { recursive: true, force: true });
+			fs.renameSync(next, dirs.node);
+		} catch (e) {
+			fs.rmSync(next, { recursive: true, force: true });
+			throw e;
+		}
 	} finally {
 		fs.rmSync(tmp, { recursive: true, force: true });
 	}

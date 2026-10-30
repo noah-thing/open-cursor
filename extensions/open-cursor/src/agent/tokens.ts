@@ -5,7 +5,8 @@
 
 import type { LLMContent, LLMMessage, ToolSchema } from '../providers/types';
 
-export const CHARS_PER_TOKEN = 3.5;
+/** Code, JSON and non Latin text pack more tokens per character than prose; erring low keeps requests inside the window. */
+export const CHARS_PER_TOKEN = 3.0;
 const IMAGE_TOKENS = 1500;
 
 export function estimateTextTokens(s: string): number {

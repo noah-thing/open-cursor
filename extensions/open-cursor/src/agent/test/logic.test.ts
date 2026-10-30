@@ -104,7 +104,7 @@ const AT = (id: string): LLMMessage => ({ role: 'assistant', content: [{ type: '
 const R = (id: string, content = 'x'): LLMMessage => ({ role: 'user', content: [{ type: 'tool_result', toolUseId: id, content }] });
 
 test('tokens and pruning', () => {
-	assert.strictEqual(estimateMessagesTokens([U('x'.repeat(350))]), 4 + 100);
+	assert.strictEqual(estimateMessagesTokens([U('x'.repeat(300))]), 4 + 100);
 	const msgs = [U('q'), AT('1'), R('1', 'y'.repeat(5000)), AT('2'), R('2', 'z'.repeat(5000))];
 	const pruned = pruneOldToolResults(msgs, 2, 100);
 	assert.ok((pruned[2].content[0] as { content: string }).content.length < 300);

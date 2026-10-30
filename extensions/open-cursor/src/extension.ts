@@ -22,6 +22,7 @@ import { registerImporter } from './migrate/importer';
 import { FreeModelsPanel } from './connect/freePanel';
 import { registerUpdater } from './update/updater';
 import { registerInstallCount } from './stats/installCount';
+import { ReportPanel, type ReportContext } from './report/reportPanel';
 import { readEffort, setEffort } from './agent/env';
 import type { Effort } from './shared/protocol';
 
@@ -48,6 +49,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	registerImporter(ctx);
 	registerUpdater(ctx);
 	registerInstallCount(ctx);
+	const report = new ReportPanel(ctx);
+	ctx.subscriptions.push(report, vscode.commands.registerCommand('openCursor.reportProblem', (c?: ReportContext) => report.open(c ?? {})));
 	ctx.subscriptions.push(vscode.commands.registerCommand('openCursor.setEffort', async () => {
 		const cur = readEffort();
 		const levels: { id: Effort; label: string; detail: string }[] = [

@@ -28,35 +28,48 @@ interface ShellInfo {
 
 let shellInfoPromise: Promise<ShellInfo> | undefined;
 
-/** Runs the login shell once per process. */
+/** Runs the login shell once per process. A failed or timed out run is not remembered: the next call tries again. */
 export function loginShellInfo(): Promise<ShellInfo> {
-	shellInfoPromise ??= (async (): Promise<ShellInfo> => {
-		const info: { path: string[]; found: Partial<Record<CliAgentId, string>> } = { path: [], found: {} };
-		if (process.platform === 'win32') {
-			return info;
-		}
-		const shell = defaultShell();
-		const script = `printf '__OC_PATH__%s\\n' "$PATH"; command -v ${AGENT_IDS.map(id => BINARY_NAME[id]).join(' ')}`;
-		const r = await runQuick(shell, ['-ilc', script], { timeoutMs: 4000, env: { ...process.env, TERM: process.env.TERM ?? 'dumb' } });
-		if (!r) {
-			return info;
-		}
-		for (const raw of r.stdout.split('\n')) {
-			const line = raw.replace(/\r$/, '');
-			const i = line.indexOf('__OC_PATH__');
-			if (i >= 0) {
-				info.path = line.slice(i + '__OC_PATH__'.length).split(path.delimiter).filter(Boolean);
-			} else if (line.startsWith('/')) {
-				const base = path.basename(line);
-				for (const id of AGENT_IDS) {
-					if (BINARY_NAME[id] === base && !info.found[id]) {
-						info.found[id] = line.trim();
+	if (!shellInfoPromise) {
+		let failed = false;
+		const p = (async (): Promise<ShellInfo> => {
+			const info: { path: string[]; found: Partial<Record<CliAgentId, string>> } = { path: [], found: {} };
+			if (process.platform === 'win32') {
+				return info;
+			}
+			const shell = defaultShell();
+			const script = `printf '__OC_PATH__%s\\n' "$PATH"; command -v ${AGENT_IDS.map(id => BINARY_NAME[id]).join(' ')}`;
+			// on a timeout keep whatever arrived, but do not remember it
+			const r = await runQuick(shell, ['-ilc', script], { timeoutMs: 4000, keepPartial: true, env: { ...process.env, TERM: process.env.TERM ?? 'dumb' } });
+			if (!r || r.timedOut) {
+				failed = true;
+			}
+			if (!r) {
+				return info;
+			}
+			for (const raw of r.stdout.split('\n')) {
+				const line = raw.replace(/\r$/, '');
+				const i = line.indexOf('__OC_PATH__');
+				if (i >= 0) {
+					info.path = line.slice(i + '__OC_PATH__'.length).split(path.delimiter).filter(Boolean);
+				} else if (line.startsWith('/')) {
+					const base = path.basename(line);
+					for (const id of AGENT_IDS) {
+						if (BINARY_NAME[id] === base && !info.found[id]) {
+							info.found[id] = line.trim();
+						}
 					}
 				}
 			}
-		}
-		return info;
-	})();
+			return info;
+		})();
+		shellInfoPromise = p;
+		void p.then(() => {
+			if (failed && shellInfoPromise === p) {
+				shellInfoPromise = undefined;
+			}
+		});
+	}
 	return shellInfoPromise;
 }
 

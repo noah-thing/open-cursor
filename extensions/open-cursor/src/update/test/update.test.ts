@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { assert, done, test } from '../../agent/test/harness';
-import { detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, swapScript, windowsScript } from '../plan';
+import { assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, swapScript, windowsScript } from '../plan';
 
 const NAMES = [
 	'OpenCursor-0.2.0-linux-arm64.deb', 'OpenCursor-0.2.0-linux-arm64.rpm', 'OpenCursor-0.2.0-linux-arm64.tar.gz',
@@ -26,6 +26,40 @@ test('versions compare numerically, releases beat their prereleases', () => {
 	assert.ok(!isNewer('0.1.0', '0.2.0'));
 	assert.ok(!isNewer('1.0.0-beta.1', '1.0.0'));
 	assert.ok(!isNewer('nightly', '0.1.0'));
+	// +build metadata is ignored, not rejected
+	assert.ok(isNewer('v0.2.0+build.5', '0.1.0'));
+	assert.ok(isNewer('0.2.0', '0.1.0+abc'));
+	assert.ok(!isNewer('0.1.0+b2', '0.1.0+b1'));
+	assert.ok(isNewer('1.0.0', '1.0.0-beta.2+x'));
+});
+
+test('release files need a checksum and a GitHub https address', () => {
+	const ok = { name: 'a.dmg', url: 'https://github.com/noah-thing/open-cursor/releases/download/v1/a.dmg', size: 1, digest: 'sha256:' + 'a'.repeat(64) };
+	assert.strictEqual(assetProblem(ok), undefined);
+	assert.strictEqual(assetProblem({ ...ok, url: 'https://objects.githubusercontent.com/x' }), undefined);
+	assert.strictEqual(assetProblem({ ...ok, url: 'https://release-assets.githubusercontent.com/x' }), undefined);
+	assert.ok(assetProblem({ ...ok, digest: undefined }));
+	assert.ok(assetProblem({ ...ok, digest: 'sha256:abc' }));
+	assert.ok(assetProblem({ ...ok, url: 'http://github.com/x/a.dmg' }));
+	assert.ok(assetProblem({ ...ok, url: 'https://evilgithub.com/a.dmg' }));
+	assert.ok(assetProblem({ ...ok, url: 'https://github.com.evil.example/a.dmg' }));
+	assert.ok(assetProblem({ ...ok, url: 'not a url' }));
+});
+
+test('Windows scripts use UTF-8, wait with ping, and reopen the app on every path', () => {
+	const w = windowsScript({ setup: 'C:\\T\\setup.exe', exe: 'C:\\P\\OpenCursor.exe', relaunchFlag: 'C:\\T\\relaunch', log: 'C:\\T\\log', download: 'C:\\T\\setup.exe' }).split('\r\n');
+	const p = portableScript({ staged: 'C:\\P.new-update-1-2', root: 'C:\\P', exe: 'C:\\P\\OpenCursor.exe', relaunchFlag: 'C:\\T\\relaunch', log: 'C:\\T\\log', download: 'C:\\T\\p.zip' }).split('\r\n');
+	for (const lines of [w, p]) {
+		assert.strictEqual(lines[0], '@echo off');
+		assert.strictEqual(lines[1], 'chcp 65001 >nul');
+		assert.ok(lines.includes('ping -n 2 127.0.0.1 >nul'));
+		assert.ok(!lines.some(l => l.startsWith('timeout')), 'timeout fails when stdin is NUL');
+	}
+	assert.ok(w.some(l => l.startsWith('if %rc% equ 0 del /f /q "C:\\T\\setup.exe"')));
+	assert.ok(w.indexOf('set rc=%errorlevel%') < w.indexOf('if exist "C:\\T\\relaunch" start "" "C:\\P\\OpenCursor.exe"'));
+	const fail = p.slice(p.indexOf(':fail'));
+	assert.ok(fail.includes('if exist "C:\\T\\relaunch" start "" "C:\\P\\OpenCursor.exe"'), 'reopen after a failed copy');
+	assert.ok(p.includes('del /f /q "C:\\T\\p.zip"'));
 });
 
 test('release JSON: drafts and odd tags are ignored, assets keep their checksum', () => {
@@ -117,6 +151,15 @@ test('the swap script really swaps, keeps the old copy on failure, and reopens o
 		// second run: nothing staged, so the old copy must come back
 		try { execFileSync('/bin/sh', [script]); } catch { /* exits 1 */ }
 		assert.strictEqual(fs.readFileSync(path.join(target, 'version'), 'utf8'), 'new');
+		// a failed swap with the flag still reopens the restored old copy
+		fs.rmSync(opened, { force: true });
+		fs.writeFileSync(path.join(target, 'bin', 'open-cursor'), `#!/bin/sh\ntouch '${opened}'\n`, { mode: 0o755 });
+		fs.writeFileSync(flag, '');
+		try { execFileSync('/bin/sh', [script]); } catch { /* exits 1 */ }
+		for (let i = 0; i < 50 && !fs.existsSync(opened); i++) { execFileSync('sleep', ['0.1']); }
+		assert.ok(fs.existsSync(opened), 'reopened after failure');
+		assert.strictEqual(fs.readFileSync(path.join(target, 'version'), 'utf8'), 'new');
+		fs.rmSync(opened, { force: true });
 		// with the flag it reopens
 		fs.mkdirSync(path.join(staged, 'bin'), { recursive: true });
 		fs.writeFileSync(path.join(staged, 'version'), 'newer');

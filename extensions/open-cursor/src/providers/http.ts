@@ -82,13 +82,18 @@ export async function request(provider: ProviderId, url: string, init: { method?
 	}
 }
 
-export async function* readLines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+/** A stream that sends nothing for this long is a dead connection, not a slow model. */
+const IDLE_MS = 180_000;
+
+export async function* readLines(body: ReadableStream<Uint8Array>, idleMs = IDLE_MS): AsyncGenerator<string> {
 	const reader = body.getReader();
 	const dec = new TextDecoder();
 	let buf = '';
 	try {
 		for (; ;) {
-			const { done, value } = await reader.read();
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const idle = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`no data from the model for ${Math.round(idleMs / 1000)} seconds`)), idleMs); });
+			const { done, value } = await Promise.race([reader.read(), idle]).finally(() => clearTimeout(timer));
 			if (done) { break; }
 			buf += dec.decode(value, { stream: true });
 			let nl: number;
@@ -146,7 +151,8 @@ export async function* guarded(provider: ProviderId, signal: AbortSignal, gen: A
 
 export function parseArgs(json: string): unknown {
 	if (!json.trim()) { return {}; }
-	try { return JSON.parse(json); } catch { return {}; }
+	// cut off arguments stay a string, so the loop tells the model they were not valid instead of running the tool with none
+	try { return JSON.parse(json); } catch { return json; }
 }
 
 export function joinUrl(base: string, path: string): string {

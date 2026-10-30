@@ -3,10 +3,10 @@
  *  Pieces of an assistant turn: thinking, tool rows, edit rows, approval and error cards.
  *--------------------------------------------------------------------------------------------*/
 
-import { memo, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { ContextItem, MessagePart, ToolPart } from '../../../src/shared/protocol';
 import { Icon, Spinner, type IconName } from '../common/icons';
-import { thoughtTail } from './live';
+import { thoughtTail, thoughtTopic } from './live';
 import { Markdown } from './markdown';
 import { post } from './host';
 import { HelpJumpRow } from './help';
@@ -55,27 +55,46 @@ function Chevron({ open }: { readonly open: boolean }): ReactElement {
 }
 
 /**
- * The live window under Thinking: the reasoning streams in and the window follows the newest line.
- * Scrolling up inside it stops the follow so a line can be read; scrolling back down resumes it.
+ * The reasoning, written into the conversation as it streams: no frame and no scrollbar. It grows
+ * with the text up to a few lines, older lines dissolve upward, and each new stretch of words fades
+ * in where it lands. Height eases between sizes, so a new line never jolts the chat.
  */
-function ThoughtStream({ text }: { readonly text: string }): ReactElement {
-	const ref = useRef<HTMLDivElement>(null);
-	const follow = useRef(true);
-	const paras = thoughtTail(text);
-	// Keys count paragraphs from the start of the whole thought, so a new paragraph mounts (and rises in)
-	// while the ones above keep their element even as the window's tail moves on.
+function ThoughtFlow({ text }: { readonly text: string }): ReactElement {
+	const outer = useRef<HTMLDivElement>(null);
+	const inner = useRef<HTMLDivElement>(null);
+	const prevLen = useRef(text.length);
+	const [height, setHeight] = useState<number | undefined>(undefined);
+	const [full, setFull] = useState(false);
+	const paras = thoughtTail(text, 1600);
 	const first = (text.match(/\n\s*\n/g)?.length ?? 0) + 1 - paras.length;
+	// the stretch of words new since the last render fades in; the rest is already settled
+	const fresh = Math.max(0, Math.min(text.length - prevLen.current, paras[paras.length - 1]?.length ?? 0));
+	useEffect(() => { prevLen.current = text.length; }, [text]);
 	useLayoutEffect(() => {
-		const el = ref.current;
-		if (el && follow.current) { el.scrollTop = el.scrollHeight; }
-	}, [text]);
+		const el = inner.current;
+		const box = outer.current;
+		if (!el || !box) { return; }
+		const measure = (): void => {
+			const max = parseFloat(getComputedStyle(box).maxHeight) || 120;
+			setHeight(Math.min(el.scrollHeight, max));
+			setFull(el.scrollHeight > max + 1);
+		};
+		measure();
+		const ro = new ResizeObserver(measure);
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, []);
 	return (
-		<div
-			ref={ref}
-			className="oc-think-stream"
-			onScroll={e => { const el = e.currentTarget; follow.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 6; }}
-		>
-			{paras.map((p, i) => <p key={first + i} className={i === paras.length - 1 ? 'is-newest' : undefined}>{p}</p>)}
+		<div ref={outer} className={'oc-think-flow' + (full ? ' is-full' : '')} style={height !== undefined ? { height } : undefined}>
+			<div ref={inner} className="oc-think-flow-inner">
+				{paras.map((p, i) => {
+					const last = i === paras.length - 1;
+					if (!last || fresh <= 0 || fresh >= p.length) {
+						return <p key={first + i} className={last && fresh >= p.length && fresh > 0 ? 'is-new' : undefined}>{p}</p>;
+					}
+					return <p key={first + i}>{p.slice(0, p.length - fresh)}<span key={text.length} className="oc-think-new">{p.slice(p.length - fresh)}</span></p>;
+				})}
+			</div>
 		</div>
 	);
 }
@@ -85,9 +104,10 @@ export const Thinking = memo(function Thinking({ part, show }: { readonly part: 
 	const canOpen = show && part.text.trim().length > 0;
 	const open = canOpen && (userOpen ?? false);
 	const secs = formatDuration(part.durationMs);
-	// While it thinks and nobody has opened or closed it, the reasoning streams in a small window.
-	// It stays mounted after the thought ends so the window can glide shut instead of vanishing.
+	// While it thinks and nobody has opened or closed it, the reasoning flows in under the title.
+	// It stays mounted after the thought ends so it can fold away instead of vanishing.
 	const peek = canOpen && userOpen === undefined;
+	const topic = !part.done && show ? thoughtTopic(part.text) : undefined;
 	return (
 		<div className={'oc-thinking' + (part.done ? '' : ' is-live')}>
 			<button type="button" className="oc-row-head" disabled={!canOpen} onClick={() => setUserOpen(!open)} aria-expanded={open}>
@@ -95,11 +115,12 @@ export const Thinking = memo(function Thinking({ part, show }: { readonly part: 
 				<span className={'oc-row-title' + (part.done ? '' : ' is-shimmer')}>
 					{part.done ? (secs ? 'Thought for ' + secs : 'Thought') : 'Thinking'}
 				</span>
+				{topic ? <span key={topic} className="oc-think-topic">{topic}</span> : null}
 				{canOpen ? <Chevron open={open} /> : null}
 			</button>
 			{peek ? (
 				<div className={'oc-think-peek' + (part.done ? '' : ' is-on')} aria-hidden={part.done}>
-					<div className="oc-think-peek-inner"><ThoughtStream text={part.text} /></div>
+					<div className="oc-think-peek-inner"><ThoughtFlow text={part.text} /></div>
 				</div>
 			) : null}
 			{open ? (
@@ -267,6 +288,7 @@ export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fi
 							<button type="button" className="oc-btn is-primary" onClick={() => post({ type: 'helpAction', href: 'opencursor:free-models' })}>Connect another provider</button>
 						)}
 						{onRetry ? <button type="button" className="oc-btn" disabled={switched} onClick={onRetry}>Try again</button> : null}
+						<button type="button" className="oc-linkbtn oc-error-report" onClick={() => post({ type: 'reportProblem', chatId, error: message })}>Report this</button>
 					</div>
 				</div>
 			</div>
@@ -277,8 +299,8 @@ export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fi
 			<Icon name="warning" size={14} className="oc-error-icon" />
 			<div className="oc-error-main">
 				<div className="oc-error-text">{message}</div>
-				{action || switchTo || fix ? (
-					<div className="oc-error-actions">
+				{/* every error can be reported; sign in and missing key problems are setup, not bugs */}
+				<div className="oc-error-actions">
 						{switchTo && onSwitch ? (
 							<button type="button" className="oc-btn is-primary" disabled={switched} onClick={() => { setSwitched(true); onSwitch(switchTo.id); }}>
 								Use {switchTo.label} and retry
@@ -295,8 +317,10 @@ export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fi
 						) : action === 'openSettings' ? (
 							<button type="button" className="oc-btn" onClick={() => post({ type: 'openSettings', section: 'models' })}>Open settings</button>
 						) : null}
+						{fix?.kind === 'signIn' || fix?.kind === 'addKey' ? null : (
+							<button type="button" className="oc-linkbtn oc-error-report" onClick={() => post({ type: 'reportProblem', chatId, error: message })}>Report this</button>
+						)}
 					</div>
-				) : null}
 			</div>
 		</div>
 	);

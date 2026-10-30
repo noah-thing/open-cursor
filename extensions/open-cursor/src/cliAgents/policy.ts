@@ -3,18 +3,17 @@
  *  Approval policy shared by the runners. No vscode import.
  *--------------------------------------------------------------------------------------------*/
 
+import { needsApproval } from '../agent/approval';
 import type { AutoRun, CliAgentId } from './types';
 
 /** True when `command` starts with one of the allowlist entries and chains nothing else. */
 export function commandAllowed(command: string, allowlist: readonly string[]): boolean {
 	const cmd = command.trim();
-	if (!cmd || /[;&|`\n<>]|\$\(/.test(cmd)) {
+	if (!cmd || /[;&|`\n\r<>]|\$\(/.test(cmd)) {
 		return false;
 	}
-	return allowlist.some(entry => {
-		const e = entry.trim();
-		return e.length > 0 && (cmd === e || cmd.startsWith(e + ' '));
-	});
+	// the same reading as the native allowlist: nothing hidden in ( ) or { }, no flag that runs a program, no path outside the project
+	return !needsApproval(cmd, { autoRun: 'allowlist', allowlist, denylist: [] });
 }
 
 /** OpenCode, Gemini CLI and Grok cannot pause to ask. In Allowlist every other command would just be

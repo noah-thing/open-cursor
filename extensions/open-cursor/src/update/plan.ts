@@ -30,7 +30,8 @@ export type InstallKind = 'mac-app' | 'win-setup' | 'win-portable' | 'linux-deb'
 
 /** `v0.2.0`, `0.2.0-beta.1` -> comparable parts; undefined when it is not a version. */
 export function parseVersion(v: string): { nums: number[]; pre: string } | undefined {
-	const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/.exec(v.trim());
+	// `+build` metadata never takes part in ordering, so it is dropped before matching
+	const m = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(v.trim());
 	return m ? { nums: [Number(m[1]), Number(m[2]), Number(m[3])], pre: m[4] ?? '' } : undefined;
 }
 
@@ -61,6 +62,17 @@ export function parseRelease(json: unknown): Release | undefined {
 		}
 	}
 	return { version, tag: r.tag_name, pageUrl: typeof r.html_url === 'string' ? r.html_url : '', notes: typeof r.body === 'string' ? r.body : '', assets };
+}
+
+const ASSET_HOSTS = ['github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com', 'githubusercontent.com'];
+
+/** Why this release file must not be installed, or undefined when it is fine: https from GitHub, with a sha256 digest. */
+export function assetProblem(a: ReleaseAsset): string | undefined {
+	let u: URL;
+	try { u = new URL(a.url); } catch { return 'the download address is not valid'; }
+	if (u.protocol !== 'https:' || !ASSET_HOSTS.some(h => u.hostname === h || u.hostname.endsWith('.' + h))) { return 'the download does not come from GitHub'; }
+	if (!/^sha256:[0-9a-f]{64}$/i.test(a.digest ?? '')) { return 'GitHub published no checksum for this file, so it cannot be verified'; }
+	return undefined;
 }
 
 export interface InstallFacts {
@@ -149,17 +161,23 @@ function relaunchLine(platform: 'darwin' | 'linux', target: string, flag: string
  * macOS and Linux (tar): waits until no process runs from the install, swaps the staged copy in,
  * keeps the old one until the new one is in place, and reopens the app if the flag file exists.
  */
-export function swapScript(o: { readonly platform: 'darwin' | 'linux'; readonly staged: string; readonly target: string; readonly relaunchFlag: string; readonly log: string }): string {
+export function swapScript(o: { readonly platform: 'darwin' | 'linux'; readonly staged: string; readonly target: string; readonly relaunchFlag: string; readonly log: string; readonly download?: string }): string {
 	const t = sh(o.target);
 	const old = sh(o.target + '.old-update');
+	// the reopen line runs on every path, so "Restart now" never leaves the person without the app
 	return [
 		'#!/bin/sh',
 		`exec >>${sh(o.log)} 2>&1`,
 		...waitForQuit(o.target),
 		`rm -rf ${old}`,
-		`mv ${t} ${old} || { echo "update: could not move the old copy"; exit 1; }`,
-		`if mv ${sh(o.staged)} ${t}; then rm -rf ${old}; echo "update: done"; else mv ${old} ${t}; echo "update: failed, old copy restored"; exit 1; fi`,
+		'ok=0',
+		`if mv ${t} ${old}; then`,
+		`	if mv ${sh(o.staged)} ${t}; then ok=1; rm -rf ${old}; ${o.download ? `rm -f ${sh(o.download)}; ` : ''}echo "update: done"; else mv ${old} ${t}; rm -rf ${sh(o.staged)}; echo "update: failed, old copy restored"; fi`,
+		'else',
+		'	echo "update: could not move the old copy"',
+		'fi',
 		relaunchLine(o.platform, o.target, o.relaunchFlag),
+		'[ "$ok" = 1 ]',
 		'',
 	].join('\n');
 }
@@ -175,21 +193,28 @@ function cmd(s: string): string {
 }
 
 /** Windows: waits for OpenCursor.exe to exit, runs the setup silently, reopens it if the flag file exists. */
-export function windowsScript(o: { readonly setup: string; readonly exe: string; readonly relaunchFlag: string; readonly log: string }): string {
+export function windowsScript(o: { readonly setup: string; readonly exe: string; readonly relaunchFlag: string; readonly log: string; readonly download?: string }): string {
 	const name = o.exe.split('\\').pop() ?? 'OpenCursor.exe';
 	return [
 		'@echo off',
+		// cmd reads the script in the OEM code page; UTF-8 keeps names with å, ä, ö intact
+		'chcp 65001 >nul',
 		'set /a n=0',
 		':wait',
 		`tasklist /FI "IMAGENAME eq ${name}" 2>nul | find /I "${name}" >nul`,
 		'if errorlevel 1 goto install',
 		'set /a n+=1',
 		'if %n% gtr 3600 exit /b 1',
-		'timeout /t 1 /nobreak >nul',
+		// timeout fails at once when stdin is NUL (the script runs detached); ping waits a second anywhere
+		'ping -n 2 127.0.0.1 >nul',
 		'goto wait',
 		':install',
 		`${cmd(o.setup)} /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /MERGETASKS=!runcode /LOG=${cmd(o.log)}`,
+		'set rc=%errorlevel%',
+		`if %rc% equ 0 del /f /q ${cmd(o.download ?? o.setup)}`,
+		// reopen either way: after a failed setup the old copy is still there
 		`if exist ${cmd(o.relaunchFlag)} start "" ${cmd(o.exe)}`,
+		'exit /b %rc%',
 		'',
 	].join('\r\n');
 }
@@ -200,19 +225,22 @@ export function windowsScript(o: { readonly setup: string; readonly exe: string;
  * is overwritten in place and nothing is ever deleted outside `resources`, because a portable copy
  * may sit in a folder that also holds the person's own files. The `data` folder is never touched.
  */
-export function portableScript(o: { readonly staged: string; readonly root: string; readonly exe: string; readonly relaunchFlag: string; readonly log: string }): string {
+export function portableScript(o: { readonly staged: string; readonly root: string; readonly exe: string; readonly relaunchFlag: string; readonly log: string; readonly download?: string }): string {
 	const name = o.exe.split('\\').pop() ?? 'OpenCursor.exe';
 	const q = (s: string): string => cmd(s);
 	const r = (s: string): string => s.replace(/\\+$/, '');
 	return [
 		'@echo off',
+		// cmd reads the script in the OEM code page; UTF-8 keeps names with å, ä, ö intact
+		'chcp 65001 >nul',
 		'set /a n=0',
 		':wait',
 		`tasklist /FI "IMAGENAME eq ${name}" 2>nul | find /I "${name}" >nul`,
 		'if errorlevel 1 goto swap',
 		'set /a n+=1',
 		'if %n% gtr 3600 exit /b 1',
-		'timeout /t 1 /nobreak >nul',
+		// timeout fails at once when stdin is NUL (the script runs detached); ping waits a second anywhere
+		'ping -n 2 127.0.0.1 >nul',
 		'goto wait',
 		':swap',
 		`if not exist ${q(r(o.staged) + '\\' + name)} goto fail`,
@@ -222,11 +250,14 @@ export function portableScript(o: { readonly staged: string; readonly root: stri
 		`robocopy ${q(r(o.staged))} ${q(r(o.root))} /E /IS /IT /XD ${q(r(o.staged) + '\\resources')} ${q(r(o.root) + '\\data')} /R:5 /W:1 /NP /NFL /NDL /LOG+:${q(o.log)}`,
 		'if errorlevel 8 goto fail',
 		`rmdir /s /q ${q(r(o.staged))}`,
+		...(o.download ? [`del /f /q ${q(o.download)}`] : []),
 		`echo update: done>>${q(o.log)}`,
 		`if exist ${q(o.relaunchFlag)} start "" ${q(o.exe)}`,
 		'exit /b 0',
 		':fail',
 		`echo update: failed>>${q(o.log)}`,
+		`rmdir /s /q ${q(r(o.staged))}`,
+		`if exist ${q(o.relaunchFlag)} start "" ${q(o.exe)}`,
 		'exit /b 1',
 		'',
 	].join('\r\n');
