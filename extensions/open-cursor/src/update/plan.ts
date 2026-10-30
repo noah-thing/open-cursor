@@ -274,14 +274,24 @@ function psWait(exe: string): string[] {
 	return [`while (Get-Process -Name ${psq(psName(exe))} -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 1 }`];
 }
 
+/**
+ * First line of every PowerShell script: the updater reads the log's existence as "the script began", so a
+ * setup that fails fast is never run a second time by the cmd fallback.
+ */
+function psStarted(log: string): string {
+	return `Add-Content -LiteralPath ${psq(log)} -Value 'update: started' -ErrorAction SilentlyContinue`;
+}
+
 /** Windows setup install, as PowerShell: waits for OpenCursor to quit, runs the setup silently, reopens it if the flag file exists. */
 export function windowsPsScript(o: { readonly setup: string; readonly exe: string; readonly relaunchFlag: string; readonly log: string; readonly download?: string }): string {
 	return [
 		"$ErrorActionPreference = 'Continue'",
+		psStarted(o.log),
 		...psWait(o.exe),
 		// Start-Process joins the arguments with spaces, so the log path carries its own quotes
 		`$p = Start-Process -FilePath ${psq(o.setup)} -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/MERGETASKS=!runcode', ${psq(`/LOG="${o.log.replace(/"/g, '')}"`)} -Wait -PassThru`,
-		'$rc = $p.ExitCode',
+		// no process or no exit code means the setup did not run: count it as a failure
+		'$rc = if ($p -and $null -ne $p.ExitCode) { [int]$p.ExitCode } else { 1 }',
 		`if ($rc -eq 0) { Remove-Item -LiteralPath ${psq(o.download ?? o.setup)} -Force -ErrorAction SilentlyContinue }`,
 		// reopen either way: after a failed setup the old copy is still there
 		`if (Test-Path -LiteralPath ${psq(o.relaunchFlag)}) { Start-Process -FilePath ${psq(o.exe)} }`,
@@ -295,20 +305,24 @@ export function portablePsScript(o: { readonly staged: string; readonly root: st
 	const name = o.exe.split('\\').pop() ?? 'OpenCursor.exe';
 	const r = (s: string): string => s.replace(/\\+$/, '');
 	// robocopy is a console program: it runs with its own hidden window and its exit code is read back
-	const robo = (args: string): string => `(Start-Process -FilePath 'robocopy.exe' -ArgumentList ${psq(args)} -WindowStyle Hidden -Wait -PassThru).ExitCode`;
+	const robo = (args: string): string => `Robo ${psq(args)}`;
 	const dq = (s: string): string => `"${s.replace(/"/g, '')}"`;
 	const lock = `${r(o.root)}.update-lock`;
 	return [
 		"$ErrorActionPreference = 'Continue'",
 		`$log = ${psq(o.log)}`,
+		psStarted(o.log),
+		// a robocopy that cannot start counts as a failure (99), never as a clean copy
+		"function Robo($a) { $q = Start-Process -FilePath 'robocopy.exe' -ArgumentList $a -WindowStyle Hidden -Wait -PassThru; if ($q -and $null -ne $q.ExitCode) { [int]$q.ExitCode } else { 99 } }",
 		"function Note($t) { Add-Content -LiteralPath $log -Value $t -ErrorAction SilentlyContinue }",
 		`function Reopen { if (Test-Path -LiteralPath ${psq(o.relaunchFlag)}) { Start-Process -FilePath ${psq(o.exe)} } }`,
 		`function Fail { Note 'update: failed'; Remove-Item -LiteralPath ${psq(r(o.staged))} -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath ${psq(lock)} -Force -ErrorAction SilentlyContinue; Reopen; exit 1 }`,
 		...psWait(o.exe),
 		// another window may be swapping the same copy: wait for it (up to a minute), take over a lock older than 10 minutes
+		// New-Item has no -LiteralPath, so [ ] in the path are escaped for its wildcard matching
 		'$waited = 0',
 		`while ($true) {`,
-		`	try { New-Item -ItemType Directory -Path ${psq(lock)} -ErrorAction Stop | Out-Null; break } catch {}`,
+		`	try { New-Item -ItemType Directory -Path ${psq(lock.replace(/[[\]]/g, '`$&'))} -ErrorAction Stop | Out-Null; break } catch {}`,
 		`	$old = Get-Item -LiteralPath ${psq(lock)} -ErrorAction SilentlyContinue`,
 		`	if ($old -and ((Get-Date) - $old.CreationTime).TotalMinutes -gt 10) { Remove-Item -LiteralPath ${psq(lock)} -Force -ErrorAction SilentlyContinue; continue }`,
 		`	if ($waited -ge 60) { Remove-Item -LiteralPath ${psq(r(o.staged))} -Recurse -Force -ErrorAction SilentlyContinue; Reopen; exit 0 }`,
@@ -316,8 +330,8 @@ export function portablePsScript(o: { readonly staged: string; readonly root: st
 		'}',
 		`if (!(Test-Path -LiteralPath ${psq(r(o.staged) + '\\' + name)}) -or !(Test-Path -LiteralPath ${psq(r(o.staged) + '\\resources\\app')})) { Fail }`,
 		// top level files first: if this copy fails, nothing has changed yet, and the old resources still match the old exe
-		`if (${robo(`${dq(r(o.staged))} ${dq(r(o.root))} /E /IS /IT /XD ${dq(r(o.staged) + '\\resources')} ${dq(r(o.root) + '\\data')} /R:5 /W:1 /NP /NFL /NDL /LOG+:${dq(o.log)}`)} -ge 8) { Fail }`,
-		`if (${robo(`${dq(r(o.staged) + '\\resources')} ${dq(r(o.root) + '\\resources')} /MIR /R:5 /W:1 /NP /NFL /NDL /LOG+:${dq(o.log)}`)} -ge 8) { Fail }`,
+		`if ((${robo(`${dq(r(o.staged))} ${dq(r(o.root))} /E /IS /IT /XD ${dq(r(o.staged) + '\\resources')} ${dq(r(o.root) + '\\data')} /R:5 /W:1 /NP /NFL /NDL /LOG+:${dq(o.log)}`)}) -ge 8) { Fail }`,
+		`if ((${robo(`${dq(r(o.staged) + '\\resources')} ${dq(r(o.root) + '\\resources')} /MIR /R:5 /W:1 /NP /NFL /NDL /LOG+:${dq(o.log)}`)}) -ge 8) { Fail }`,
 		`Remove-Item -LiteralPath ${psq(r(o.staged))} -Recurse -Force -ErrorAction SilentlyContinue`,
 		...(o.download ? [`Remove-Item -LiteralPath ${psq(o.download)} -Force -ErrorAction SilentlyContinue`] : []),
 		"Note 'update: done'",

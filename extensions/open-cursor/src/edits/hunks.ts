@@ -166,7 +166,7 @@ export function minimalRawEdit(oldRaw: string, text: string, defaultEol: '\n' | 
 		end = re < 0 ? oldRaw.length : re;
 	}
 	// a line break is \r\n, \n or a lone \r
-	const endingAt = (i: number): '\n' | '\r\n' | '\r' => oldRaw[i] === '\r' ? '\r' : oldRaw[i - 1] === '\r' ? '\r\n' : '\n';
+	const endingAt = (i: number): '\n' | '\r\n' | '\r' => oldRaw[i] === '\r' ? (oldRaw[i + 1] === '\n' ? '\r\n' : '\r') : oldRaw[i - 1] === '\r' ? '\r\n' : '\n';
 	let eol: '\n' | '\r\n' | '\r' = defaultEol;
 	let before = -1;
 	for (let i = start - 1; i >= 0; i--) {

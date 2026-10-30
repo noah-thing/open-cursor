@@ -409,7 +409,8 @@ class Updater implements vscode.Disposable {
 			const ps = cur;
 			const fallback = (): void => { if (cur === ps) { detach('cmd.exe', ['/d', '/c', cmdFile]); } };
 			ps?.once('error', fallback);
-			ps?.once('exit', code => { if (code !== 0 && Date.now() - started < 10_000) { fallback(); } });
+			// the script writes the log first: if it exists, PowerShell ran it and a fast failure is the setup's, not a launch problem
+			ps?.once('exit', code => { if (code !== 0 && Date.now() - started < 10_000 && !fs.existsSync(log)) { fallback(); } });
 		};
 		let cur: cp.ChildProcess | undefined;
 		const made = (extra: Pick<Ready, 'installed'> & { revive?: () => void }): Ready => ({
