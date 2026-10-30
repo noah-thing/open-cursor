@@ -7,6 +7,13 @@ test('home folders lose the user name on every system', () => {
 	assert.strictEqual(scrub('C:\\Users\\Åsa Berg\\AppData'.replace(' ', '_')), '~\\AppData');
 	assert.strictEqual(scrub('"C:\\\\Users\\\\bob\\\\code"'), '"~\\\\code"');
 	assert.strictEqual(scrub('c:/Users/bob/code'), '~/code');
+	assert.strictEqual(scrub('C:\\Users\\Anna Svensson\\AppData\\x'), '~\\AppData\\x');
+	assert.strictEqual(scrub('open C:\\Users\\bob failed'), 'open ~ failed');
+	assert.strictEqual(scrub('see https://example.com/home/page and https://example.com/Users/x'), 'see https://example.com/home/page and https://example.com/Users/x');
+});
+
+test('UUID shaped tokens are removed', () => {
+	assert.strictEqual(scrub('key 123e4567-e89b-12d3-a456-426614174000 end'), 'key [removed] end');
 });
 
 test('keys without a known prefix are removed', () => {

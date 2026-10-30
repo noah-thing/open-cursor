@@ -40,9 +40,10 @@ export function transcriptMessages(entries: readonly TranscriptEntry[]): LLMMess
 /** Drops every entry from the turn of `messageId` onward. Returns undefined when the turn is not in the transcript. */
 export function truncateTranscript(entries: readonly TranscriptEntry[], messageId: string): TranscriptEntry[] | undefined {
 	const idx = entries.findIndex(e => e.turn === messageId);
-	if (idx !== -1) { return entries.slice(0, idx); }
-	// the message was merged into an earlier user entry: keep that entry with only the text before it
 	const at = entries.findIndex(e => e.merged?.some(x => x.turn === messageId));
+	// a merged match can sit before the entry that carries the turn id (the reply is tagged with it)
+	if (idx !== -1 && (at === -1 || idx <= at)) { return entries.slice(0, idx); }
+	// the message was merged into an earlier user entry: keep that entry with only the text before it
 	if (at === -1) { return undefined; }
 	const e = entries[at];
 	const merged = e.merged!;

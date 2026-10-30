@@ -472,11 +472,11 @@ export function silentFailure(agent: CliAgentId, produced: boolean, sawResult: b
 const HTTP = (code: number): string => `(?:\\b(?:status\\w*|response)\\b[^\\n]{0,16}\\b${code}\\b|\\bhttp(?:/[\\d.]+)?[ :]+(?:error |status )?${code}\\b|\\b${code}\\b[^\\n]{0,24}\\b(?:unauthori[sz]ed|forbidden|too many|rate|authentication)\\b)`;
 const NOT_SIGNED_IN = new RegExp(
 	'not logged in|please run /login|invalid api key|api key not valid|no credentials|\\bsign in (?:to|with|again|required)\\b|please (?:sign|log) ?in|\\blog ?in (?:required|again)\\b|' +
-	'authentication (?:failed|error|required|token)|auth(?:entication)? required|failed to authenticate|not authenticated|\\bunauthori[sz]ed\\b|invalid[_ ]grant|\\boauth token\\b|(?:token|session) (?:has )?expired|' + HTTP(401),
+	'authentication (?:failed|error|required|token)|auth(?:entication)? required|failed to authenticate|not authenticated|\\bunauthori[sz]ed\\b|invalid[_ ]grant|\\boauth token\\b|(?:token|session) (?:has )?expired|' + 'api error:? ?401|\\bauthentication_error\\b|please run grok login|failed to login|' + HTTP(401),
 	'i',
 );
 const RATE_LIMITED = new RegExp(
-	'rate[ -]?limit|usage limit|(?:exceeded|exhausted|reached|out of) (?:your |the |current )*quota|quota (?:exceeded|exhausted|reached)|resource_exhausted|too many requests|\\boverloaded\\b|' + HTTP(429),
+	'rate[ -]?limit|usage limit|(?:exceeded|exhausted|reached|out of) (?:your |the |current )*quota|quota (?:exceeded|exhausted|reached)|resource_exhausted|too many requests|\\boverloaded\\b|\\boverloaded_error\\b|\\brate_limit_error\\b|api error:? ?429|' + HTTP(429),
 	'i',
 );
 

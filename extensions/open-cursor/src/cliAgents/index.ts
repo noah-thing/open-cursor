@@ -5,6 +5,8 @@
  *  src/cliAgents. Everything except this file avoids vscode imports so it can be tested in plain node.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { CliAgentInfo, CliTurnCallbacks, ICliAgents } from '../services';
@@ -59,7 +61,7 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 	// Gemini CLI never sees OpenCursor's stored keys, so the Google key saved in Settings goes to it as GEMINI_API_KEY
 	const cliEnvWithKeys = async (binary: string | undefined, agent: CliAgentId): Promise<NodeJS.ProcessEnv> => {
 		const env = await cliEnv(binary);
-		if (agent === 'gemini-cli' && !env.GEMINI_API_KEY && !env.GOOGLE_API_KEY) {
+		if (agent === 'gemini-cli' && !env.GEMINI_API_KEY && !env.GOOGLE_API_KEY && !fs.existsSync(path.join(os.homedir(), '.gemini', 'oauth_creds.json'))) {
 			try {
 				const key = (await ctx.secrets.get('openCursor.key.google'))?.trim();
 				if (key) {

@@ -262,7 +262,8 @@ class Updater implements vscode.Disposable {
 			if (cancelled || (e instanceof Error && e.name === 'AbortError')) { return; }
 			// a background attempt stays quiet once, then says why and backs off between tries
 			if (quiet) {
-				await this.failedQuietly(release, e);
+				this.busy = false;
+				void this.failedQuietly(release, e);
 				return;
 			}
 			const go = await vscode.window.showErrorMessage(`The update did not finish: ${explain(e)}.`, 'Open release page');

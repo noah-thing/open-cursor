@@ -163,7 +163,7 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 			const v = (o || (s ? this.cfg<string>(s, '') : '') || DEFAULT_BASE[id]).trim();
 			if (!v) { throw new ProviderError('Set openCursor.providers.custom.baseUrl to your OpenAI-compatible endpoint.', id, undefined, 'other'); }
 			// Ollama is called on its native /api, everything else here speaks /v1
-			return normalizeBase(v, id === 'ollama' ? { stripV1: true } : id === 'lmstudio' || id === 'custom' || id === 'openai' ? { v1: true } : {});
+			return normalizeBase(v, id === 'ollama' ? { stripV1: true } : id === 'lmstudio' || id === 'custom' ? { v1: true } : {});
 		};
 	}
 

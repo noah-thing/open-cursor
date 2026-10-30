@@ -238,7 +238,9 @@ export class GitTracker {
 }
 
 const SKIP_DIRS = new Set(['.git', 'node_modules', '.venv', 'venv', '__pycache__', '.next', '.cache', '.Trash', 'Library', '.npm', '.cargo', '.gradle', 'target']);
-const MAX_FILES = 4000;
+let MAX_FILES = 4000;
+/** Tests shrink the walk cap to exercise truncation. */
+export function setMaxFilesForTest(n: number): void { MAX_FILES = n; }
 const MAX_FILE_BYTES = 512 * 1024;
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 const MAX_WALK_MS = 3000;
@@ -259,6 +261,8 @@ export class FsTracker implements FileScanner {
 	private readonly unreadable = new Set<string>();
 	private readonly startedAt = Date.now();
 	private total = 0;
+	private startTruncated = false;
+	private truncated = false;
 	private chain: Promise<unknown> = Promise.resolve();
 
 	private constructor(private readonly root: string) {}
@@ -272,7 +276,9 @@ export class FsTracker implements FileScanner {
 			return undefined;
 		}
 		const t = new FsTracker(cwd);
-		for (const [abs, st] of t.walk()) {
+		const first = t.walk();
+		t.startTruncated = t.truncated;
+		for (const [abs, st] of first) {
 			t.stamps.set(abs, st);
 			const text = st.size <= MAX_FILE_BYTES && t.total + st.size <= MAX_TOTAL_BYTES ? readTextFile(abs, MAX_FILE_BYTES) : 'skip';
 			if (text !== 'skip' && text !== undefined) {
@@ -290,7 +296,12 @@ export class FsTracker implements FileScanner {
 		const out = new Map<string, FileStamp>();
 		const deadline = Date.now() + MAX_WALK_MS;
 		const stack = [this.root];
-		while (stack.length && out.size < MAX_FILES && Date.now() < deadline) {
+		this.truncated = false;
+		while (stack.length) {
+			if (out.size >= MAX_FILES || Date.now() >= deadline) {
+				this.truncated = true;
+				break;
+			}
 			const dir = stack.pop()!;
 			let names: fs.Dirent[];
 			try {
@@ -305,6 +316,10 @@ export class FsTracker implements FileScanner {
 						stack.push(abs);
 					}
 				} else if (d.isFile()) {
+					if (out.size >= MAX_FILES) {
+						this.truncated = true;
+						break;
+					}
 					try {
 						const st = fs.statSync(abs);
 						out.set(abs, { mtimeMs: st.mtimeMs, size: st.size });
@@ -330,12 +345,15 @@ export class FsTracker implements FileScanner {
 		for (const [abs, st] of now) {
 			const was = this.stamps.get(abs);
 			// a file the start-up walk never reached (the walk is capped) is only new if it was written during the turn
+			if (!was && this.startTruncated && !this.baseline.has(abs)) {
+				continue; // never reached at the start: no baseline, so it could be the user's own file
+			}
 			if (was ? was.mtimeMs !== st.mtimeMs || was.size !== st.size : st.mtimeMs >= this.startedAt - 2000) {
 				candidates.add(abs);
 			}
 		}
 		for (const abs of this.stamps.keys()) {
-			if (!now.has(abs)) {
+			if (!now.has(abs) && !this.truncated) {
 				candidates.add(abs);
 			}
 		}

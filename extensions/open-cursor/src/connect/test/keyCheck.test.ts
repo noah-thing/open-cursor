@@ -4,7 +4,7 @@ import { judgeKeyStatus, keyCheckRequest } from '../keyCheck';
 test('only 401 and 403 count as a refused key', () => {
 	assert.strictEqual(judgeKeyStatus('openai', 200), 'ok');
 	assert.strictEqual(judgeKeyStatus('openai', 401), 'refused');
-	assert.strictEqual(judgeKeyStatus('anthropic', 403), 'refused');
+	assert.strictEqual(judgeKeyStatus('anthropic', 403), 'unsure');
 	assert.strictEqual(judgeKeyStatus('openai', 429), 'unsure');
 	assert.strictEqual(judgeKeyStatus('openai', 503), 'unsure');
 	assert.strictEqual(judgeKeyStatus('openai', 404), 'unsure');

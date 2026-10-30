@@ -315,6 +315,9 @@ test('http: base addresses are normalized', async () => {
 	assert.equal(normalizeBase('localhost:1234', { v1: true }), 'http://localhost:1234/v1');
 	assert.equal(normalizeBase('localhost:1234/v1/', { v1: true }), 'http://localhost:1234/v1');
 	assert.equal(normalizeBase('http://192.168.1.5:8000', { v1: true }), 'http://192.168.1.5:8000/v1');
+	assert.equal(normalizeBase('https://gw.example.com', { v1: true }), 'https://gw.example.com');
+	assert.equal(normalizeBase('https://u:p@gw.example.com/x?k=1', { v1: true }), 'https://u:p@gw.example.com/x?k=1');
+	assert.equal(normalizeBase('http://u:p@localhost:1234?k=1', { v1: true }), 'http://u:p@localhost:1234/v1?k=1');
 	assert.equal(normalizeBase('api.example.com/openai', { v1: true }), 'https://api.example.com/openai');
 	assert.equal(normalizeBase('localhost:11434/v1', { stripV1: true }), 'http://localhost:11434');
 	assert.equal(normalizeBase('http://localhost:11434/', { stripV1: true }), 'http://localhost:11434');

@@ -1814,6 +1814,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			if (sc.chat.mode === 'help') { await this.newChat(); } else { await this.activate(sc); }
 		}
 		for (const item of items) { this.post({ type: 'addContext', item }); }
+		this.setChatFocused(true);
 		this.post({ type: 'focusInput' });
 	}
 
@@ -1845,6 +1846,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			await this.ready;
 			await this.reveal();
 			await this.newChat();
+			this.setChatFocused(true);
 			this.post({ type: 'focusInput' });
 		});
 		// From the menu bar panel: a new chat that starts on the task straight away.

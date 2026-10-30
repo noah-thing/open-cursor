@@ -83,4 +83,14 @@ test('a failed turn merged into the next message can still be cut at the newer m
 	assert.strictEqual(truncateTranscript(entries, 'nope'), undefined);
 });
 
+test('editing a replied message that was merged into a failed one cuts the merged entry', () => {
+	const entries: TranscriptEntry[] = [];
+	mergeUserEntry(entries, 't1', [{ type: 'text', text: 'first' }]);
+	mergeUserEntry(entries, 't2', [{ type: 'text', text: 'second' }]);
+	entries.push({ turn: 't2', msg: { role: 'assistant', content: [{ type: 'text', text: 'reply' }] } });
+	const cut = truncateTranscript(entries, 't2')!;
+	assert.strictEqual(cut.length, 1);
+	assert.deepStrictEqual(cut[0].msg.content, [{ type: 'text', text: 'first' }]);
+});
+
 void done('handoff');

@@ -111,12 +111,26 @@ export function trimOverlapInfo(completion: string, suffix: string): { text: str
 	const cLines = c.split('\n');
 	for (let n = Math.min(cLines.length, sufLines.length, 6); n >= 1; n--) {
 		const tail = cLines.slice(-n).map(l => l.trim());
-		if (tail.every((l, i) => l === sufLines[i] && CLOSER.test(l))) {
+		if (tail.every((l, i) => l === sufLines[i] && CLOSER.test(l)) && (sameIndent(cLines.slice(-n), suffix, n) || unbalanced(c))) {
 			const text = cLines.slice(0, -n).join('\n').replace(/\s+$/, '');
 			return { text, cut: c.length - text.length };
 		}
 	}
 	return { text: c, cut: 0 };
+}
+
+// a differently indented closer is the completion's own inner closer unless its brackets would otherwise be unbalanced
+function sameIndent(tail: string[], suffix: string, n: number): boolean {
+	const suf = suffix.split('\n').filter(l => l.trim() !== '').slice(0, n);
+	return tail.every((l, i) => l.replace(/\s+$/, '') === suf[i].replace(/\s+$/, ''));
+}
+
+function unbalanced(c: string): boolean {
+	let d = 0;
+	for (const ch of c) {
+		if (ch === '(' || ch === '[' || ch === '{') { d++; } else if (ch === ')' || ch === ']' || ch === '}') { d--; }
+	}
+	return d < 0;
 }
 
 export function indentOf(line: string): number {

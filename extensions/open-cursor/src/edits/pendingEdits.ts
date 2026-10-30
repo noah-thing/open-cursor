@@ -113,9 +113,16 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 	};
 	const fileFor = (key: string): string => `${createHash('sha1').update(key).digest('hex')}.txt`;
 
-	async function persistNow(): Promise<void> {
+	let persistChain: Promise<unknown> = Promise.resolve();
+	function persistNow(): Promise<void> {
+		const run = persistChain.then(persistRun);
+		persistChain = run.catch(() => undefined);
+		return run;
+	}
+	async function persistRun(): Promise<void> {
 		const list = sessionList();
-		const same = list.length === lastPersisted.size && list.every(s => {
+		// an empty list always writes: restored-then-resolved sessions are not in lastPersisted
+		const same = list.length > 0 && list.length === lastPersisted.size && list.every(s => {
 			const p = lastPersisted.get(s.key);
 			return !!p && p.original === s.original && p.existed === s.existed && p.deleted === s.deleted && p.source === s.source && p.chatId === s.chatId;
 		});

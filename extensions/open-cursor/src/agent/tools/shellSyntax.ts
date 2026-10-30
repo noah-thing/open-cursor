@@ -15,7 +15,7 @@ export function shellKind(shellPath: string | undefined, platform: string = proc
 
 /** One line that moves to `cwd` and then runs `command`, valid in the given shell. */
 export function cdLine(kind: ShellKind, cwd: string, command: string): string {
-	if (kind === 'powershell') { return `Set-Location -LiteralPath '${cwd.replace(/'/g, "''")}'; ${command}`; }
+	if (kind === 'powershell') { return `Set-Location -LiteralPath '${cwd.replace(/'/g, "''")}' -ErrorAction Stop; ${command}`; }
 	if (kind === 'cmd') { return `cd /d "${cwd}" && ${command}`; }
 	return `cd '${cwd.replace(/'/g, `'\\''`)}' && ${command}`;
 }

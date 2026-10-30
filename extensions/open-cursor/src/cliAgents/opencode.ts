@@ -294,7 +294,7 @@ export function setAsideOpenCodeDb(db: string, stamp = new Date().toISOString().
 }
 
 /** OpenCode waits on the network forever when offline; a turn that is silent this long is stuck. Generous, because a long build or test run prints nothing until it ends. */
-const OPENCODE_IDLE_MS = 10 * 60_000;
+const OPENCODE_IDLE_MS = 30 * 60_000;
 
 export async function runOpenCode(o: RunOptions, repaired = false): Promise<RunResult> {
 	const args = openCodeArgs(o);

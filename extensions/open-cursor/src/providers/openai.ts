@@ -343,11 +343,11 @@ function parseGroq(raw: Rec): ModelInfo | undefined {
 	});
 }
 
-function parseLmStudio(raw: Rec): ModelInfo | undefined {
+function parseLmStudio(raw: Rec, fallback = false): ModelInfo | undefined {
 	const id = String(raw.id ?? '');
 	if (!id || /embed/i.test(id) || raw.type === 'embeddings') { return undefined; }
 	// a model that is not loaded reports its trained maximum but loads with a small default window
-	const ctx = raw.loaded_context_length ?? (raw.state === 'loaded' ? raw.max_context_length : undefined) ?? Math.min(raw.max_context_length ?? 8_192, 8_192);
+	const ctx = raw.loaded_context_length ?? (raw.state === 'loaded' ? raw.max_context_length : undefined) ?? (fallback && raw.max_context_length === undefined ? 32_768 : Math.min(raw.max_context_length ?? 8_192, 8_192));
 	return {
 		id: modelId('lmstudio', id), provider: 'lmstudio', model: id, label: id,
 		contextWindow: ctx, maxOutputTokens: Math.min(8_192, ctx),
@@ -362,6 +362,7 @@ class LmStudioProvider extends OpenAICompatibleProvider {
 	/** Prefers LM Studio's richer /api/v0/models (context length, vision, tool use); falls back to /v1/models. */
 	override async listModels(signal?: AbortSignal): Promise<ModelInfo[]> {
 		let raws: Rec[];
+		let fallback = false;
 		try {
 			const root = this.base().replace(/\/v1$/, '');
 			const res = await request(this.id, joinUrl(root, '/api/v0/models'), { headers: await this.headers() }, signal, 0);
@@ -369,8 +370,9 @@ class LmStudioProvider extends OpenAICompatibleProvider {
 		} catch (e) {
 			if (e instanceof ProviderError && e.kind === 'network') { throw e; }
 			raws = await this.fetchModelList(signal);
+			fallback = true;
 		}
-		return raws.map(parseLmStudio).filter((m): m is ModelInfo => !!m);
+		return raws.map(r => parseLmStudio(r, fallback)).filter((m): m is ModelInfo => !!m);
 	}
 }
 

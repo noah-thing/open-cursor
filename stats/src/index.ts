@@ -26,7 +26,7 @@ async function sha256(s: string): Promise<string> {
 }
 
 const MAX_BODY = 64 * 1024;
-const NEW_INSTALLS_PER_IP_PER_DAY = 20;
+const NEW_INSTALLS_PER_IP_PER_DAY = 200;
 const REPORTS_PER_IP_PER_HOUR = 10;
 
 /** The JSON object in the body, reading at most 64 KB. A Response when it is too big, not JSON, or not an object. */
@@ -58,14 +58,21 @@ async function readObject(req: Request): Promise<Record<string, unknown> | Respo
 
 /** Counts one use for this network in the given period and says whether it is over the limit. Only a salted hash of the IP is kept, and the salt changes every day. */
 async function overIpLimit(req: Request, env: Env, kind: string, period: string, limit: number): Promise<boolean> {
-	const ip = req.headers.get('cf-connecting-ip') ?? 'unknown';
-	const hash = await sha256(`${env.STATS_KEY ?? ''}|${day()}|${ip}`);
-	const row = await env.DB.prepare(
-		'INSERT INTO ip_limits (kind, period, hash, n) VALUES (?1, ?2, ?3, 1) ON CONFLICT (kind, period, hash) DO UPDATE SET n = n + 1 RETURNING n',
-	).bind(kind, period, hash).first<{ n: number }>();
-	// old windows go with the next write; strings of this shape sort by time
-	await env.DB.prepare('DELETE FROM ip_limits WHERE period < ?1').bind(day(2)).run();
-	return Number(row?.n ?? 0) > limit;
+	const ip = req.headers.get('cf-connecting-ip');
+	// no address means no fair bucket; the per install limits still apply
+	if (!ip) { return false; }
+	try {
+		const hash = await sha256(`${env.STATS_KEY ?? ''}|${day()}|${ip}`);
+		const row = await env.DB.prepare(
+			'INSERT INTO ip_limits (kind, period, hash, n) VALUES (?1, ?2, ?3, 1) ON CONFLICT (kind, period, hash) DO UPDATE SET n = n + 1 RETURNING n',
+		).bind(kind, period, hash).first<{ n: number }>();
+		// old windows go with the next write; strings of this shape sort by time
+		await env.DB.prepare('DELETE FROM ip_limits WHERE period < ?1').bind(day(2)).run();
+		return Number(row?.n ?? 0) > limit;
+	} catch {
+		// fail open, e.g. before the ip_limits migration is applied
+		return false;
+	}
 }
 
 const str = (v: unknown): v is string => typeof v === 'string';

@@ -152,6 +152,8 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 								onClick={() => {
 									if (built.current) { return; }
 									built.current = true;
+									// if the host drops the send the button must not stay dead
+									setTimeout(() => { built.current = false; }, 3000);
 									post({ type: 'setMode', chatId: chat.id, mode: 'agent' });
 									post({ type: 'send', chatId: chat.id, text: 'Implement the plan above.', context: [], mode: 'agent', modelId: chat.modelId });
 								}}

@@ -43,6 +43,9 @@ t('overlap: next line repeated', () => {
 });
 t('overlap: leaves unrelated alone, empties fully redundant', () => {
 	assert.equal(trimOverlap('hello', 'world'), 'hello');
+	// inner closer of a method inside a class is kept, the class closer stays in the suffix
+	assert.equal(trimOverlap('  foo() {\n    return 1;\n  }', '\n}\n'), '  foo() {\n    return 1;\n  }');
+	assert.equal(trimOverlap('x = 1;\n  }', '\n}\n'), 'x = 1;');
 	assert.equal(trimOverlap(')', ')'), '');
 	assert.equal(trimOverlap('</li>`).join(\'\');', '</li>`).join(\'\');\n}'), '');
 	assert.equal(trimOverlap('abc', ''), 'abc');

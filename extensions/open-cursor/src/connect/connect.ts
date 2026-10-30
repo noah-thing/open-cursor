@@ -77,6 +77,8 @@ export function candidates(address: string): string[] {
 async function checkKey(id: ProviderId, key: string): Promise<'ok' | 'refused' | 'unreachable' | 'unsure'> {
 	const req = keyCheckRequest(id, key);
 	if (!req) { return 'unsure'; }
+	// a proxy or gateway has its own key rules, and the official endpoint cannot judge them
+	if (id === 'openai' && cfg<unknown>('providers.openai.baseUrl', '')) { return 'unsure'; }
 	let res: Response;
 	try {
 		res = await fetch(req.url, { headers: req.headers, signal: AbortSignal.timeout(15_000) });

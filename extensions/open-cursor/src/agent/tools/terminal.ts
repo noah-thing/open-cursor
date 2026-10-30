@@ -131,7 +131,7 @@ export class TerminalRunner implements vscode.Disposable {
 		if (outcome.kind !== 'done') {
 			terminal.sendText('\u0003', false);
 			// give the shell a moment to report the interrupted command
-			const ended = await Promise.race([finished.then(() => true), new Promise<boolean>(r => setTimeout(() => r(false), 1500))]);
+			const ended = await Promise.race([finished.then(() => true), new Promise<boolean>(r => setTimeout(() => r(false), 5000))]);
 			if (!ended && this.terminal === terminal) {
 				// the program ignored Ctrl-C; the next command would be typed into it, so start a fresh shell
 				this.terminal = undefined;

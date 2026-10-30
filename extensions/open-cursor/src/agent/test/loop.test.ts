@@ -158,6 +158,8 @@ test('retry rules: a stopped local server and a spent quota fail at once', () =>
 	assert.ok(!isRetryable(new ProviderError('Cannot reach localhost:11434: ECONNREFUSED', 'ollama', undefined, 'network')));
 	assert.ok(isRetryable(new ProviderError('Cannot reach api.x.com: ETIMEDOUT', 'custom', undefined, 'network')));
 	assert.ok(!isRetryable(new ProviderError('429: You exceeded your quota (insufficient_quota)', 'openai', 429, 'rate')));
+	assert.ok(isRetryable(new ProviderError('429: Quota exceeded for metric generate_content_requests per minute', 'google', 429, 'rate')));
+	assert.ok(!isRetryable(new ProviderError('429: Quota exceeded: GenerateRequestsPerDay', 'google', 429, 'rate')));
 	assert.ok(isRetryable(new ProviderError('429: slow down', 'openai', 429, 'rate')));
 	assert.ok(describeError(new ProviderError('Cannot reach localhost:11434: ECONNREFUSED', 'ollama', undefined, 'network'), 'ollama').message.includes('Is Ollama running?'));
 });

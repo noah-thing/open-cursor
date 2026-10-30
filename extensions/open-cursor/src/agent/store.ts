@@ -203,6 +203,7 @@ export class ChatStore {
 			sc.titleSource ??= 'auto';
 			const again = this.cache.get(id);
 			if (again) { return again; }
+			this.unreadable.delete(id);
 			this.cache.set(id, sc);
 			this.evict();
 			return sc;

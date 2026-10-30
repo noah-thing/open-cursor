@@ -21,7 +21,7 @@ const AUTH_RE = /api key not valid|invalid api[ _-]?key|incorrect api key|invali
 const AUTH_403_RE = /invalid|unauthori[sz]ed|authentication|api[ _-]?key|bad credentials|expired|revoked/i;
 
 /** A 429 that waiting will not fix: the quota is spent, not just busy. */
-export const QUOTA_RE = /insufficient_quota|daily (request |token )?limit|quota exceeded|exceeded your (current )?quota|requests per day|per[ -]day/i;
+export const QUOTA_RE = /insufficient_quota|daily (request |token )?limit|requests per day|per[ -]?day|billing (hard )?limit/i;
 
 export function errorKind(status: number, message: string): ProviderError['kind'] {
 	if (status === 401 || (status === 403 && AUTH_403_RE.test(message)) || AUTH_RE.test(message)) { return 'auth'; }
@@ -183,10 +183,15 @@ export function parseArgs(json: string): unknown {
 	try { return JSON.parse(json); } catch { return json; }
 }
 
+function isLocalHost(h: string): boolean {
+	h = h.toLowerCase();
+	return h === 'localhost' || h === '[::1]' || /^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\.|\.local$|\.lan$/.test(h) || !h.includes('.');
+}
+
 /**
  * A base address as people type it: `localhost:1234/v1`, `http://host:8000/`. Adds the scheme when it is
  * missing (http for this machine and private networks, https otherwise), drops trailing slashes, adds `/v1`
- * to an address with no path when `v1` is set, and removes a trailing `/v1` when `stripV1` is set.
+ * to a local address with no path when `v1` is set, and removes a trailing `/v1` when `stripV1` is set.
  */
 export function normalizeBase(raw: string, opts: { v1?: boolean; stripV1?: boolean } = {}): string {
 	let v = raw.trim().replace(/\/+$/, '');
@@ -199,8 +204,9 @@ export function normalizeBase(raw: string, opts: { v1?: boolean; stripV1?: boole
 	let u: URL;
 	try { u = new URL(v); } catch { return v; }
 	let path = u.pathname.replace(/\/+$/, '');
-	if (opts.stripV1) { path = path.replace(/\/v1$/, ''); } else if (opts.v1 && !path) { path = '/v1'; }
-	return u.origin + path;
+	if (opts.stripV1) { path = path.replace(/\/v1$/, ''); } else if (opts.v1 && !path && isLocalHost(u.hostname)) { path = '/v1'; }
+	const auth = u.username ? u.username + (u.password ? ':' + u.password : '') + '@' : '';
+	return u.protocol + '//' + auth + u.host + path + u.search;
 }
 
 export function joinUrl(base: string, path: string): string {

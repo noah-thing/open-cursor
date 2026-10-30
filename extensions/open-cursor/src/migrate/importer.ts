@@ -145,17 +145,24 @@ async function runImport(ctx: vscode.ExtensionContext, src: Source): Promise<voi
 		const failed: string[] = [];
 		let done = 0;
 		// Offline, every install fails the same way; say so instead of blaming the extensions.
-		const offline = ids.length > 0 && !(await openVsxReachable());
-		for (const id of offline ? [] : ids) {
+		// The check ignores http.proxy, so a failed check is only a hint: the first install decides.
+		let offline = false;
+		let checkFailed = ids.length > 0 && !(await openVsxReachable());
+		for (const id of ids) {
 			if (token.isCancellationRequested) {
 				break;
 			}
 			progress.report({ message: `Extensions ${done + 1}/${ids.length}: ${id}`, increment: 100 / Math.max(ids.length, 1) });
 			try {
 				await vscode.commands.executeCommand('workbench.extensions.installExtension', id);
-			} catch {
+			} catch (e) {
+				if (checkFailed && done === 0 && /fetch|network|ENOTFOUND|ECONN|ETIMEDOUT|EAI_AGAIN|offline|reach/i.test(String((e as Error)?.message ?? e))) {
+					offline = true;
+					break;
+				}
 				failed.push(id);
 			}
+			checkFailed = false;
 			done++;
 		}
 

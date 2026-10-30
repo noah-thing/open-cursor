@@ -21,9 +21,9 @@ export function keyCheckRequest(id: ProviderId, key: string): { url: string; hea
 	}
 }
 
-/** Only a clear "wrong key" answer counts as refused; anything odd (busy, down) is not the key's fault. */
+/** Only a clear "wrong key" answer counts as refused; anything odd (busy, down, a 403 from a restricted key or a network block) is not the key's fault. */
 export function judgeKeyStatus(id: ProviderId, status: number): 'ok' | 'refused' | 'unsure' {
 	if (status >= 200 && status < 300) { return 'ok'; }
-	if (status === 401 || status === 403 || (id === 'google' && status === 400)) { return 'refused'; }
+	if (status === 401 || (id === 'google' && status === 400)) { return 'refused'; }
 	return 'unsure';
 }

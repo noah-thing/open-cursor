@@ -151,16 +151,9 @@ export class GeminiParser {
 	}
 }
 
-const SESSION_INDEX_TTL_MS = 60 * 60_000;
-/** session id -> the CLI's index for it. Listing sessions costs 2 to 10 s, so it runs once per chat, not once per turn. */
-const sessionIndexes = new Map<string, { index: string; at: number }>();
 
 /** Finds the CLI's own session index for a session UUID (resume needs an index or "latest"). */
 async function findSessionIndex(o: RunOptions, id: string): Promise<string | undefined> {
-	const known = sessionIndexes.get(id);
-	if (known && Date.now() - known.at < SESSION_INDEX_TTL_MS) {
-		return known.index;
-	}
 	const r = await runQuick(o.binary, ['--list-sessions', '--skip-trust'], { cwd: o.cwd, env: o.env, timeoutMs: 10_000 });
 	if (!r) {
 		return undefined;
@@ -168,7 +161,6 @@ async function findSessionIndex(o: RunOptions, id: string): Promise<string | und
 	for (const line of (r.stdout + '\n' + r.stderr).split('\n')) {
 		const m = /^\s*(\d+)\..*\[([0-9a-f-]{36})\]\s*$/.exec(line);
 		if (m && m[2] === id) {
-			sessionIndexes.set(id, { index: m[1], at: Date.now() });
 			return m[1];
 		}
 	}
@@ -189,7 +181,6 @@ export async function runGemini(o: RunOptions): Promise<RunResult> {
 			args.push('--resume', idx);
 		} else {
 			sessionId = undefined; // the CLI no longer has it; start over
-			sessionIndexes.delete(o.sessionId!);
 		}
 	}
 	if (!sessionId) {

@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { assert, done, test } from '../../agent/test/harness';
 import { claudeSettingsAuth } from '../detect';
-import { FsTracker, matchEol } from '../fileTracker';
+import { FsTracker, matchEol, setMaxFilesForTest } from '../fileTracker';
 import { cmdQuote, friendlyError, isStaleSessionError, shimTarget } from '../util';
 import { cliHint, installCommand } from '../../shared/cliHints';
 import { openCodeMajor } from '../opencodeSetup';
@@ -80,6 +80,35 @@ test('folder tracker: lists edits, new and deleted files in a folder without git
 	} finally {
 		fs.rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+test('FsTracker: a truncated walk never reports unreached files as new or deleted', async () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-fst-cap-'));
+	try {
+		for (const n of ['a', 'b', 'c', 'd']) { fs.writeFileSync(path.join(dir, n + '.txt'), n + '\n'); }
+		setMaxFilesForTest(2);
+		const t = FsTracker.create(dir)!;
+		for (const n of ['a', 'b', 'c', 'd']) { fs.writeFileSync(path.join(dir, n + '.txt'), n + ' edited\n'); }
+		const files = await t.scan();
+		for (const f of files) { assert.ok(f.original !== undefined, 'no file may look new'); }
+		assert.ok(files.length <= 2, 'only baselined files are reported');
+		for (const n of ['a', 'b']) { fs.rmSync(path.join(dir, n + '.txt')); }
+		fs.writeFileSync(path.join(dir, 'e.txt'), 'e\n');
+		fs.writeFileSync(path.join(dir, 'f.txt'), 'f\n');
+		for (const f of await t.scan()) { assert.ok(f.current !== undefined, 'no deletion from a truncated scan'); }
+	} finally {
+		setMaxFilesForTest(4000);
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('friendlyError: raw API errors from the CLIs', () => {
+	assert.ok(/not signed in/.test(friendlyError('claude-code', 'API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"x"}}')));
+	assert.ok(/rate limit/.test(friendlyError('claude-code', 'API Error: 429 {"type":"error","error":{"type":"rate_limit_error"}}')));
+	assert.ok(/rate limit/.test(friendlyError('claude-code', '{"error":{"type":"overloaded_error"}}')));
+	assert.ok(/not signed in/.test(friendlyError('grok', 'Please run grok login')));
+	assert.ok(/not signed in/.test(friendlyError('gemini-cli', 'Failed to login. Message: x')));
+	assert.ok(!/not signed in/.test(friendlyError('codex', 'build-4012 and id 401a')));
 });
 
 test('claude sign in from settings, OpenCode version, OpenCode install hint', () => {

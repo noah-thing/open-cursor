@@ -12,7 +12,7 @@ test('shell kind from path', () => {
 });
 
 test('cd line per shell', () => {
-	assert.equal(cdLine('powershell', "D:\\it's $x", 'npm test'), "Set-Location -LiteralPath 'D:\\it''s $x'; npm test");
+	assert.equal(cdLine('powershell', "D:\\it's $x", 'npm test'), "Set-Location -LiteralPath 'D:\\it''s $x' -ErrorAction Stop; npm test");
 	assert.equal(cdLine('cmd', 'D:\\proj', 'dir'), 'cd /d "D:\\proj" && dir');
 	assert.equal(cdLine('posix', "/a/it's", 'ls'), "cd '/a/it'\\''s' && ls");
 });
