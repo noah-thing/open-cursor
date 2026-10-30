@@ -193,7 +193,7 @@ const EFFORTS: readonly { readonly id: Effort; readonly label: string; readonly 
 ];
 
 /** CLIs that take a level from us; the others choose their own. */
-const EFFORT_AGENTS = new Set(['claude-code', 'codex']);
+const EFFORT_AGENTS = new Set(['claude-code', 'codex', 'opencode']);
 
 /** Shown only for a model that can think, or a CLI that takes a level. One setting for every chat. */
 export function EffortMenu({ effort, model }: { readonly effort: Effort; readonly model: ModelOption | undefined }): ReactElement | null {

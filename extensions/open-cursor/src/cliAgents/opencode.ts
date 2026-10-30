@@ -20,6 +20,7 @@ import { cliPromptPrefix } from './modeArgs';
 import { openCodeMajor } from './opencodeSetup';
 import { commandAllowed } from './policy';
 import { CAREFUL } from '../agent/approval';
+import { openCodeVariant } from '../agent/effort';
 import { TurnTracker } from './tracking';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
 import { arr, displayPath, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, silentFailure, spawnCli, str, truncate, watchOutput } from './util';
@@ -249,15 +250,25 @@ export function openCodePermission(o: Pick<RunOptions, 'mode' | 'autoRun' | 'com
 	return { '*': 'allow', bash, question: 'deny', external_directory: 'deny', doom_loop: 'deny' };
 }
 
+/** Models that refused a thinking level this session: they run without one from then on. */
+const NO_VARIANT = new Set<string>();
+
+/** The thinking level OpenCode gets for this run, as a model variant; OpenCode 2 only, and only on a named model. */
+export function openCodeVariantFor(o: Pick<RunOptions, 'model' | 'version' | 'effort'>): string | undefined {
+	if (openCodeMajor(o.version) < 2 || !o.model || o.model === 'default' || NO_VARIANT.has(o.model)) { return undefined; }
+	return openCodeVariant(o.effort);
+}
+
 /** Flags for the run. `--standalone` and `--auto` exist from OpenCode 2 on. */
-export function openCodeArgs(o: Pick<RunOptions, 'mode' | 'autoRun' | 'model' | 'sessionId' | 'version' | 'extraArgs'>): string[] {
+export function openCodeArgs(o: Pick<RunOptions, 'mode' | 'autoRun' | 'model' | 'sessionId' | 'version' | 'extraArgs' | 'effort'>): string[] {
 	const v2 = openCodeMajor(o.version) >= 2;
 	const args = ['run', '--format', 'json', '--thinking'];
 	if (v2) {
 		args.push('--standalone');
 	}
 	if (o.model && o.model !== 'default') {
-		args.push('-m', o.model);
+		const variant = openCodeVariantFor(o);
+		args.push('-m', variant ? `${o.model}#${variant}` : o.model);
 	}
 	if (o.sessionId) {
 		args.push('--session', o.sessionId);
@@ -348,6 +359,12 @@ export async function runOpenCode(o: RunOptions, repaired = false): Promise<RunR
 		return { stopReason: 'error', error: `Could not start OpenCode: ${exit.spawnError}` };
 	}
 	parser.finish();
+	// a model without that thinking level fails before doing anything: run once more at its default level
+	const failedEarly = parser.failure ?? (exit.code !== 0 ? proc.stderr() : '');
+	if (o.model && failedEarly && !watch.produced() && openCodeVariantFor(o) && /variant|resolve|unknown model|model not found/i.test(failedEarly)) {
+		NO_VARIANT.add(o.model);
+		return runOpenCode(o, repaired);
+	}
 	// A damaged database stops OpenCode on every run. Set it aside once and run again on a fresh one.
 	const failed = parser.failure ?? (exit.code !== 0 ? proc.stderr() : '');
 	if (!repaired && failed && BROKEN_DB.test(failed)) {

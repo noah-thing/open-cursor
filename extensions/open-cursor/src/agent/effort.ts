@@ -37,5 +37,11 @@ export function codexEffortArgs(e: Effort | undefined): string[] {
 	return ['-c', `model_reasoning_effort="${level}"`];
 }
 
+/** OpenCode 2's model variant (`provider/model#variant`). Auto keeps the model's default; Off is its lowest, Low. */
+export function openCodeVariant(e: Effort | undefined): string | undefined {
+	if (!e || e === 'auto') { return undefined; }
+	return e === 'off' ? 'low' : e;
+}
+
 /** CLIs that take an effort level from us. */
-export const EFFORT_CLIS: readonly string[] = ['claude-code', 'codex'];
+export const EFFORT_CLIS: readonly string[] = ['claude-code', 'codex', 'opencode'];

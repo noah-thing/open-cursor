@@ -181,3 +181,18 @@ test('opencode: --auto only for agent/debug with auto-run always, only on OpenCo
 	assert.ok(!openCodeArgs({ mode: 'agent', autoRun: 'ask', model: 'default', extraArgs: [] }).includes('-m'));
 });
 
+
+{
+	// thinking effort reaches OpenCode 2 as a model variant; Auto and older versions leave the model alone
+	const m = (effort?: import('../../shared/protocol').Effort, version = '2.0.25', model = 'opencode/big-pickle'): string | undefined => {
+		const a = openCodeArgs({ mode: 'agent', autoRun: 'ask', model, version, effort, extraArgs: [] });
+		return a[a.indexOf('-m') + 1];
+	};
+	assert.strictEqual(m('high'), 'opencode/big-pickle#high');
+	assert.strictEqual(m('off'), 'opencode/big-pickle#low');
+	assert.strictEqual(m('max'), 'opencode/big-pickle#max');
+	assert.strictEqual(m('auto'), 'opencode/big-pickle');
+	assert.strictEqual(m(undefined), 'opencode/big-pickle');
+	assert.strictEqual(m('high', '1.4.0'), 'opencode/big-pickle');
+	assert.ok(!openCodeArgs({ mode: 'agent', autoRun: 'ask', model: 'default', effort: 'high', extraArgs: [] }).some(x => x.includes('#')));
+}
