@@ -1,0 +1,54 @@
+name: launch-diag
+# Which way of starting a background script from node survives the launcher, runs, and stays invisible.
+on:
+  workflow_dispatch:
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Try each launch
+        shell: pwsh
+        run: |
+          Add-Type @"
+          using System; using System.Text; using System.Runtime.InteropServices;
+          public static class Win {
+            public delegate bool Cb(IntPtr h, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool EnumWindows(Cb cb, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+            public static int Consoles() { int n = 0; EnumWindows((h, l) => { if (IsWindowVisible(h)) { var s = new StringBuilder(256); GetClassName(h, s, 256); if (s.ToString() == "ConsoleWindowClass" || s.ToString() == "PseudoConsoleWindow") n++; } return true; }, IntPtr.Zero); return n; }
+          }
+          "@
+          New-Item -ItemType Directory -Force C:\d | Out-Null
+          # the script under test: waits 6 s with built in commands, runs one console program, then writes a marker
+          $ps = "Add-Content -LiteralPath 'C:\d\MARK.txt' -Value 'started'`r`nStart-Sleep -Seconds 6`r`nStart-Process -FilePath 'robocopy.exe' -ArgumentList '/?' -WindowStyle Hidden -Wait`r`nAdd-Content -LiteralPath 'C:\d\MARK.txt' -Value 'finished'`r`n"
+          $vbs = 'CreateObject("WScript.Shell").Run "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""C:\d\s-D.ps1""", 0, False'
+          Set-Content C:\d\run.vbs $vbs
+          $js = @'
+          const cp = require('child_process'); const m = process.argv[2]; const f = 'C:\\d\\s-' + m + '.ps1';
+          const ps = ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass'];
+          let c;
+          if (m === 'A') c = cp.spawn('powershell.exe', [...ps, '-File', f], { detached: true, stdio: 'ignore', windowsHide: true });
+          if (m === 'B') c = cp.spawn('powershell.exe', [...ps, '-File', f], { detached: false, stdio: 'ignore', windowsHide: true });
+          if (m === 'C') c = cp.spawn('powershell.exe', [...ps, '-Command', "$p = Start-Process -FilePath powershell.exe -WindowStyle Hidden -PassThru -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File','" + f + "'; $p.Id"], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+          if (m === 'D') c = cp.spawn('wscript.exe', ['C:\\d\\run.vbs'], { detached: true, stdio: 'ignore', windowsHide: true });
+          if (c.stdout) { c.stdout.on('data', d => console.log('out ' + String(d).trim())); c.stderr.on('data', d => console.log('err ' + String(d).trim())); }
+          c.on('error', e => console.log('spawn error ' + e.message));
+          c.on('exit', code => console.log('child exited ' + code));
+          setTimeout(() => process.exit(0), 2500);
+          '@
+          Set-Content C:\d\launch.cjs $js
+          foreach ($m in 'A', 'B', 'C', 'D') {
+            Remove-Item C:\d\MARK.txt -ErrorAction SilentlyContinue
+            [IO.File]::WriteAllText("C:\d\s-$m.ps1", $ps.Replace('MARK', "mark-$m"), (New-Object Text.UTF8Encoding $true))
+            $base = [Win]::Consoles(); $max = 0
+            $o = node C:\d\launch.cjs $m
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            while ($sw.Elapsed.TotalSeconds -lt 25) { $c = [Win]::Consoles() - $base; if ($c -gt $max) { $max = $c }; if (Select-String -Path "C:\d\mark-$m.txt" -Pattern finished -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep -Milliseconds 200 }
+            $mark = (Get-Content "C:\d\mark-$m.txt" -ErrorAction SilentlyContinue) -join ','
+            "RESULT $m | node said: $($o -join ' / ') | marker: [$mark] | visible consoles: $max"
+          }
