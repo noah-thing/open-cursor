@@ -259,6 +259,21 @@ export function openCodeVariantFor(o: Pick<RunOptions, 'model' | 'version' | 'ef
 	return openCodeVariant(o.effort);
 }
 
+/**
+ * OpenCode cannot stop to ask for approval, so a blocked command just fails, and models often try one
+ * variation after another, each a full request against the user's limit. Saying up front which commands
+ * run keeps it from guessing.
+ */
+export function openCodeCommandNote(o: Pick<RunOptions, 'mode' | 'autoRun' | 'commandAllowlist'>): string {
+	if (MODE_READONLY(o.mode) || o.autoRun === 'always') { return ''; }
+	if (o.autoRun === 'auto') {
+		return 'Shell commands that delete files, install or publish packages, go online or reach outside the project are blocked and cannot be approved during the run, so do not retry them or try variations. If you need one, finish what you can and tell the user which command to run or to switch to Full access.\n\n';
+	}
+	const list = o.autoRun === 'ask' ? [] : o.commandAllowlist.slice(0, 60);
+	const allowed = list.length ? `Only these shell commands run in this session: ${list.join(', ')}.` : 'Shell commands are blocked in this session.';
+	return `${allowed} Other commands are blocked and cannot be approved during the run, so do not retry them or try variations. If you need one, finish what you can and tell the user which command to run or to switch to Full access.\n\n`;
+}
+
 /** Flags for the run. `--standalone` and `--auto` exist from OpenCode 2 on. */
 export function openCodeArgs(o: Pick<RunOptions, 'mode' | 'autoRun' | 'model' | 'sessionId' | 'version' | 'extraArgs' | 'effort'>): string[] {
 	const v2 = openCodeMajor(o.version) >= 2;
@@ -310,7 +325,7 @@ const OPENCODE_IDLE_MS = 30 * 60_000;
 export async function runOpenCode(o: RunOptions, repaired = false): Promise<RunResult> {
 	const args = openCodeArgs(o);
 	let tmpDir: string | undefined;
-	let prompt = cliPromptPrefix(o.mode) + o.prompt;
+	let prompt = cliPromptPrefix(o.mode) + openCodeCommandNote(o) + o.prompt;
 	if (o.images?.length) {
 		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-opencode-'));
 		for (const [i, img] of o.images.entries()) {

@@ -3,7 +3,7 @@ import { cliModeGuidance } from '../../agent/prompts';
 import { DEBUG_MARKER } from '../../agent/modes';
 import { claudeModeArgs, cliPromptPrefix, codexModeArgs, geminiModeArgs, CLAUDE_EDIT_TOOLS } from '../modeArgs';
 import { grokPermissionArgs } from '../grok';
-import { openCodeArgs, openCodeEnv, openCodePermission } from '../opencode';
+import { openCodeArgs, openCodeCommandNote, openCodeEnv, openCodePermission } from '../opencode';
 import type { AutoRun } from '../types';
 import { effectiveAutoRun } from '../policy';
 import { DEFAULT_ALLOWLIST } from '../../agent/approval';
@@ -195,4 +195,14 @@ test('opencode: --auto only for agent/debug with auto-run always, only on OpenCo
 	assert.strictEqual(m(undefined), 'opencode/big-pickle');
 	assert.strictEqual(m('high', '1.4.0'), 'opencode/big-pickle');
 	assert.ok(!openCodeArgs({ mode: 'agent', autoRun: 'ask', model: 'default', effort: 'high', extraArgs: [] }).some(x => x.includes('#')));
+}
+
+{
+	// OpenCode is told up front which commands run, so it does not burn requests retrying blocked ones
+	const note = (mode: ChatMode, autoRun: AutoRun): string => openCodeCommandNote({ mode, autoRun, commandAllowlist: ['ls', 'npm test'] });
+	assert.ok(note('agent', 'allowlist').includes('ls, npm test'));
+	assert.ok(note('agent', 'ask').includes('Shell commands are blocked'));
+	assert.ok(note('agent', 'auto').includes('delete files') && !note('agent', 'auto').includes('Only these'));
+	assert.strictEqual(note('agent', 'always'), '');
+	assert.strictEqual(note('ask', 'allowlist'), '');
 }
