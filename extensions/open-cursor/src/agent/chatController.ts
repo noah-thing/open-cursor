@@ -361,6 +361,9 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			this.viewPromise = new Promise<void>(res => { this.viewResolved = res; });
 			await vscode.commands.executeCommand('workbench.view.extension.openCursor');
 			await Promise.race([this.viewPromise, new Promise(r => setTimeout(r, 3000))]);
+		} else {
+			// a closed side bar keeps the view alive; showing the view alone does not always open the bar again
+			await vscode.commands.executeCommand('workbench.view.extension.openCursor').then(undefined, () => undefined);
 		}
 		this.view?.show?.(false);
 		this.setChatFocused(true);
