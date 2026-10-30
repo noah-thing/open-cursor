@@ -12,6 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         mode: [old, new]
+        folder: ["plain", "o \u00e5"]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,11 +25,18 @@ jobs:
       - name: Write a waiting script in a folder with a space and a non English letter
         shell: pwsh
         run: |
-          $dir = "C:\t\o $([char]0x00E5)"
+          $dir = if ("${{ matrix.folder }}" -eq "plain") { "C:\t\plain" } else { "C:\t\o $([char]0x00E5)" }
           New-Item -ItemType Directory -Force $dir | Out-Null
           $body = "@echo off`r`nchcp 65001 >nul`r`nfor /l %%i in (1,1,8) do (`r`n  tasklist /FI ""IMAGENAME eq nothing.exe"" 2>nul | find /I ""nothing.exe"" >nul`r`n  ping -n 2 127.0.0.1 >nul`r`n  echo %%i>>C:\t\loop.txt`r`n)`r`necho done>C:\t\done.txt`r`nexit /b 3`r`n"
           [IO.File]::WriteAllText("$dir\install.cmd", $body, (New-Object Text.UTF8Encoding $false))
           "SCRIPT=$dir\install.cmd" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: Run it once directly, to see its output
+        shell: pwsh
+        run: |
+          cmd.exe /d /c $env:SCRIPT
+          "exit $LASTEXITCODE"
+          Get-Content C:\t\loop.txt, C:\t\done.txt -ErrorAction SilentlyContinue
+          Remove-Item C:\t\loop.txt, C:\t\done.txt -ErrorAction SilentlyContinue
       - name: Start it like the updater and count visible console windows
         shell: pwsh
         run: |
