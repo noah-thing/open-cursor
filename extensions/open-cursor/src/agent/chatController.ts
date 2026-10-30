@@ -31,7 +31,7 @@ import { HelpNavigator } from '../help/navigator';
 import { issueUrl, modelKind } from '../help/issue';
 import { buildHelpSystemPrompt } from '../help/prompt';
 import { instantAnswer } from '../help/answers';
-import { actionLabel, firstInPlaceLink, parseHelpLink } from '../help/targets';
+import { actionLabel, firstInPlaceLink, formatHelpLink, parseHelpLink } from '../help/targets';
 import { suggestAllowPrefix } from './approval';
 import { applyCodeToFile } from './applyCode';
 import {
@@ -1528,7 +1528,10 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const sc = turn.sc;
 		if (sc.scratchDir && fs.existsSync(sc.scratchDir)) { return sc.scratchDir; }
 		const base = nodePath.join(os.homedir(), 'OpenCursor');
-		const name = sc.chat.title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 48).replace(/[. ]+$/, '') || 'Chat';
+		// letters, digits and single spaces only, cut at a word: a title like "--MANDATORY!-- do x" stays readable
+		const words = sc.chat.title.normalize('NFC').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+		const cut = words.length > 40 ? words.slice(0, 40).replace(/\s+\S*$/, '') || words.slice(0, 40) : words;
+		const name = cut.trim() || 'Chat';
 		// names Windows reserves for devices cannot be folders
 		const safe = /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(name) ? 'Chat ' + name : name;
 		let dir = nodePath.join(base, safe);
@@ -1539,7 +1542,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			return os.homedir();
 		}
 		sc.scratchDir = dir;
-		this.appendText(turn, `_No folder is open, so this chat works in \`${dir.replace(os.homedir(), '~')}\`. Open that folder (File > Open Folder) to see the files and review changes._\n\n`);
+		this.appendText(turn, `_No folder is open, so this chat works in its own folder, \`${dir.replace(os.homedir(), '~')}\`. Open it when this reply is done to see the files and review changes._\n\n[Open this folder](${formatHelpLink({ target: 'open-folder', arg: nodePath.basename(dir) })})\n\n`);
 		return dir;
 	}
 

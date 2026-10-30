@@ -4,6 +4,9 @@
  *  setting, a key or a file. Chat side actions go back to the chat through hooks.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as os from 'os';
+import * as nodePath from 'path';
 import * as vscode from 'vscode';
 import type { ToolDef } from '../agent/tools/types';
 import { actionLabel, helpTarget, HELP_TARGETS, stripAutoOpenArg, validateAction, type HelpAction } from './targets';
@@ -53,7 +56,12 @@ export class HelpNavigator {
 			case 'new-chat': await this.hooks.newChat(a.arg); break;
 			case 'past-chats': this.hooks.pastChats(); break;
 			case 'import': await cmd('openCursor.import'); break;
-			case 'open-folder': await cmd('workbench.action.files.openFolder'); break;
+			case 'open-folder': {
+				// with an argument: a chat's own work folder, by name, and only from ~/OpenCursor
+				const dir = a.arg ? chatWorkFolder(a.arg) : undefined;
+				await (dir ? cmd('vscode.openFolder', vscode.Uri.file(dir)) : cmd('workbench.action.files.openFolder'));
+				break;
+			}
 			case 'report-issue': await this.hooks.reportIssue(a.arg); break;
 			case 'report-problem': await cmd('openCursor.reportProblem'); break;
 		}
@@ -97,4 +105,11 @@ export class HelpNavigator {
 			},
 		};
 	}
+}
+
+/** The folder a chat works in when no folder is open (see chatFolder in chatController), or undefined. */
+function chatWorkFolder(name: string): string | undefined {
+	const base = nodePath.join(os.homedir(), 'OpenCursor');
+	const dir = nodePath.join(base, nodePath.basename(name));
+	try { return nodePath.dirname(dir) === base && fs.statSync(dir).isDirectory() ? dir : undefined; } catch { return undefined; }
 }
