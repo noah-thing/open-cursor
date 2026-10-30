@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { assert, done, test } from '../../agent/test/harness';
-import { assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portablePsScript, portableScript, relaunchScript, stagedStamp, swapScript, windowsLauncher, windowsPsScript, windowsScript } from '../plan';
+import { assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseLauncherPid, parseRelease, pickAsset, portablePsScript, portableScript, relaunchScript, stagedStamp, swapScript, windowsLauncher, windowsPsScript, windowsScript } from '../plan';
 
 const NAMES = [
 	'OpenCursor-0.2.0-linux-arm64.deb', 'OpenCursor-0.2.0-linux-arm64.rpm', 'OpenCursor-0.2.0-linux-arm64.tar.gz',
@@ -349,4 +349,10 @@ void done('update');
 	assert.ok(inner.includes("Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -PassThru"), inner);
 	assert.ok(inner.includes(`'"C:\\Users\\Åsa O''Neil\\T\\install.ps1"'`), inner);
 	assert.ok(inner.trimEnd().endsWith('$p.Id'));
+	assert.strictEqual(parseLauncherPid('4242\r\n'), 4242);
+	assert.strictEqual(parseLauncherPid('WARNING: x\r\n 777 \r\n'), 777);
+	assert.strictEqual(parseLauncherPid('311\r\nWARNING: late\r\n'), 311, 'an id followed by noise still counts');
+	assert.strictEqual(parseLauncherPid(''), undefined);
+	assert.strictEqual(parseLauncherPid('no id 12'), undefined);
+	assert.strictEqual(parseLauncherPid('0'), undefined);
 }

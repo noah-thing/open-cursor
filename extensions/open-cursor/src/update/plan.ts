@@ -355,6 +355,15 @@ export function windowsLauncher(ps1: string): { readonly file: string; readonly 
 	return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(inner, 'utf16le').toString('base64')] };
 }
 
+/** The process id the launcher printed: the last line that is only digits (banners, warnings and CRLF around it are ignored). */
+export function parseLauncherPid(out: string): number | undefined {
+	const lines = out.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+	for (let i = lines.length - 1; i >= 0; i--) {
+		if (/^\d{1,10}$/.test(lines[i])) { const n = Number(lines[i]); return n > 0 ? n : undefined; }
+	}
+	return undefined;
+}
+
 /**
  * Windows portable: waits for OpenCursor.exe to exit, then copies the unzipped new version over the
  * old one. Only the app's own `resources` folder is mirrored (old files in it removed); everything else

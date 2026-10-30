@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
-	assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portablePsScript, portableScript, relaunchScript, stagedStamp, swapScript, windowsLauncher, windowsPsScript, windowsScript,
+	assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseLauncherPid, parseRelease, pickAsset, portablePsScript, portableScript, relaunchScript, stagedStamp, swapScript, windowsLauncher, windowsPsScript, windowsScript,
 	type InstallKind, type Release, type ReleaseAsset,
 } from './plan';
 
@@ -57,7 +57,7 @@ interface Ready {
 }
 
 /** What `build` records about the script it started. */
-interface BuildState { keep: boolean; staged?: string; running: boolean; pid?: number }
+interface BuildState { keep: boolean; staged?: string; running: boolean; pid?: number; since?: number }
 
 /** True while a process with this id exists. */
 function pidAlive(pid: number): boolean {
@@ -419,14 +419,16 @@ class Updater implements vscode.Disposable {
 			launcher.stdout?.on('data', d => { out += String(d); });
 			launcher.on('error', fallback);
 			launcher.on('exit', code => {
-				const pid = Number(out.trim().split(/\s+/).pop());
-				if (code === 0 && Number.isInteger(pid) && pid > 0) { done = true; state.pid = pid; } else { fallback(); }
+				// an id means the real script already started: never start the cmd one on top of it, whatever the exit code says
+				const pid = parseLauncherPid(out);
+				if (pid !== undefined && !done) { done = true; state.pid = pid; state.since = Date.now(); } else if (code !== 0 || pid === undefined) { fallback(); }
 			});
 		};
 		let cur: cp.ChildProcess | undefined;
 		const made = (extra: Pick<Ready, 'installed'> & { revive?: () => void }): Ready => ({
 			version: release.version, relaunchFlag, release, ...extra,
-			alive: () => (state.pid !== undefined ? pidAlive(state.pid) : state.running),
+			// Windows reuses process ids: once the script had time to write its first log line, a missing log means it never ran
+			alive: () => (state.pid !== undefined ? pidAlive(state.pid) && (Date.now() - (state.since ?? 0) < 20000 || fs.existsSync(log)) : state.running),
 			discard: () => {
 				fs.rmSync(work, { recursive: true, force: true });
 				if (state.staged) { fs.rmSync(state.staged, { recursive: true, force: true }); }
