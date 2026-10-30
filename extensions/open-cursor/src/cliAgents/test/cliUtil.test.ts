@@ -32,7 +32,15 @@ test('samePath is exact off Windows', () => {
 test('cmd.exe quoting never lets a newline through', () => {
 	const q = cmdQuote('line one\nline "two"\r\nend\\');
 	assert.ok(!/[\r\n]/.test(q));
-	assert.strictEqual(q, '"line one line \\"two\\" end\\\\"');
+	assert.strictEqual(q, '^"line^ one^ line^ \\^"two\\^"^ end\\\\^"');
+});
+
+test('cmd.exe quoting escapes %VAR%, quotes and operators so cmd cannot expand or split them', () => {
+	assert.strictEqual(cmdQuote('%PATH%'), '^"^%PATH^%^"');
+	assert.strictEqual(cmdQuote('a" & calc'), '^"a\\^"^ ^&^ calc^"');
+	// no quote, percent or operator is left bare for cmd to act on
+	const q = cmdQuote('x%A%"|y>z^(w)');
+	assert.ok(!/(^|[^^])[%"|><&()]/.test(q));
 });
 
 test('friendlyError: ids and URLs with 401 or 429 are not auth or rate limit errors', () => {
@@ -91,6 +99,28 @@ test('folder tracker: lists edits, new and deleted files in a folder without git
 		assert.strictEqual(by.get('gone.txt')!.current, undefined);
 		assert.strictEqual((await t.scan()).length, 0, 'nothing new on a second scan');
 	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('FsTracker: a file locked at the start gets its baseline on a later scan', async () => {
+	if (process.platform === 'win32' || (process.getuid && process.getuid() === 0)) { return; }
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-fst-lock-'));
+	const f = path.join(dir, 'locked.txt');
+	try {
+		fs.writeFileSync(f, 'one\n');
+		fs.chmodSync(f, 0o000);
+		const t = FsTracker.create(dir)!;
+		assert.strictEqual((await t.scan()).length, 0, 'still locked: nothing to report');
+		fs.chmodSync(f, 0o644);
+		assert.strictEqual((await t.scan()).length, 0, 'unlocked unchanged: baseline taken, not new');
+		fs.writeFileSync(f, 'one\ntwo\n');
+		const files = await t.scan();
+		assert.strictEqual(files.length, 1);
+		assert.strictEqual(files[0].original, 'one\n');
+		assert.strictEqual(files[0].added, 1);
+	} finally {
+		try { fs.chmodSync(f, 0o644); } catch { /* gone */ }
 		fs.rmSync(dir, { recursive: true, force: true });
 	}
 });

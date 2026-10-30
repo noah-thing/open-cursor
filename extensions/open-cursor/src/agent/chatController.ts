@@ -1370,11 +1370,13 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const assistantText = sc.chat.messages.map(m => m.role === 'assistant' ? m.parts.filter(p => p.type === 'text').map(p => (p as { text: string }).text).join('\n') : '').join('\n').trim();
 		const model = this.services.registry.getDefaultModel('inline') ?? this.services.registry.getDefaultModel('chat');
 		const title = await generateTitle(this.services.registry, model, userText, assistantText, AbortSignal.timeout(15000));
-		if (title && sc.titleSource === 'auto' && sc.chat.title !== title) {
-			sc.chat.title = title;
-			this.touch(sc);
+		// the chat may have left the store cache while the title was generated; reload it so the change is saved
+		const live = title ? await this.store.get(sc.chat.id) : undefined;
+		if (title && live && live.titleSource === 'auto' && live.chat.title !== title) {
+			live.chat.title = title;
+			this.touch(live);
 			this.postChats();
-			this.postChatNow(sc);
+			this.postChatNow(live);
 		}
 	}
 
@@ -1937,6 +1939,6 @@ function effortSupport(m: { provider: string; model: string; supportsThinking: b
 	const levels = m.provider === 'anthropic' || m.provider === 'openai' || m.provider === 'openrouter' || hasThinkingControl(m.provider as never, m.model);
 	if (!levels) { return {}; }
 	// OpenAI style reasoning and gpt-oss cannot think less than low, and OpenRouter's Off leaves the model's default
-	const noOff = m.provider === 'openai' || m.provider === 'openrouter' || (m.provider === 'groq' && /gpt-oss/i.test(m.model));
+	const noOff = m.provider === 'openai' || m.provider === 'openrouter' || (m.provider === 'groq' && /gpt-oss/i.test(m.model)) || (m.provider === 'nvidia' && /^z-ai\/glm-5\.3/i.test(m.model));
 	return noOff ? { effortLevels: true, noOff: true } : { effortLevels: true };
 }

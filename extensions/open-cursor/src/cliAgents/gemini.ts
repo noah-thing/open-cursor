@@ -175,18 +175,9 @@ export async function runGemini(o: RunOptions): Promise<RunResult> {
 		args.push('-m', o.model);
 	}
 	let sessionId = o.sessionId;
-	if (sessionId) {
-		const idx = await findSessionIndex(o, sessionId);
-		if (idx) {
-			args.push('--resume', idx);
-		} else {
-			sessionId = undefined; // the CLI no longer has it; start over
-		}
-	}
-	if (!sessionId) {
-		sessionId = crypto.randomUUID();
-		args.push('--session-id', sessionId);
-	}
+	// The CLI's list is slow (seconds), so it runs while the images and the change tracker get ready. Its
+	// numbers shift whenever any session is added or removed, so an old answer is never reused.
+	const lookup = sessionId ? findSessionIndex(o, sessionId) : undefined;
 	args.push(...o.extraArgs);
 
 	// Images: the CLI reads `@path` references in the prompt.
@@ -210,6 +201,13 @@ export async function runGemini(o: RunOptions): Promise<RunResult> {
 	const watch = watchOutput(o.host);
 	const tracker = await TurnTracker.create(o.cwd, o.env, watch.host);
 	const parser = new GeminiParser(o.cwd, watch.host, tracker);
+	const idx = await lookup;
+	if (idx) {
+		args.push('--resume', idx);
+	} else {
+		sessionId = crypto.randomUUID(); // new chat, or the CLI no longer has the old one: start over
+		args.push('--session-id', sessionId);
+	}
 	let queue: Promise<void> = Promise.resolve();
 	const proc = spawnCli(o.binary, args, {
 		cwd: o.cwd,

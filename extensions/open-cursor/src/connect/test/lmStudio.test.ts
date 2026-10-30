@@ -25,3 +25,10 @@ test('LM Studio app paths exist per system', () => {
 });
 
 void done('lmStudio');
+
+test('Git Bash gets a path it can run', () => {
+	const bash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+	assert.strictEqual(commandWithBinary('codex login', 'C:\\Users\\x\\AppData\\Roaming\\npm\\codex.cmd', bash), "cmd //c 'C:\\Users\\x\\AppData\\Roaming\\npm\\codex.cmd' login");
+	assert.strictEqual(commandWithBinary('gemini', 'D:\\My Tools\\gemini.exe', bash), "'/d/My Tools/gemini.exe'");
+	assert.strictEqual(commandWithBinary('gemini', '/usr/bin/gemini', '/bin/bash'), "'/usr/bin/gemini'");
+});

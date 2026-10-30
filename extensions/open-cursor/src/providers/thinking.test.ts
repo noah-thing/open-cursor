@@ -41,6 +41,20 @@ test('NVIDIA DeepSeek V4.1 Flash: undocumented, so tried with V4 fields and Auto
 	assert.equal(isReasoningName('nvidia', 'deepseek-ai/deepseek-v4.1-flash'), true);
 });
 
+test('NVIDIA GLM 5.3 Flash: undocumented, a level goes as reasoning_effort, Off and Auto send nothing, a 400 drops it', () => {
+	const m = 'z-ai/glm-5.3-flash';
+	assert.ok(thinkingUnverified('nvidia', m) && hasThinkingControl('nvidia', m));
+	assert.deepEqual(thinkingParams('nvidia', m, true, 'auto'), {});
+	assert.deepEqual(thinkingParams('nvidia', m, false, undefined), {});
+	assert.deepEqual(thinkingParams('nvidia', m, true, 'low'), { reasoning_effort: 'low' });
+	assert.deepEqual(thinkingParams('nvidia', m, true, 'max'), { reasoning_effort: 'high' });
+	assert.equal(shouldDropThinking(new ProviderError('bad request', 'nvidia', 400, 'other'), 'nvidia', m), true);
+	assert.equal(thinkingUnverified('zai', 'glm-5.3-flash'), false);
+	thinkingRejected('nvidia', m);
+	assert.ok(!hasThinkingControl('nvidia', m));
+	assert.deepEqual(thinkingParams('nvidia', m, true, 'low'), {});
+});
+
 test('NVIDIA Kimi K2.6 and Nemotron 3 Super use chat_template_kwargs', () => {
 	const k = 'moonshotai/kimi-k2.6';
 	assert.deepEqual(thinkingParams('nvidia', k, false, undefined), { chat_template_kwargs: { thinking: false } });

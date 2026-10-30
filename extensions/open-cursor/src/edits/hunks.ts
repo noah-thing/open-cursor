@@ -133,8 +133,8 @@ export function minimalEdit(oldText: string, newText: string): { start: number; 
 	return { start: p, end: oldText.length - s, text: newText.slice(p, newText.length - s) };
 }
 
-export function withEol(text: string, eol: '\n' | '\r\n'): string {
-	return eol === '\n' ? norm(text) : norm(text).replace(/\n/g, '\r\n');
+export function withEol(text: string, eol: '\n' | '\r\n' | '\r'): string {
+	return eol === '\n' ? norm(text) : norm(text).replace(/\n/g, eol);
 }
 
 /**
@@ -165,13 +165,19 @@ export function minimalRawEdit(oldRaw: string, text: string, defaultEol: '\n' | 
 		start = rs < 0 ? oldRaw.length : rs;
 		end = re < 0 ? oldRaw.length : re;
 	}
-	let eol = defaultEol;
-	const before = start > 0 ? oldRaw.lastIndexOf('\n', start - 1) : -1;
+	// a line break is \r\n, \n or a lone \r
+	const endingAt = (i: number): '\n' | '\r\n' | '\r' => oldRaw[i] === '\r' ? '\r' : oldRaw[i - 1] === '\r' ? '\r\n' : '\n';
+	let eol: '\n' | '\r\n' | '\r' = defaultEol;
+	let before = -1;
+	for (let i = start - 1; i >= 0; i--) {
+		if (oldRaw[i] === '\n' || oldRaw[i] === '\r') { before = i; break; }
+	}
 	if (before >= 0) {
-		eol = oldRaw[before - 1] === '\r' ? '\r\n' : '\n';
+		eol = endingAt(before);
 	} else {
-		const after = oldRaw.indexOf('\n', end);
-		if (after >= 0) { eol = oldRaw[after - 1] === '\r' ? '\r\n' : '\n'; }
+		for (let i = end; i < oldRaw.length; i++) {
+			if (oldRaw[i] === '\n' || oldRaw[i] === '\r') { eol = endingAt(i); break; }
+		}
 	}
 	return { start, end, text: withEol(m.text, eol) };
 }

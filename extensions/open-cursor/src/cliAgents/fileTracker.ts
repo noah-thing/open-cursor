@@ -249,6 +249,7 @@ export function setMaxFilesForTest(n: number): void { MAX_FILES = n; }
 const MAX_FILE_BYTES = 512 * 1024;
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 const MAX_WALK_MS = 3000;
+const MAX_BASELINE_TRIES = 5;
 
 /** True when the file exists but cannot be opened for reading right now (EBUSY, EPERM, EACCES). */
 function isLocked(abs: string): boolean {
@@ -275,6 +276,8 @@ export class FsTracker implements FileScanner {
 	private readonly lastSeen = new Map<string, string | undefined>();
 	private readonly reported = new Set<string>();
 	private readonly unreadable = new Set<string>();
+	/** Files locked when the turn started, with how many baseline reads were tried. Each scan retries them. */
+	private readonly pending = new Map<string, number>();
 	private readonly startedAt = Date.now();
 	private total = 0;
 	private startTruncated = false;
@@ -301,6 +304,8 @@ export class FsTracker implements FileScanner {
 				t.total += st.size;
 				t.baseline.set(abs, text);
 				t.lastSeen.set(abs, text);
+			} else if (text === 'skip' && st.size <= MAX_FILE_BYTES && isLocked(abs)) {
+				t.pending.set(abs, 1);
 			} else {
 				t.unreadable.add(abs);
 			}
@@ -354,7 +359,26 @@ export class FsTracker implements FileScanner {
 		return run;
 	}
 
+	/** Retries the baseline read of files that were locked at the start; the file counts as it is now, never as new. */
+	private retryPending(): void {
+		for (const [abs, tries] of this.pending) {
+			const text = readTextFile(abs, MAX_FILE_BYTES);
+			if (text !== 'skip' && text !== undefined) {
+				this.pending.delete(abs);
+				this.total += text.length;
+				this.baseline.set(abs, text);
+				this.lastSeen.set(abs, text);
+			} else if (text === undefined || tries >= MAX_BASELINE_TRIES || !isLocked(abs)) {
+				this.pending.delete(abs);
+				this.unreadable.add(abs);
+			} else {
+				this.pending.set(abs, tries + 1);
+			}
+		}
+	}
+
 	private doScan(): ChangedFile[] {
+		this.retryPending();
 		const now = this.walk();
 		const out: ChangedFile[] = [];
 		const candidates = new Set<string>();
@@ -389,7 +413,7 @@ export class FsTracker implements FileScanner {
 				continue;
 			}
 			// too big or binary at the start: no content to restore, so it must not look new
-			if (this.unreadable.has(abs)) {
+			if (this.unreadable.has(abs) || this.pending.has(abs)) {
 				continue;
 			}
 			const original = this.baseline.has(abs) ? this.baseline.get(abs) : undefined;

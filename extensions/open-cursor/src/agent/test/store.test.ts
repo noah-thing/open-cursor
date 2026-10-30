@@ -98,4 +98,21 @@ test('live output is capped to its tail and images travel once', () => {
 	assert.ok((t.trim(mk('done')).messages[0] as { context: { content?: string }[] }).context[0].content);
 });
 
+test('a chat evicted from the cache is reloaded and a late change to it is saved', async () => {
+	const dir = tmp();
+	const ids = Array.from({ length: 16 }, (_, i) => 'c' + i);
+	for (const id of ids) { write(dir, id, chatOf(id)); }
+	fs.writeFileSync(nodePath.join(dir, 'index.json'), JSON.stringify({ version: 1, chats: ids.map(id => ({ id, title: 'T ' + id, updatedAt: 2, status: 'idle', mode: 'agent' })), openChatIds: [], activeChatId: undefined }));
+	const store = new ChatStore(dir);
+	await store.init();
+	const first = (await store.get('c0'))!;
+	for (const id of ids.slice(1)) { await store.get(id); }
+	assert.ok(!store.loaded().includes(first), 'c0 was evicted');
+	const live = (await store.get('c0'))!;
+	live.chat.title = 'Late title';
+	store.markDirty('c0');
+	await store.flush();
+	assert.strictEqual(JSON.parse(fs.readFileSync(nodePath.join(dir, 'c0.json'), 'utf8')).chat.title, 'Late title');
+});
+
 void done('store');

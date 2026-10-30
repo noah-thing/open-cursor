@@ -31,5 +31,11 @@ export function commandWithBinary(command: string, binaryPath: string | undefine
 	const name = (shell ?? '').toLowerCase();
 	if (/pwsh|powershell/.test(name)) { return `& '${binaryPath.replace(/['\u2018\u2019\u201a\u201b]/g, '$&$&')}'${rest}`; }
 	if (/cmd(\.exe)?$/.test(name)) { return `"${binaryPath}"${rest}`; }
-	return `'${binaryPath.replace(/'/g, `'\\''`)}'${rest}`;
+	const sh = (v: string) => `'${v.replace(/'/g, `'\\''`)}'`;
+	if (/(^|[\\/])bash(\.exe)?$/.test(name) && /^[a-z]:[\\/]/i.test(binaryPath)) {
+		// Git Bash on Windows: npm shims are .cmd files bash cannot exec, so hand those to cmd; `//c` stops path rewriting
+		if (/\.(cmd|bat)$/i.test(binaryPath)) { return `cmd //c ${sh(binaryPath)}${rest}`; }
+		return `${sh('/' + binaryPath[0].toLowerCase() + binaryPath.slice(2).replace(/\\/g, '/'))}${rest}`;
+	}
+	return `${sh(binaryPath)}${rest}`;
 }

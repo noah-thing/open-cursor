@@ -1,0 +1,14 @@
+import assert from 'assert';
+import { ipBucket } from './ipKey';
+assert.strictEqual(ipBucket('203.0.113.9'), '203.0.113.9');
+assert.strictEqual(ipBucket('::ffff:203.0.113.9'), '203.0.113.9');
+const a = ipBucket('2001:db8:1:2:aaaa:bbbb:cccc:dddd');
+assert.strictEqual(a, '2001:db8:1:2::/64');
+assert.strictEqual(ipBucket('2001:0db8:0001:0002::1'), a);
+assert.strictEqual(ipBucket('2001:DB8:1:2:ffff::'), a);
+assert.notStrictEqual(ipBucket('2001:db8:1:3::1'), a);
+assert.strictEqual(ipBucket('::1'), '0:0:0:0::/64');
+assert.strictEqual(ipBucket('fe80::1%en0'), 'fe80:0:0:0::/64');
+assert.strictEqual(ipBucket('2001:db8::1.2.3.4'), '2001:db8:0:0::/64');
+assert.strictEqual(ipBucket('garbage:::x'), 'garbage:::x');
+console.log('ip ok');

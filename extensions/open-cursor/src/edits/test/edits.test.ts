@@ -131,6 +131,13 @@ t('raw edit: unchanged and pure CRLF', () => {
 	assert.equal(apply(old, minimalRawEdit(old, 'a\nB\n', '\r\n')), 'a\r\nB\r\n');
 });
 
+t('raw edit: a lone CR line keeps its ending', () => {
+	const old = 'a\r\nb\rc\r\nd';
+	assert.equal(apply(old, minimalRawEdit(old, 'a\nb\nC\nd', '\n')), 'a\r\nb\rC\r\nd');
+	assert.equal(apply(old, minimalRawEdit(old, 'a\nb\nX\nc\nd', '\n')), 'a\r\nb\rX\rc\r\nd');
+	assert.equal(minimalRawEdit('a\rb', 'a\nb', '\n'), undefined);
+});
+
 t('encoding: utf8, bom, latin1, utf16', () => {
 	const enc = (s: string) => new Uint8Array(Buffer.from(s, 'utf8'));
 	assert.equal(unsafeEncoding(enc('håll å fäll')), null);

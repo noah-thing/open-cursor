@@ -2,7 +2,7 @@
  *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { memo, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactElement } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type ReactElement } from 'react';
 import type { Chat, ChatMode, ContextItem, HostMessageExt } from '../../../src/shared/protocol';
 import { flushSync } from 'react-dom';
 import { Icon } from '../common/icons';
@@ -330,16 +330,20 @@ export function App(): ReactElement {
 		const send = (focused: boolean): void => post({ type: 'chatFocus', focused });
 		const on = (): void => send(true);
 		const off = (): void => send(false);
+		// a hidden then shown panel may not get a fresh focus event, so say again where things stand
+		const visible = (): void => { if (document.visibilityState === 'visible') { send(document.hasFocus()); } else { off(); } };
 		window.addEventListener('focus', on);
 		window.addEventListener('blur', off);
+		document.addEventListener('visibilitychange', visible);
 		if (document.hasFocus()) { on(); }
-		return () => { window.removeEventListener('focus', on); window.removeEventListener('blur', off); };
+		return () => { window.removeEventListener('focus', on); window.removeEventListener('blur', off); document.removeEventListener('visibilitychange', visible); };
 	}, []);
 
 	const shown = useRef<Chat | undefined>(undefined);
 	const chat = (state.activeId ? state.chats[state.activeId] : undefined) ?? (state.ready ? shown.current : undefined);
 	shown.current = chat;
 	const wide = useWide();
+	const reviewFiles = useMemo(() => state.pendingEdits.filter(f => !f.chatId || f.chatId === chat?.id), [state.pendingEdits, chat?.id]);
 	const isHome = !!chat && chat.messages.length === 0;
 	const { stageRef, dockRef } = useStageMotion(isHome, state.ready && !!chat && state.view !== 'history');
 	// Coming back to the start screen, the connect panel waits until the composer has glided into
@@ -442,7 +446,7 @@ export function App(): ReactElement {
 					<div className="oc-dock" ref={dockRef}>
 						{chat.todos.length > 0 ? <TodoTray todos={chat.todos} /> : null}
 						{chat.queued.length > 0 ? <QueueTray chat={chat} /> : null}
-						{(() => { const mine = state.pendingEdits.filter(f => !f.chatId || f.chatId === chat.id); return mine.length > 0 ? <ReviewBar files={mine} chatId={chat.id} /> : null; })()}
+						{reviewFiles.length > 0 ? <ReviewBar files={reviewFiles} chatId={chat.id} /> : null}
 						<Composer
 							chat={effectiveChat}
 							models={state.models}

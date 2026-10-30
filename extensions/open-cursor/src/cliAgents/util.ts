@@ -101,9 +101,15 @@ export function shimTarget(text: string): { kind: 'js' | 'exe'; rel: string } | 
 	return undefined;
 }
 
-/** cmd.exe ends a command at a newline, so line breaks inside an argument become spaces. */
+/**
+ * Quotes one argument for `cmd /s /c`. Line breaks inside an argument become spaces because cmd ends a command
+ * at a newline. The program gets the usual `\"` quoting, then every cmd metacharacter (including the quotes and
+ * the percent sign) is caret-escaped, so cmd never sees a bare quote or an expandable %VAR% and the quoting
+ * of the argument cannot be broken out of.
+ */
 export function cmdQuote(a: string): string {
-	return '"' + a.replace(/\r?\n/g, ' ').replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1') + '"';
+	const forProgram = '"' + a.replace(/\r?\n/g, ' ').replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1') + '"';
+	return forProgram.replace(/([()\][%!^"`<>&|;, *?])/g, '^$1');
 }
 
 /**

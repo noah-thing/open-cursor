@@ -8,6 +8,8 @@
  *  to whoever holds STATS_KEY.
  *--------------------------------------------------------------------------------------------*/
 
+import { ipBucket } from './ipKey';
+
 interface Env {
 	DB: D1Database;
 	STATS_KEY: string;
@@ -64,7 +66,7 @@ async function overIpLimit(req: Request, env: Env, kind: string, period: string,
 	// no address means no fair bucket; the per install limits still apply
 	if (!ip) { return false; }
 	try {
-		const hash = await sha256(`${env.STATS_KEY ?? ''}|${day()}|${ip}`);
+		const hash = await sha256(`${env.STATS_KEY ?? ''}|${day()}|${ipBucket(ip)}`);
 		const row = await env.DB.prepare(
 			'INSERT INTO ip_limits (kind, period, hash, n) VALUES (?1, ?2, ?3, 1) ON CONFLICT (kind, period, hash) DO UPDATE SET n = n + 1 RETURNING n',
 		).bind(kind, period, hash).first<{ n: number }>();
