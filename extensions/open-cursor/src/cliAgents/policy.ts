@@ -7,13 +7,13 @@ import { needsApproval } from '../agent/approval';
 import type { AutoRun, CliAgentId } from './types';
 
 /** True when `command` starts with one of the allowlist entries and chains nothing else. */
-export function commandAllowed(command: string, allowlist: readonly string[]): boolean {
+export function commandAllowed(command: string, allowlist: readonly string[], roots: readonly string[] = []): boolean {
 	const cmd = command.trim();
 	if (!cmd || /[;&|`\n\r<>]|\$\(/.test(cmd)) {
 		return false;
 	}
 	// the same reading as the native allowlist: nothing hidden in ( ) or { }, no flag that runs a program, no path outside the project
-	return !needsApproval(cmd, { autoRun: 'allowlist', allowlist, denylist: [] });
+	return !needsApproval(cmd, { autoRun: 'allowlist', allowlist, denylist: [], roots });
 }
 
 /** OpenCode, Gemini CLI and Grok cannot pause to ask. In Allowlist every other command would just be

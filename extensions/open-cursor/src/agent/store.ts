@@ -234,6 +234,8 @@ export class ChatStore {
 		try {
 			const disk = JSON.parse(await fs.promises.readFile(nodePath.join(this.dir, 'index.json'), 'utf8')) as IndexFile;
 			if (!disk || !Array.isArray(disk.chats)) { return; }
+			// a chat another window deleted: its file is gone, so it leaves this index too (unless open here)
+			this.index.chats = this.index.chats.filter(c => this.cache.has(c.id) || fs.existsSync(nodePath.join(this.dir, `${c.id}.json`)));
 			const known = new Set(this.index.chats.map(c => c.id));
 			for (const c of disk.chats) {
 				if (!c?.id || known.has(c.id) || this.deleted.has(c.id)) { continue; }

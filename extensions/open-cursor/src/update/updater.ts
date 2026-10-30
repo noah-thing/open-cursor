@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
-	assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, swapScript, windowsScript,
+	assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, stagedStamp, swapScript, windowsScript,
 	type InstallKind, type Release, type ReleaseAsset,
 } from './plan';
 
@@ -23,6 +23,7 @@ const EVERY_MS = 6 * 60 * 60 * 1000;
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 const SNOOZE_KEY = 'openCursor.update.snoozed';
 const ENABLE_AUTO = 'Enable auto updates';
+const UPDATE_NOW = 'Update and restart';
 
 interface Ready {
 	readonly version: string;
@@ -30,7 +31,17 @@ interface Ready {
 	readonly relaunchFlag: string;
 	/** Linux packages are already installed; the app only needs a restart. */
 	readonly installed: boolean;
+	readonly release: Release;
+	/** True while the script that waits for the quit is still running. */
+	alive(): boolean;
+	/** Starts the same waiting script again; only for installs that need nothing but a relaunch. */
+	revive?(): void;
+	/** Removes what this preparation left in the temp folder and beside the install. */
+	discard(): void;
 }
+
+/** What `build` records about the script it started. */
+interface BuildState { keep: boolean; staged?: string; running: boolean }
 
 function cfg(): vscode.WorkspaceConfiguration {
 	return vscode.workspace.getConfiguration('openCursor.update');
@@ -45,7 +56,7 @@ function run(file: string, args: string[]): Promise<{ code: number; out: string 
 	});
 }
 
-/** Removes staged copies a crashed or abandoned update left beside the install, once they are a day old. */
+/** Removes staged copies a crashed or abandoned update left beside the install, once they are a day old by their own name. */
 function cleanStale(root: string): void {
 	const dir = path.dirname(root);
 	const prefix = path.basename(root) + '.new-update';
@@ -53,8 +64,12 @@ function cleanStale(root: string): void {
 		for (const n of fs.readdirSync(dir)) {
 			if (!n.startsWith(prefix)) { continue; }
 			const p = path.join(dir, n);
+			// the name carries the time it was made; the mtime is the app's build date (ditto keeps it)
+			// and would make another window's fresh staging look old. A name without a stamp is not ours to judge.
+			const made = stagedStamp(n);
+			if (made === undefined || Date.now() - made < 24 * 60 * 60 * 1000) { continue; }
 			try {
-				if (Date.now() - fs.statSync(p).mtimeMs > 24 * 60 * 60 * 1000) { fs.rmSync(p, { recursive: true, force: true }); }
+				fs.rmSync(p, { recursive: true, force: true });
 			} catch { /* in use or gone: leave it */ }
 		}
 	} catch { /* unreadable folder: nothing to clean */ }
@@ -112,7 +127,7 @@ class Updater implements vscode.Disposable {
 			if (manual && this.ready) { void this.offerRestart(this.ready); }
 			return;
 		}
-		if (!manual && cfg().get<string>('mode', 'notify') === 'off') { return; }
+		if (!manual && cfg().get<string>('mode', 'auto') === 'off') { return; }
 		let release: Release | undefined;
 		try {
 			release = await this.latest();
@@ -133,13 +148,14 @@ class Updater implements vscode.Disposable {
 		}
 		const snoozed = this.ctx.globalState.get<{ version: string; until: number }>(SNOOZE_KEY);
 		if (!manual && snoozed && snoozed.version === release.version && Date.now() < snoozed.until) { return; }
-		const actions = this.auto() ? ['Update', 'What\'s new', 'Later'] : [ENABLE_AUTO, 'Update', 'What\'s new', 'Later'];
+		// one click either way: Update and restart installs and reopens; Enable auto updates also does it for every later version
+		const actions = this.auto() ? [UPDATE_NOW, 'What\'s new', 'Later'] : [ENABLE_AUTO, UPDATE_NOW, 'What\'s new', 'Later'];
 		const pick = await vscode.window.showInformationMessage(`OpenCursor ${release.version} is available. You have ${this.current}.`, ...actions);
 		if (pick === ENABLE_AUTO) {
 			await cfg().update('mode', 'auto', vscode.ConfigurationTarget.Global);
 			await this.install(release);
-		} else if (pick === 'Update') {
-			await this.install(release);
+		} else if (pick === UPDATE_NOW) {
+			await this.install(release, false, true);
 		} else if (pick === 'What\'s new') {
 			void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || 'https://github.com/noah-thing/open-cursor/releases'));
 		} else {
@@ -148,7 +164,7 @@ class Updater implements vscode.Disposable {
 	}
 
 	private auto(): boolean {
-		return cfg().get<string>('mode', 'notify') === 'auto';
+		return cfg().get<string>('mode', 'auto') === 'auto';
 	}
 
 	/** Installs that need no password or manual step can update in the background. */
@@ -170,8 +186,9 @@ class Updater implements vscode.Disposable {
 	}
 
 	/** `quiet` downloads in the status bar instead of a notification and does not ask to restart:
-	 *  the new version installs whenever the app next quits. */
-	private async install(release: Release, quiet = false): Promise<void> {
+	 *  the new version installs whenever the app next quits. `restartWhenReady` reopens on the new
+	 *  version as soon as it is in place (hot exit keeps unsaved files), so Update is a single click. */
+	private async install(release: Release, quiet = false, restartWhenReady = false): Promise<void> {
 		const kind = this.kind();
 		const asset = pickAsset(release, kind, process.arch);
 		if (!asset) {
@@ -190,17 +207,23 @@ class Updater implements vscode.Disposable {
 			return;
 		}
 		this.busy = true;
+		let cancelled = false;
 		try {
 			const location = quiet ? vscode.ProgressLocation.Window : vscode.ProgressLocation.Notification;
-			const ready = await vscode.window.withProgress({ location, title: `Updating OpenCursor to ${release.version}`, cancellable: !quiet }, (progress, token) => this.prepare(release, asset, kind, progress, token));
+			const ready = await vscode.window.withProgress({ location, title: `Updating OpenCursor to ${release.version}`, cancellable: !quiet }, (progress, token) => {
+				token.onCancellationRequested(() => { cancelled = true; });
+				return this.prepare(release, asset, kind, progress, token);
+			});
 			if (ready) {
 				this.ready = ready;
 				this.status.text = '$(sync) Restart to update';
 				this.status.tooltip = `OpenCursor ${ready.version} is ready. It installs when you quit, or restart now.`;
 				this.status.show();
-				if (!quiet) { void this.offerRestart(ready); }
+				if (restartWhenReady) { await this.restart(); } else if (!quiet) { void this.offerRestart(ready); }
 			}
 		} catch (e) {
+			// the person pressed Cancel: that is an answer, not a failure
+			if (cancelled || (e instanceof Error && e.name === 'AbortError')) { return; }
 			// a background attempt fails quietly and tries again at the next check
 			if (quiet) { return; }
 			const go = await vscode.window.showErrorMessage(`The update did not finish: ${e instanceof Error ? e.message : String(e)}`, 'Open release page');
@@ -218,46 +241,77 @@ class Updater implements vscode.Disposable {
 	}
 
 	async restart(): Promise<void> {
-		if (!this.ready) { return; }
-		fs.writeFileSync(this.ready.relaunchFlag, '');
+		const ready = this.ready;
+		if (!ready) { return; }
+		if (!ready.alive()) {
+			// the waiting script is gone (killed, or the temp folder was cleaned), so quitting now would
+			// install nothing and not reopen the app
+			if (ready.revive) {
+				try { ready.revive(); } catch { /* checked below */ }
+			}
+			if (!ready.alive()) {
+				ready.discard();
+				this.ready = undefined;
+				this.status.hide();
+				await this.install(ready.release);
+				return;
+			}
+		}
+		try {
+			fs.writeFileSync(ready.relaunchFlag, '');
+		} catch {
+			// the work folder is gone: prepare again instead of quitting into nothing
+			ready.discard();
+			this.ready = undefined;
+			this.status.hide();
+			await this.install(ready.release);
+			return;
+		}
 		await vscode.commands.executeCommand('workbench.action.quit');
 	}
 
 	private async download(asset: ReleaseAsset, file: string, progress: vscode.Progress<{ message?: string; increment?: number }>, token: vscode.CancellationToken): Promise<void> {
 		const abort = new AbortController();
 		const sub = token.onCancellationRequested(() => abort.abort());
+		let out: fs.WriteStream | undefined;
 		try {
 			const r = await fetch(asset.url, { headers: { 'User-Agent': 'OpenCursor' }, signal: abort.signal });
 			if (!r.ok || !r.body) { throw new Error(`download answered ${r.status}`); }
 			const total = Number(r.headers.get('content-length')) || asset.size;
 			const hash = crypto.createHash('sha256');
-			const out = fs.createWriteStream(file);
+			out = fs.createWriteStream(file);
+			// a full disk surfaces as a stream error; without a listener the drain wait would hang forever
+			let failure: Error | undefined;
+			const broke = new Promise<never>((_, rej) => out!.once('error', e => { failure = e; rej(e); }));
+			broke.catch(() => undefined);
 			let got = 0;
 			let shown = 0;
 			const reader = r.body.getReader();
 			for (;;) {
+				if (failure) { throw failure; }
 				const { done, value } = await reader.read();
 				if (done) { break; }
 				hash.update(value);
 				got += value.length;
-				if (!out.write(value)) { await new Promise<void>(res => out.once('drain', () => res())); }
+				if (!out.write(value)) { await Promise.race([new Promise<void>(res => out!.once('drain', () => res())), broke]); }
 				if (total) {
 					const pct = Math.floor((got / total) * 80);
 					if (pct > shown) { progress.report({ increment: pct - shown, message: `${Math.round(got / 1048576)} of ${Math.round(total / 1048576)} MB` }); shown = pct; }
 				}
 			}
-			await new Promise<void>((res, rej) => out.end((e?: Error | null) => (e ? rej(e) : res())));
+			await Promise.race([new Promise<void>((res, rej) => out!.end((e?: Error | null) => (e ? rej(e) : res()))), broke]);
 			const want = asset.digest?.startsWith('sha256:') ? asset.digest.slice(7).toLowerCase() : undefined;
 			if (want && hash.digest('hex') !== want) { throw new Error('the download does not match the checksum GitHub published'); }
 		} finally {
 			sub.dispose();
+			out?.destroy();
 		}
 	}
 
 	private async prepare(release: Release, asset: ReleaseAsset, kind: InstallKind, progress: vscode.Progress<{ message?: string; increment?: number }>, token: vscode.CancellationToken): Promise<Ready | undefined> {
 		const work = fs.mkdtempSync(path.join(os.tmpdir(), 'opencursor-update-'));
 		// the scripts run later from the work folder, so it stays only once one is on its way
-		const state: { keep: boolean; staged?: string } = { keep: false };
+		const state: BuildState = { keep: false, running: false };
 		try {
 			return await this.build(work, state, release, asset, kind, progress, token);
 		} finally {
@@ -268,7 +322,7 @@ class Updater implements vscode.Disposable {
 		}
 	}
 
-	private async build(work: string, state: { keep: boolean; staged?: string }, release: Release, asset: ReleaseAsset, kind: InstallKind, progress: vscode.Progress<{ message?: string; increment?: number }>, token: vscode.CancellationToken): Promise<Ready | undefined> {
+	private async build(work: string, state: BuildState, release: Release, asset: ReleaseAsset, kind: InstallKind, progress: vscode.Progress<{ message?: string; increment?: number }>, token: vscode.CancellationToken): Promise<Ready | undefined> {
 		const file = path.join(work, asset.name);
 		const log = path.join(work, 'update.log');
 		const relaunchFlag = path.join(work, 'relaunch');
@@ -283,10 +337,23 @@ class Updater implements vscode.Disposable {
 			return p;
 		};
 		const detach = (cmd: string, args: string[]): void => {
-			// a failed spawn must not become an uncaught exception
-			cp.spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).on('error', () => undefined).unref();
+			// a failed spawn must not become an uncaught exception; either way the script is not waiting any more
+			const child = cp.spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true });
+			state.running = true;
+			const stopped = (): void => { if (state.running && cur === child) { state.running = false; } };
+			cur = child;
+			child.on('error', stopped).on('exit', stopped).unref();
 			state.keep = true;
 		};
+		let cur: cp.ChildProcess | undefined;
+		const made = (extra: Pick<Ready, 'installed'> & { revive?: () => void }): Ready => ({
+			version: release.version, relaunchFlag, release, ...extra,
+			alive: () => state.running,
+			discard: () => {
+				fs.rmSync(work, { recursive: true, force: true });
+				if (state.staged) { fs.rmSync(state.staged, { recursive: true, force: true }); }
+			},
+		});
 		// one folder per run, so two windows updating at once never share a staging path
 		const stagedName = (): string => `${root}.new-update-${process.pid}-${Date.now()}`;
 
@@ -315,8 +382,8 @@ class Updater implements vscode.Disposable {
 				if (x.code !== 0) { throw new Error(`could not unpack the new version (${x.out})`); }
 				if (!fs.existsSync(path.join(staged, 'bin', 'open-cursor'))) { throw new Error('the new version is incomplete'); }
 			}
-			detach('/bin/sh', [script('install.sh', swapScript({ platform: process.platform === 'darwin' ? 'darwin' : 'linux', staged, target: root, relaunchFlag, log, download: file }))]);
-			return { version: release.version, relaunchFlag, installed: false };
+			detach('/bin/sh', [script('install.sh', swapScript({ platform: process.platform === 'darwin' ? 'darwin' : 'linux', staged, target: root, relaunchFlag, log, download: file, work }))]);
+			return made({ installed: false });
 		}
 
 		if (kind === 'win-portable') {
@@ -335,14 +402,14 @@ class Updater implements vscode.Disposable {
 				throw new Error(`could not unpack the new version${x.out ? ` (${x.out.slice(-200)})` : ''}`);
 			}
 			detach('cmd.exe', ['/d', '/c', script('install.cmd', portableScript({ staged, root, exe, relaunchFlag, log, download: file }))]);
-			return { version: release.version, relaunchFlag, installed: false };
+			return made({ installed: false });
 		}
 
 		if (kind === 'win-setup') {
 			// newer Windows installs keep the versioned files one folder below the launcher
 			const exe = [root, path.dirname(root)].map(d => path.join(d, 'OpenCursor.exe')).find(p => fs.existsSync(p)) ?? path.join(root, 'OpenCursor.exe');
 			detach('cmd.exe', ['/d', '/c', script('install.cmd', windowsScript({ setup: file, exe, relaunchFlag, log, download: file }))]);
-			return { version: release.version, relaunchFlag, installed: false };
+			return made({ installed: false });
 		}
 
 		if (kind === 'linux-deb' || kind === 'linux-rpm') {
@@ -357,8 +424,9 @@ class Updater implements vscode.Disposable {
 			progress.report({ message: 'Waiting for your password' });
 			const r = await run('pkexec', ['sh', '-c', command]);
 			if (r.code !== 0) { throw new Error(r.code === 126 || r.code === 127 ? 'the password prompt was cancelled' : `the package manager failed (${r.out.slice(-300)})`); }
-			detach('/bin/sh', [script('restart.sh', relaunchScript({ target: root, relaunchFlag, log }))]);
-			return { version: release.version, relaunchFlag, installed: true };
+			const restart = script('restart.sh', relaunchScript({ target: root, relaunchFlag, log, download: file, work }));
+			detach('/bin/sh', [restart]);
+			return made({ installed: true, revive: () => detach('/bin/sh', [restart]) });
 		}
 		return undefined;
 	}

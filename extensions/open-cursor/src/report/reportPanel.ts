@@ -37,6 +37,7 @@ const OS_NAME: Record<string, string> = { darwin: 'macOS', win32: 'Windows', lin
 export class ReportPanel implements vscode.Disposable {
 	private panel: vscode.WebviewPanel | undefined;
 	private context: ReportContext = {};
+	private sent = false;
 
 	constructor(private readonly ctx: vscode.ExtensionContext) {}
 
@@ -62,13 +63,20 @@ export class ReportPanel implements vscode.Disposable {
 		this.context = context;
 		if (this.panel) {
 			this.panel.reveal(vscode.ViewColumn.Active);
-			void this.panel.webview.postMessage({ type: 'facts', facts: this.facts() ?? null });
+			if (this.sent) {
+				// the old Thanks page has no form; a fresh one posts 'ready' and gets its facts then
+				this.sent = false;
+				this.panel.webview.html = this.html(this.panel.webview);
+			} else {
+				void this.panel.webview.postMessage({ type: 'facts', facts: this.facts() ?? null });
+			}
 			return;
 		}
+		this.sent = false;
 		const panel = this.panel = vscode.window.createWebviewPanel('openCursor.report', 'Report a problem', vscode.ViewColumn.Active, { enableScripts: true, retainContextWhenHidden: true });
 		panel.iconPath = vscode.Uri.joinPath(this.ctx.extensionUri, 'media', 'chat.svg');
 		panel.webview.html = this.html(panel.webview);
-		panel.onDidDispose(() => { this.panel = undefined; });
+		panel.onDidDispose(() => { this.panel = undefined; this.sent = false; });
 		panel.webview.onDidReceiveMessage((m: { type: string; message?: string; contact?: string; includeError?: boolean }) => { void this.onMessage(m); });
 	}
 
@@ -79,6 +87,7 @@ export class ReportPanel implements vscode.Disposable {
 	}
 
 	private async onMessage(m: { type: string; message?: string; contact?: string; includeError?: boolean }): Promise<void> {
+		if (m.type === 'send' && this.sent) { return; }
 		if (m.type === 'ready') { void this.panel?.webview.postMessage({ type: 'facts', facts: this.facts() ?? null }); return; }
 		if (m.type === 'close') { this.panel?.dispose(); return; }
 		const f = this.facts();
@@ -107,6 +116,7 @@ export class ReportPanel implements vscode.Disposable {
 				reply = `The report did not go through (${r.status}). Try again, or use GitHub.`;
 			} else {
 				const j = await r.json() as { id?: string };
+				this.sent = true;
 				void this.panel?.webview.postMessage({ type: 'result', ok: true, ref: String(j.id ?? '') });
 				return;
 			}
@@ -177,19 +187,22 @@ const OS = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' };
 $('kbd').textContent = (navigator.platform.includes('Mac') ? '⌘' : 'Ctrl+') + 'Enter to send';
 const sync = () => { send.disabled = what.value.trim().length < 3 || send.dataset.busy === '1'; };
 what.addEventListener('input', sync);
+let sent = false;
 const go = () => {
-	if (send.disabled) return;
+	if (sent || send.disabled) return;
 	send.dataset.busy = '1'; send.textContent = 'Sending'; sync(); msg.hidden = true;
 	vscode.postMessage({ type: 'send', message: what.value, contact: $('who').value, includeError: $('inc').checked });
 };
 send.addEventListener('click', go);
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); go(); } });
+const onKey = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); go(); } };
+document.addEventListener('keydown', onKey);
 $('gh').addEventListener('click', () => vscode.postMessage({ type: 'github', message: what.value }));
 $('inc').addEventListener('change', e => $('err').classList.toggle('is-off', !e.target.checked));
 window.addEventListener('message', e => {
 	const m = e.data;
 	if (m.type === 'facts') {
 		const f = m.facts;
+		if (!$('err') || !$('facts')) return;
 		if (!f) { $('facts').textContent = 'Reports cannot be sent from this system. Use GitHub instead.'; return; }
 		$('err').hidden = !f.error; $('errtext').textContent = f.error || '';
 		const parts = ['OpenCursor <b>' + f.version + '</b>', '<b>' + OS[f.os] + '</b> ' + f.arch];
@@ -204,6 +217,8 @@ window.addEventListener('message', e => {
 	} else if (m.type === 'result') {
 		send.dataset.busy = '0'; send.textContent = 'Send report'; sync();
 		if (m.ok) {
+			sent = true;
+			document.removeEventListener('keydown', onKey);
 			$('app').innerHTML = '<div class="done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><h1>Thanks, it is sent</h1><p id="ref"></p><button class="send" id="close">Close</button></div>';
 			$('ref').textContent = (m.ref ? 'Reference ' + m.ref + '. ' : '') + 'Every report is read. If you left a way to reach you, you may get a reply.';
 			$('close').addEventListener('click', () => vscode.postMessage({ type: 'close' }));

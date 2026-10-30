@@ -78,4 +78,45 @@ test('a redirect that only looks like stderr to stdout is a file write', () => {
 	assert.ok(!needsApproval('npm test 2>&1', allowlist));
 });
 
+test('absolute paths inside the open project are fine; outside, or climbing out with .., they ask', () => {
+	const inProject: ApprovalPolicy = { ...allowlist, roots: ['/Users/a/proj', 'C:\\Work\\app'] };
+	assert.ok(!needsApproval('cat /Users/a/proj/src/a.ts', inProject));
+	assert.ok(!needsApproval('Get-Content C:\\work\\APP\\src\\a.ts', inProject));
+	assert.ok(needsApproval('cat /Users/a/proj-other/x', inProject));
+	assert.ok(needsApproval('cat /Users/a/proj/../secret', inProject));
+	assert.ok(needsApproval('cat /etc/passwd', inProject));
+	assert.ok(!isCareful('node /Users/a/proj/scripts/build.mjs', ['/Users/a/proj']));
+	assert.ok(isCareful('node /Users/a/elsewhere/x.mjs', ['/Users/a/proj']));
+});
+
+test('round 2: path tricks, launcher flags, piped shells and online commands ask', () => {
+	const pol: ApprovalPolicy = { ...allowlist, roots: ['/Users/a/proj'] };
+	const au: ApprovalPolicy = { ...auto, roots: ['/Users/a/proj'] };
+	for (const c of [
+		'cat $HOME/.ssh/id_rsa', 'cat ./../secret', 'cat src/../../secret', "cat '..'/secret", 'cat ""/etc/passwd', 'cat \\/etc/passwd',
+		'cat ~root/.bashrc', 'grep --file=/etc/passwd x', 'type %USERPROFILE%\\.ssh\\id_rsa', 'git -C ~/other log -p', 'cd ~/.ssh && cat id_rsa',
+		'rg --hostname-bin ./x foo', 'go vet -vettool=./x', 'go build -toolexec ./x', 'cargo test --config x', 'npm test --script-shell ./x.sh', 'make test SHELL=./x.sh', 'tree -o src/a.ts',
+	]) {
+		assert.ok(needsApproval(c, pol), 'allowlist ran: ' + c);
+		assert.ok(needsApproval(c, au, false), 'auto ran: ' + c);
+	}
+	for (const c of ['cat a |sh', 'cat a | ba\'\'sh', 'git fetch', 'git pull', 'git clone x', 'npm exec x', 'npm create vite', 'bun x foo', 'deno run https://x.example/a.ts']) {
+		assert.ok(needsApproval(c, au, false), 'auto ran: ' + c);
+	}
+});
+
+test('round 2: everyday commands are read correctly', () => {
+	const pol: ApprovalPolicy = { ...allowlist, roots: ['/Users/a/proj'] };
+	for (const c of ['git log --grep="x -> y"', 'grep -rn "=>" src', 'grep -rn "/api/users" src', "rg '/foo/' src", 'dir /s', 'findstr /s /i foo *.ts', 'where /r . node',
+		'CI=true npm test', 'NODE_ENV=test npm run test', 'cd src && npm test', 'cat src/../README.md', 'Get-ChildItem -Recurse | Select-Object Name', 'tsc --noEmit']) {
+		assert.ok(!needsApproval(c, pol), 'asked for: ' + c);
+	}
+	for (const c of ['node -r dotenv/config app.js', 'python3 -m venv .venv', 'PORT=3000 npm run dev', 'git commit -m "fix(cart): x"']) {
+		assert.ok(!isCareful(c, ['/Users/a/proj']), 'careful: ' + c);
+	}
+	assert.ok(needsApproval('PATH=./bin npm test', pol));
+	assert.ok(needsApproval('NODE_OPTIONS=--require=./x.js npm test', pol));
+	assert.ok(needsApproval('npx tsc', pol), 'npx can download a package');
+});
+
 void done('security');

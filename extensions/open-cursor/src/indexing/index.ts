@@ -51,8 +51,15 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 	const enabled = () => cfg().get<boolean>('enabled', true);
 	const fire = () => onDidChange.fire();
 
+	// Cached between saves; dropped when an ignore file or the folder set changes.
+	let ignoresCache: Promise<FolderIgnore[]> | undefined;
+	function loadIgnores(): Promise<FolderIgnore[]> {
+		ignoresCache ??= readIgnores().catch(e => { ignoresCache = undefined; throw e; });
+		return ignoresCache;
+	}
+
 	/** Every .gitignore, .cursorignore and .open-cursorignore in each folder, at any depth. */
-	async function loadIgnores(): Promise<FolderIgnore[]> {
+	async function readIgnores(): Promise<FolderIgnore[]> {
 		return Promise.all((vscode.workspace.workspaceFolders ?? []).map(async f => {
 			const found = await vscode.workspace.findFiles(new vscode.RelativePattern(f, '**/{.gitignore,.cursorignore,.open-cursorignore}'), EXCLUDE_GLOB, 2000);
 			const files = found.map(u => {
@@ -193,21 +200,30 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		return loaded;
 	}
 
-	// One time, per workspace: sending files to a cloud embedder needs a yes.
-	async function cloudConsent(embedderId: string, setting: string): Promise<boolean> {
+	// One time, per workspace and provider: sending files to a cloud embedder needs a yes.
+	// The in-flight prompt is shared so two callers never show two toasts.
+	let consentAsk: Promise<boolean> | undefined;
+	function cloudConsent(embedderId: string, setting: string): Promise<boolean> {
+		consentAsk ??= askConsent(embedderId, setting).finally(() => { consentAsk = undefined; });
+		return consentAsk;
+	}
+	async function askConsent(embedderId: string, setting: string): Promise<boolean> {
 		const KEY = 'openCursor.index.cloudConsent';
 		const MODEL_KEY = 'openCursor.index.cloudConsentSetting';
-		const stored = ctx.workspaceState.get<boolean>(KEY);
+		const provider = embedderId.startsWith('google/') ? 'google' : 'openai';
+		const stored = ctx.workspaceState.get<unknown>(KEY);
+		// older installs stored a bare boolean with no provider; that no longer covers anything
+		const rec = stored && typeof stored === 'object' ? stored as { provider?: string; allowed?: boolean } : undefined;
 		const askedFor = ctx.workspaceState.get<string>(MODEL_KEY);
 		// asked again only when the user explicitly picks a different cloud model
 		const changed = setting !== 'auto' && askedFor !== undefined && askedFor !== setting;
-		if (stored !== undefined && !changed) { return stored; }
-		const who = embedderId.startsWith('google/') ? 'Google' : 'OpenAI';
+		if (rec?.provider === provider && typeof rec.allowed === 'boolean' && !changed) { return rec.allowed; }
+		const who = provider === 'google' ? 'Google' : 'OpenAI';
 		const pick = await vscode.window.showInformationMessage(
 			`Index this project for semantic search? Files that are not ignored (never secret files) are sent to ${who} to make embeddings. Without it, search uses plain text matching on this computer.`,
 			'Allow', 'Not now');
 		if (pick === undefined) { return false; } // dismissed: no answer stored, ask next time
-		await ctx.workspaceState.update(KEY, pick === 'Allow');
+		await ctx.workspaceState.update(KEY, { provider, allowed: pick === 'Allow' });
 		await ctx.workspaceState.update(MODEL_KEY, setting);
 		return pick === 'Allow';
 	}
@@ -247,6 +263,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 				if (!emb) { state = 'idle'; error = undefined; progress = undefined; fire(); return; }
 				if (store.embedder !== emb.id) { store.clear(); store.embedder = emb.id; }
 				state = 'indexing'; error = undefined; progress = 0; fire();
+				ignoresCache = undefined; // a full scan always reads fresh
 				const ignores = await loadIgnores();
 				const files = await listFiles(ignores, ac.signal);
 				const live = new Set(files.map(p => vscode.Uri.file(p).toString()));
@@ -281,7 +298,9 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 
 	const dirty = new Set<string>();
 	let dirtyTimer: ReturnType<typeof setTimeout> | undefined;
+	const IGNORE_FILE_RE = /(^|[\\/])(\.gitignore|\.cursorignore|\.open-cursorignore)$/;
 	function markDirty(uri: vscode.Uri): void {
+		if (IGNORE_FILE_RE.test(uri.fsPath)) { ignoresCache = undefined; }
 		if (uri.scheme !== 'file' || !enabled() || state === 'disabled') { return; }
 		dirty.add(uri.fsPath);
 		clearTimeout(dirtyTimer);
@@ -291,7 +310,8 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		if (!dirty.size || running || !embedder || !store.chunkCount && state !== 'ready') { dirty.clear(); return; }
 		const paths = [...dirty];
 		dirty.clear();
-		const ignores = await loadIgnores();
+		let ignores: FolderIgnore[];
+		try { ignores = await loadIgnores(); } catch (e) { console.error('[open-cursor] loading ignore files failed', e); return; }
 		const keep: string[] = [];
 		for (const p of paths) {
 			if (acceptable(p, ignores)) { keep.push(p); } else { store.delete(vscode.Uri.file(p).toString()); }
@@ -389,7 +409,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 	const watcher = vscode.workspace.createFileSystemWatcher('**/*');
 	watcher.onDidChange(markDirty);
 	watcher.onDidCreate(markDirty);
-	watcher.onDidDelete(uri => { store.delete(uri.toString()); saveSoon(); fire(); });
+	watcher.onDidDelete(uri => { if (IGNORE_FILE_RE.test(uri.fsPath)) { ignoresCache = undefined; } store.delete(uri.toString()); saveSoon(); fire(); });
 
 	let reconfigTimer: ReturnType<typeof setTimeout> | undefined;
 	const reconfigure = () => {
@@ -416,7 +436,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		ctx.secrets.onDidChange(e => {
 			if (e.key === 'openCursor.key.openai' || e.key === 'openCursor.key.google') { reconfigure(); }
 		}),
-		vscode.workspace.onDidChangeWorkspaceFolders(() => reconfigure()),
+		vscode.workspace.onDidChangeWorkspaceFolders(() => { ignoresCache = undefined; reconfigure(); }),
 		vscode.workspace.onDidGrantWorkspaceTrust(() => reconfigure()),
 		vscode.commands.registerCommand('openCursor.index.rebuild', async () => {
 			await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'OpenCursor: indexing codebase' }, () => rebuild());

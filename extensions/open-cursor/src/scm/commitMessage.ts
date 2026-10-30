@@ -58,6 +58,7 @@ export function registerCommitMessage(ctx: vscode.ExtensionContext, services: Se
 		const hadText = repo.inputBox.value.trim() !== '';
 		const before = repo.inputBox.value;
 		let done = false;
+		let suggestion: string | undefined;
 		try {
 			await vscode.window.withProgress({ location: vscode.ProgressLocation.SourceControl, title: 'Writing commit message…' }, async () => {
 				let diff = repo.state.indexChanges.length > 0 ? await repo.diff(true) : '';
@@ -77,9 +78,13 @@ export function registerCommitMessage(ctx: vscode.ExtensionContext, services: Se
 				done = true;
 				if (!msg) { return; }
 				if (!hadText) { repo.inputBox.value = msg; return; }
-				const pick = await vscode.window.showInformationMessage(`Suggested commit message: ${msg.split('\n')[0]}`, 'Use');
-				if (pick === 'Use') { repo.inputBox.value = msg; }
+				suggestion = msg;
 			});
+			// shown after the progress ends, so an ignored toast cannot keep the spinner going
+			if (suggestion) {
+				const s = suggestion;
+				void Promise.resolve(vscode.window.showInformationMessage(`Suggested commit message: ${s.split('\n')[0]}`, 'Use')).then(pick => { if (pick === 'Use') { repo.inputBox.value = s; } });
+			}
 		} catch (err) {
 			if (!ac.signal.aborted) { void vscode.window.showErrorMessage(`OpenCursor: ${err instanceof Error ? err.message : String(err)}`); }
 		} finally {

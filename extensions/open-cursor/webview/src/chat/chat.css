@@ -784,8 +784,8 @@ button.oc-tray-head:hover { color: var(--oc-fg); }
 
 /* Opening a chat shows its history at once; only messages that arrive now animate in. */
 .oc-msg.is-history, .oc-msg.is-history * { animation: none !important; }
-/* Finished history is skipped by layout and paint until it scrolls near. */
-.oc-msg.is-history:not(:last-child) { content-visibility: auto; contain-intrinsic-size: auto 120px; }
+/* content-visibility is not used on history: its paint containment clips popovers and focus rings,
+   and skipped layout gives wrong scroll restoration. */
 
 /*
  * Help: nacre. A pearl white base with a faint holographic sheen (pink, butter, mint, sky, lilac)

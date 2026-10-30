@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/noah-thing/open-cursor/main/install.sh | sh
 #
 # Options (environment variables):
-#   OPENCURSOR_VERSION   install a specific release tag, e.g. v0.1.0 (default: latest)
+#   OPENCURSOR_VERSION   install a specific release tag, e.g. v0.1.0 or 0.1.0 (default: latest)
 #   OPENCURSOR_DIR       where the macOS app goes (default: /Applications, or ~/Applications)
 
 set -eu
@@ -30,7 +30,8 @@ case "$(uname -m)" in
 esac
 
 if [ -n "${OPENCURSOR_VERSION:-}" ]; then
-	API="https://api.github.com/repos/$REPO/releases/tags/$OPENCURSOR_VERSION"
+	# accept 0.1.0 and v0.1.0 alike; release tags carry the v
+	API="https://api.github.com/repos/$REPO/releases/tags/v${OPENCURSOR_VERSION#v}"
 else
 	# the latest published release; never a prerelease or a draft
 	API="https://api.github.com/repos/$REPO/releases/latest"
@@ -72,6 +73,8 @@ download() {
 	WANT=$(digest_of "$1" | tr 'A-F' 'a-f')
 	if [ -n "$WANT" ]; then
 		[ "$(sha_of "$TMP/$2" | tr 'A-F' 'a-f')" = "$WANT" ] || fail "the download does not match the checksum GitHub published"
+	else
+		printf '\033[33mwarning:\033[0m GitHub published no checksum for this file, so it could not be verified\n' >&2
 	fi
 }
 
@@ -90,7 +93,7 @@ if [ "$OS" = macos ]; then
 	# attach into our own folder, so the mount point is known even when hdiutil prints several /Volumes lines
 	MOUNT="$TMP/mount"
 	mkdir -p "$MOUNT"
-	hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$MOUNT" "$TMP/OpenCursor.dmg" >/dev/null || { MOUNT=""; fail "could not open the disk image"; }
+	hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$MOUNT" "$TMP/OpenCursor.dmg" </dev/null >/dev/null || { MOUNT=""; fail "could not open the disk image"; }
 	[ -d "$MOUNT/OpenCursor.app" ] || fail "the disk image has no OpenCursor.app"
 	# copy first, swap after: a failed copy leaves the app that is already installed untouched
 	rm -rf "$DEST/OpenCursor.app.new"

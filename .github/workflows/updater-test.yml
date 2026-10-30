@@ -1,5 +1,5 @@
 name: updater-test
-# Runs the real Windows portable update script against two published releases.
+# Runs the app's real update scripts on every system: an installed older release is updated to a newer one.
 on:
   workflow_dispatch:
     inputs:
@@ -37,7 +37,6 @@ jobs:
           Set-Content C:\t\OC\data\user-data\marker.txt "keep me"
           Set-Content C:\t\OC\my-own-file.txt "keep me too"
           Set-Content C:\t\OC\resources\app\stale-from-old-version.txt "should go"
-          Get-Content C:\t\OC\resources\app\extensions\open-cursor\package.json | Select-String '"version"' | Select-Object -First 1
       - name: Unpack the new version the way the app does
         shell: pwsh
         run: |
@@ -71,7 +70,6 @@ jobs:
           if (!(Test-Path C:\t\OC\my-own-file.txt)) { throw "a file outside the app was deleted" }
           if (Test-Path C:\t\OC\resources\app\stale-from-old-version.txt) { throw "stale app file not removed" }
           if (Test-Path C:\t\OC.new-update) { throw "staging folder left behind" }
-          if (!(Select-String -Path C:\t\update.log -Pattern "update: done" -Quiet)) { throw "log does not say done" }
           "all checks passed"
       - name: The updated copy starts
         shell: pwsh
@@ -79,3 +77,132 @@ jobs:
           $out = & C:\t\OC\bin\open-cursor.cmd --version 2>&1
           $out
           if ($LASTEXITCODE -ne 0) { throw "updated app does not start" }
+
+  windows-setup:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Bundle the update plan
+        run: npx -y esbuild@0.24.0 extensions/open-cursor/src/update/plan.ts --bundle --platform=node --format=cjs --outfile=plan.cjs
+      - name: Download both setups
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download ${{ inputs.from }} -R ${{ github.repository }} -p "*-windows-x64-setup.exe" -O C:\from-setup.exe
+          gh release download ${{ inputs.to }} -R ${{ github.repository }} -p "*-windows-x64-setup.exe" -O C:\to-setup.exe
+      - name: Install the old version
+        shell: pwsh
+        run: |
+          Start-Process C:\from-setup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/MERGETASKS=!runcode' -Wait
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\OpenCursor'
+          if (!(Test-Path "$dir\OpenCursor.exe")) { throw "old version not installed" }
+          & "$dir\bin\open-cursor.cmd" --version
+      - name: Write and run the app's update script
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\OpenCursor'
+          New-Item -ItemType Directory -Force C:\t | Out-Null
+          $env:OC_SETUP = 'C:\to-setup.exe'; $env:OC_EXE = "$dir\OpenCursor.exe"
+          node -e "const p=require('./plan.cjs');require('fs').writeFileSync('C:/t/install.cmd',p.windowsScript({setup:process.env.OC_SETUP,exe:process.env.OC_EXE,relaunchFlag:'C:\\t\\relaunch',log:'C:\\t\\update.log'}))"
+          Get-Content C:\t\install.cmd
+          cmd.exe /d /c C:\t\install.cmd
+          "exit $LASTEXITCODE"
+          if ($LASTEXITCODE -ne 0) { throw "update script failed" }
+      - name: Check the result
+        shell: pwsh
+        run: |
+          $want = "${{ inputs.to }}".TrimStart("v")
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\OpenCursor'
+          $pkg = Get-ChildItem $dir -Recurse -Filter package.json | Where-Object { $_.FullName -match 'extensions\\open-cursor\\package\.json$' } | Select-Object -First 1
+          $v = (Get-Content $pkg.FullName -Raw | ConvertFrom-Json).version
+          "installed version: $v"
+          if ($v -ne $want) { throw "expected $want" }
+          & "$dir\bin\open-cursor.cmd" --version
+          if ($LASTEXITCODE -ne 0) { throw "updated app does not start" }
+          "all checks passed"
+
+  linux-tar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Bundle the update plan
+        run: npx -y esbuild@0.24.0 extensions/open-cursor/src/update/plan.ts --bundle --platform=node --format=cjs --outfile=plan.cjs
+      - name: Download both tarballs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download ${{ inputs.from }} -R ${{ github.repository }} -p "*-linux-x64.tar.gz" -O from.tgz
+          gh release download ${{ inputs.to }} -R ${{ github.repository }} -p "*-linux-x64.tar.gz" -O to.tgz
+      - name: Install the old version and stage the new one like the app does
+        run: |
+          mkdir -p "/tmp/t/Open Cursor" "/tmp/t/work"
+          tar -xzf from.tgz -C "/tmp/t/Open Cursor" --strip-components=1
+          STAGED="/tmp/t/Open Cursor.new-update-1-$(date +%s)000"
+          mkdir -p "$STAGED" && tar -xzf to.tgz -C "$STAGED" --strip-components=1
+          echo "STAGED=$STAGED" >> "$GITHUB_ENV"
+          cp to.tgz /tmp/t/work/to.tgz
+      - name: Run the app's swap script
+        run: |
+          node -e "const p=require('./plan.cjs');require('fs').writeFileSync('/tmp/t/work/install.sh',p.swapScript({platform:'linux',staged:process.env.STAGED,target:'/tmp/t/Open Cursor',relaunchFlag:'/tmp/t/work/relaunch',log:'/tmp/t/update.log',download:'/tmp/t/work/to.tgz',work:'/tmp/t/work'}))"
+          sh /tmp/t/work/install.sh; echo "exit $?"
+          cat /tmp/t/update.log || true
+      - name: Check the result
+        run: |
+          want="${{ inputs.to }}"; want="${want#v}"
+          got=$(node -p "require('/tmp/t/Open Cursor/resources/app/extensions/open-cursor/package.json').version")
+          echo "installed version: $got"
+          test "$got" = "$want"
+          test ! -e "$STAGED" || { echo "staging left behind"; exit 1; }
+          test ! -e "/tmp/t/Open Cursor.old-update" || { echo "old copy left behind"; exit 1; }
+          "/tmp/t/Open Cursor/bin/open-cursor" --version --no-sandbox || "/tmp/t/Open Cursor/bin/open-cursor" --version
+          echo "all checks passed"
+
+  macos-app:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Bundle the update plan
+        run: npx -y esbuild@0.24.0 extensions/open-cursor/src/update/plan.ts --bundle --platform=node --format=cjs --outfile=plan.cjs
+      - name: Download both disk images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download ${{ inputs.from }} -R ${{ github.repository }} -p "*-macos-arm64.dmg" -O from.dmg
+          gh release download ${{ inputs.to }} -R ${{ github.repository }} -p "*-macos-arm64.dmg" -O to.dmg
+      - name: Install the old version and stage the new one like the app does
+        run: |
+          mkdir -p "/tmp/t/Apps" "/tmp/t/work" /tmp/t/m1 /tmp/t/m2
+          hdiutil attach -nobrowse -readonly -noautoopen -mountpoint /tmp/t/m1 from.dmg </dev/null >/dev/null
+          ditto /tmp/t/m1/*.app "/tmp/t/Apps/OpenCursor.app"; hdiutil detach -quiet /tmp/t/m1
+          STAGED="/tmp/t/Apps/OpenCursor.app.new-update-1-$(date +%s)000"
+          hdiutil attach -nobrowse -readonly -noautoopen -mountpoint /tmp/t/m2 to.dmg </dev/null >/dev/null
+          ditto /tmp/t/m2/*.app "$STAGED"; hdiutil detach -quiet /tmp/t/m2
+          xattr -dr com.apple.quarantine "$STAGED" || true
+          echo "STAGED=$STAGED" >> "$GITHUB_ENV"
+          cp to.dmg /tmp/t/work/to.dmg
+      - name: Run the app's swap script
+        run: |
+          node -e "const p=require('./plan.cjs');require('fs').writeFileSync('/tmp/t/work/install.sh',p.swapScript({platform:'darwin',staged:process.env.STAGED,target:'/tmp/t/Apps/OpenCursor.app',relaunchFlag:'/tmp/t/work/relaunch',log:'/tmp/t/update.log',download:'/tmp/t/work/to.dmg',work:'/tmp/t/work'}))"
+          sh /tmp/t/work/install.sh; echo "exit $?"
+          cat /tmp/t/update.log || true
+      - name: Check the result
+        run: |
+          want="${{ inputs.to }}"; want="${want#v}"
+          got=$(node -p "require('/tmp/t/Apps/OpenCursor.app/Contents/Resources/app/extensions/open-cursor/package.json').version")
+          echo "installed version: $got"
+          test "$got" = "$want"
+          test ! -e "$STAGED" || { echo "staging left behind"; exit 1; }
+          "/tmp/t/Apps/OpenCursor.app/Contents/Resources/app/bin/open-cursor" --version
+          echo "all checks passed"

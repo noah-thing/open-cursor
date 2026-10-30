@@ -129,22 +129,29 @@ export function pickAsset(release: Release, kind: InstallKind, arch: string): Re
 	return release.assets.find(x => x.name.endsWith(suffix));
 }
 
+/**
+ * The time a staged folder (`<install>.new-update-<pid>-<ms>`) was made, from its own name.
+ * The folder's mtime cannot be used: ditto keeps the bundle's build date.
+ */
+export function stagedStamp(name: string): number | undefined {
+	const m = /\.new-update-\d+-(\d{10,})$/.exec(name);
+	return m ? Number(m[1]) : undefined;
+}
+
 /** Quotes a path for a POSIX shell script. */
 function sh(s: string): string {
 	return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
 /**
- * The lines that wait, up to an hour, until no process runs from `target`. Electron's crash
- * reporter outlives the app, so it does not count.
+ * The lines that wait until no process runs from `target`. There is no time limit: the person may
+ * keep the app open for days, and a script that gave up would leave "Restart" with nothing to
+ * install. Waiting costs nothing. Electron's crash reporter outlives the app, so it does not count.
  */
 function waitForQuit(target: string): string[] {
 	return [
 		'echo "update: waiting for OpenCursor to quit"',
-		'i=0',
 		`while ps ax -o command= | grep -F ${sh(target + '/')} | grep -v -e crashpad_handler -e 'grep -F' >/dev/null 2>&1; do`,
-		'	i=$((i + 1))',
-		'	[ $i -gt 7200 ] && { echo "update: gave up waiting"; exit 1; }',
 		'	sleep 0.5',
 		'done',
 	];
@@ -161,7 +168,7 @@ function relaunchLine(platform: 'darwin' | 'linux', target: string, flag: string
  * macOS and Linux (tar): waits until no process runs from the install, swaps the staged copy in,
  * keeps the old one until the new one is in place, and reopens the app if the flag file exists.
  */
-export function swapScript(o: { readonly platform: 'darwin' | 'linux'; readonly staged: string; readonly target: string; readonly relaunchFlag: string; readonly log: string; readonly download?: string }): string {
+export function swapScript(o: { readonly platform: 'darwin' | 'linux'; readonly staged: string; readonly target: string; readonly relaunchFlag: string; readonly log: string; readonly download?: string; readonly work?: string }): string {
 	const t = sh(o.target);
 	const old = sh(o.target + '.old-update');
 	// the reopen line runs on every path, so "Restart now" never leaves the person without the app
@@ -177,19 +184,31 @@ export function swapScript(o: { readonly platform: 'darwin' | 'linux'; readonly 
 		'	echo "update: could not move the old copy"',
 		'fi',
 		relaunchLine(o.platform, o.target, o.relaunchFlag),
+		// the folder holds the script, flag, log and download; the log is only worth keeping after a failure
+		...(o.work ? [`[ "$ok" = 1 ] && rm -rf ${sh(o.work)}`] : []),
 		'[ "$ok" = 1 ]',
 		'',
 	].join('\n');
 }
 
 /** Linux packages are installed while the app runs; this only reopens it once it has quit. */
-export function relaunchScript(o: { readonly target: string; readonly relaunchFlag: string; readonly log: string }): string {
-	return ['#!/bin/sh', `exec >>${sh(o.log)} 2>&1`, ...waitForQuit(o.target), relaunchLine('linux', o.target, o.relaunchFlag), ''].join('\n');
+export function relaunchScript(o: { readonly target: string; readonly relaunchFlag: string; readonly log: string; readonly download?: string; readonly work?: string }): string {
+	return [
+		'#!/bin/sh',
+		`exec >>${sh(o.log)} 2>&1`,
+		...waitForQuit(o.target),
+		relaunchLine('linux', o.target, o.relaunchFlag),
+		// the package is installed already, so its file and the work folder are no longer needed
+		...(o.download ? [`rm -f ${sh(o.download)}`] : []),
+		...(o.work ? [`rm -rf ${sh(o.work)}`] : []),
+		'',
+	].join('\n');
 }
 
 /** Quotes a path for a cmd.exe script. */
 function cmd(s: string): string {
-	return `"${s.replace(/"/g, '')}"`;
+	// a lone % would expand as a variable inside a batch file; %% is a literal one
+	return `"${s.replace(/"/g, '').replace(/%/g, '%%')}"`;
 }
 
 /** Windows: waits for OpenCursor.exe to exit, runs the setup silently, reopens it if the flag file exists. */
@@ -199,12 +218,9 @@ export function windowsScript(o: { readonly setup: string; readonly exe: string;
 		'@echo off',
 		// cmd reads the script in the OEM code page; UTF-8 keeps names with å, ä, ö intact
 		'chcp 65001 >nul',
-		'set /a n=0',
 		':wait',
 		`tasklist /FI "IMAGENAME eq ${name}" 2>nul | find /I "${name}" >nul`,
 		'if errorlevel 1 goto install',
-		'set /a n+=1',
-		'if %n% gtr 3600 exit /b 1',
 		// timeout fails at once when stdin is NUL (the script runs detached); ping waits a second anywhere
 		'ping -n 2 127.0.0.1 >nul',
 		'goto wait',
@@ -233,21 +249,19 @@ export function portableScript(o: { readonly staged: string; readonly root: stri
 		'@echo off',
 		// cmd reads the script in the OEM code page; UTF-8 keeps names with å, ä, ö intact
 		'chcp 65001 >nul',
-		'set /a n=0',
 		':wait',
 		`tasklist /FI "IMAGENAME eq ${name}" 2>nul | find /I "${name}" >nul`,
 		'if errorlevel 1 goto swap',
-		'set /a n+=1',
-		'if %n% gtr 3600 exit /b 1',
 		// timeout fails at once when stdin is NUL (the script runs detached); ping waits a second anywhere
 		'ping -n 2 127.0.0.1 >nul',
 		'goto wait',
 		':swap',
 		`if not exist ${q(r(o.staged) + '\\' + name)} goto fail`,
 		`if not exist ${q(r(o.staged) + '\\resources\\app')} goto fail`,
-		`robocopy ${q(r(o.staged) + '\\resources')} ${q(r(o.root) + '\\resources')} /MIR /R:5 /W:1 /NP /NFL /NDL /LOG+:${q(o.log)}`,
-		'if errorlevel 8 goto fail',
+		// top level files first: if this copy fails, nothing has changed yet, and the old resources still match the old exe
 		`robocopy ${q(r(o.staged))} ${q(r(o.root))} /E /IS /IT /XD ${q(r(o.staged) + '\\resources')} ${q(r(o.root) + '\\data')} /R:5 /W:1 /NP /NFL /NDL /LOG+:${q(o.log)}`,
+		'if errorlevel 8 goto fail',
+		`robocopy ${q(r(o.staged) + '\\resources')} ${q(r(o.root) + '\\resources')} /MIR /R:5 /W:1 /NP /NFL /NDL /LOG+:${q(o.log)}`,
 		'if errorlevel 8 goto fail',
 		`rmdir /s /q ${q(r(o.staged))}`,
 		...(o.download ? [`del /f /q ${q(o.download)}`] : []),

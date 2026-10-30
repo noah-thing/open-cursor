@@ -90,7 +90,7 @@ interface SendRequest {
 }
 
 /** Allowlist entries that run the project's own scripts and build files. */
-const RUNS_PROJECT_CODE = /^(npm|pnpm|yarn|bun|npx|make|just|pytest|python3? -m pytest|cargo|go (build|test|run|generate)|tsc|gradle|\.\/gradlew|mvn|dotnet|deno|node|tox|nox|poetry run|uv run)(\s|$)/;
+const RUNS_PROJECT_CODE = /^(npm|pnpm|yarn|bun|npx|make|just|pytest|python3? -m pytest|cargo|go (build|test|run|generate|vet)|tsc|gradle|\.\/gradlew|mvn|dotnet|deno|node|tox|nox|poetry run|uv run)(\s|$)/;
 
 /**
  * After the agent changed a build or script file in this turn, `npm test` and the like run what it
@@ -607,7 +607,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	/** Another model that can take over after `current` hit a limit: not the same CLI or key, which share the limit. */
 	private fallbackFor(current: string): ModelOption | undefined {
-		const family = (id: string): string => (id.startsWith('cli:') ? id.slice(0, id.indexOf('/')) : id.slice(0, id.indexOf('/')));
+		// models of one CLI, or of one provider, share a limit: `cli:opencode/...`, `groq/...`
+		const family = (id: string): string => (id.includes('/') ? id.slice(0, id.indexOf('/')) : id);
 		const ok = (m: ModelOption | undefined): m is ModelOption => !!m && m.hasKey && m.id !== current && family(m.id) !== family(current);
 		const free = this.modelOptions.find(m => m.id === FREE_AUTO_ID);
 		const candidates = [current !== FREE_AUTO_ID ? free : undefined, this.subscription(), this.modelOptions.find(m => m.id === this.defaultModelId()), ...this.modelOptions];
@@ -1466,7 +1467,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 				// Help looks things up in the manual it was handed; thinking only adds seconds.
 				thinking: mode === 'help' ? false : apiEffort(readEffort()) !== undefined,
 				effort: apiEffort(readEffort()),
-				getPolicy: () => withBuildGuard({ autoRun: readAutoRun(), ...readLists(), sessionAllow: this.sessionAllow }, !!this.runtime(sc.chat.id).buildTouched),
+				getPolicy: () => withBuildGuard({ autoRun: readAutoRun(), ...readLists(), sessionAllow: this.sessionAllow, roots: (vscode.workspace.workspaceFolders ?? []).filter(f => f.uri.scheme === 'file').map(f => f.uri.fsPath) }, !!this.runtime(sc.chat.id).buildTouched),
 				addSessionAllow: prefix => { this.sessionAllow.add(prefix); },
 			},
 			hooks, signal,
@@ -1489,6 +1490,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (sc.transcript.length === 0 && sc.chat.messages.length) { sc.transcript = buildHistoryFromChat(sc.chat.messages); }
 		const before = estimateMessagesTokens(sc.transcript.map(e => e.msg));
 		rt.running = true;
+		rt.stopped = false;
 		rt.abort = new AbortController();
 		rt.idle = new Promise<void>(res => { rt.resolveIdle = res; });
 		sc.chat.status = 'running';
@@ -1568,7 +1570,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const first = content.find(c => c.type === 'text');
 		// The CLI's own session remembers its turns. Anything it has not seen (the whole chat when it starts
 		// fresh, or turns that ran on other models since) is handed over in writing, so nothing is lost.
-		const resume = sc.cliSessionAgent === agent && sc.cliSessionCwd === cwd ? sc.cliSessionId : undefined;
+		// a session whose last seen turn is unknown (its first turn failed) cannot be brought up to date: start it fresh
+		const resume = sc.cliSessionAgent === agent && sc.cliSessionCwd === cwd && (sc.cliSessionUpTo || sc.chat.messages.length <= 2) ? sc.cliSessionId : undefined;
 		const earlier = sc.chat.messages.slice(0, -2);
 		let brief = '';
 		if (!help && earlier.length) {

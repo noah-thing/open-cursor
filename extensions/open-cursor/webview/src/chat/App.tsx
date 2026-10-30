@@ -87,13 +87,21 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 	}, [scrollTo]);
 
 	// Wheel up or a touch drag is the user taking over, before any scroll event can say so.
+	// The button state is refreshed next frame, since no scroll event follows when the view cannot move.
 	const unstick = useCallback((): void => {
 		stick.current = false;
+		requestAnimationFrame(() => onScrollRef.current());
 	}, []);
 	const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>): void => {
-		if (e.deltaY < 0) { stick.current = false; }
+		// scrolling inside a code block is not leaving the bottom of the chat
+		if ((e.target as Element | null)?.closest?.('pre')) { return; }
+		if (e.deltaY < 0) {
+			stick.current = false;
+			requestAnimationFrame(() => onScrollRef.current());
+		}
 	}, []);
 
+	const onScrollRef = useRef<() => void>(() => undefined);
 	const onScroll = (): void => {
 		const el = scroller.current;
 		if (!el) { return; }
@@ -103,6 +111,7 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 		setShowJump(prev => (prev === !atBottom ? prev : !atBottom));
 		persist();
 	};
+	onScrollRef.current = onScroll;
 
 	// Read through a ref so retry keeps one identity and streamed tokens do not re-render every AssistantBlock.
 	const chatRef = useRef(chat);
@@ -217,6 +226,8 @@ function useStageMotion(home: boolean, staged: boolean): { stageRef: React.RefOb
 		const ro = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(again);
 		ro?.observe(stage);
 		if (dockRef.current) { ro?.observe(dockRef.current); }
+		// the dock also moves when the start screen blocks above or below it change size
+		for (const el of stage.querySelectorAll(':scope > .oc-home-top, :scope > .oc-home-bottom')) { ro?.observe(el); }
 		return () => { stage.removeEventListener('scroll', again); ro?.disconnect(); };
 	}, [staged, capture]);
 	useLayoutEffect(() => {

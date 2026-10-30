@@ -565,7 +565,6 @@
 							"yarn test",
 							"yarn lint",
 							"yarn build",
-							"npx tsc",
 							"tsc",
 							"node --version",
 							"python --version",
@@ -591,7 +590,13 @@
 							"Get-Location",
 							"Get-Item",
 							"Select-String",
-							"Test-Path"
+							"Test-Path",
+							"Select-Object",
+							"Sort-Object",
+							"Measure-Object",
+							"Format-Table",
+							"Format-List",
+							"Out-String"
 						],
 						"markdownDescription": "Command prefixes the agent may run without asking when `#openCursor.agent.autoRun#` is `allowlist` or `auto`. Chained commands (`&&`, `|`, `;`) must all match; redirects to files and command substitution always ask."
 					},
@@ -964,7 +969,7 @@
 							"Check GitHub for a new version at startup and every six hours, and offer it.",
 							"Never check on its own. Check for Updates still works."
 						],
-						"default": "notify",
+						"default": "auto",
 						"scope": "application",
 						"description": "Whether OpenCursor looks for new versions."
 					},

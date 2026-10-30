@@ -223,7 +223,16 @@ export function openCodePermission(o: Pick<RunOptions, 'mode' | 'autoRun' | 'com
 			}
 		}
 		// and nothing that names a path outside the project
-		for (const p of ['* ../*', '* ..', '* ~/*', '* ~']) {
+		for (const p of ['* ../*', '* ..', '* ~/*', '* ~', '*/../*', '* ~*', '*$HOME*', '*${HOME}*', '*%USERPROFILE%*', '*$env:*', '* \\\\*']) {
+			bash[p] = 'deny';
+		}
+		// OpenCode matches rules by how a command starts, so what a command really runs is spelled out:
+		// shells and interpreters with inline code, wrappers, programs by full path, deletes by find, git in other folders
+		for (const p of ['sh -c*', 'bash -c*', 'zsh -c*', 'dash -c*', 'fish -c*', 'cmd /c*', 'cmd.exe /c*', 'powershell*', 'pwsh*',
+			'python* -c*', 'node -e*', 'node --eval*', 'node -p*', 'deno eval*', 'bun -e*', 'perl -e*', 'ruby -e*', 'php -r*', 'osascript*',
+			'env *', 'command *', 'exec *', 'nohup *', 'time *', 'nice *', 'timeout *', 'setsid *', 'xargs*', 'watch *',
+			'*/rm *', '*/curl *', '*/wget *', '*/bash*', '*/sh *', '* -delete*', '* -exec *', '* -execdir *', 'git -C *', 'git -c *',
+			'*|sh*', '*| sh*', '*|bash*', '*| bash*', '*|zsh*', '*| zsh*', '*|python*', '*| python*', '*|node*', '*| node*', '*| iex*', '*|iex*']) {
 			bash[p] = 'deny';
 		}
 	}

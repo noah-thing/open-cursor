@@ -106,7 +106,9 @@ export const Thinking = memo(function Thinking({ part, show }: { readonly part: 
 	const secs = formatDuration(part.durationMs);
 	// While it thinks and nobody has opened or closed it, the reasoning flows in under the title.
 	// It stays mounted after the thought ends so it can fold away instead of vanishing.
-	const peek = canOpen && userOpen === undefined;
+	// A thought that was already finished when this mounted (history) never mounts the peek.
+	const [wasLive] = useState(!part.done);
+	const peek = wasLive && canOpen && userOpen === undefined;
 	const topic = !part.done && show ? thoughtTopic(part.text) : undefined;
 	return (
 		<div className={'oc-thinking' + (part.done ? '' : ' is-live')}>

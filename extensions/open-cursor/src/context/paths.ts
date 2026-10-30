@@ -38,8 +38,9 @@ export interface ResolvedPath {
 export function resolvePath(input: string): ResolvedPath {
 	let p = input.trim();
 	if (p.startsWith('file://')) {
-		const uri = vscode.Uri.parse(p);
-		return { uri, inWorkspace: !!vscode.workspace.getWorkspaceFolder(uri) };
+		// normalised like any path, so `file:///project/../etc/x` cannot pass as inside the project
+		const uri = vscode.Uri.file(nodePath.normalize(vscode.Uri.parse(p).fsPath));
+		return { uri, inWorkspace: !!vscode.workspace.getWorkspaceFolder(uri) && !leavesThroughLink(uri) };
 	}
 	if (p === '~' || p.startsWith('~/')) {
 		p = nodePath.join(os.homedir(), p.slice(1));

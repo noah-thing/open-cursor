@@ -211,12 +211,14 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 		transcript.push({ turn: p.turn, msg });
 	};
 
+	// a summary that could not be made is retried only once the conversation has grown, not on every step
+	let compactFailedAt = -1;
 	const manageContext = async (force: boolean): Promise<void> => {
 		let est = estimateRequestTokens(p.system, transcriptMessages(transcript), p.tools.schemas);
 		hooks.onContextUsage(est, limit);
 		// the answer needs room too: providers count input plus max_tokens against the window
 		const reserve = Math.min(Math.min(model.maxOutputTokens || 8192, 32000), limit * 0.25);
-		if (!force && est + reserve <= limit * COMPACT_THRESHOLD) { return; }
+		if (!force && (est + reserve <= limit * COMPACT_THRESHOLD || (compactFailedAt >= 0 && transcript.length < compactFailedAt + 4))) { return; }
 		const pruned = pruneOldToolResults(transcriptMessages(transcript), 8, 800);
 		pruned.forEach((m, i) => { transcript[i] = { turn: transcript[i].turn, msg: m }; });
 		est = estimateRequestTokens(p.system, pruned, p.tools.schemas);
@@ -227,6 +229,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 		try {
 			ok = await compactTranscript(registry, model, transcript, signal, force ? 1 : 3);
 		} catch { ok = false; }
+		compactFailedAt = ok ? -1 : transcript.length;
 		hooks.onToolPart({ type: 'tool', id, name: 'summarize', status: ok ? 'done' : 'cancelled', title: ok ? 'Summarized earlier context' : 'Could not summarize context' });
 		if (ok) {
 			hooks.onTranscript();
@@ -370,7 +373,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 		if (text.trim()) { content.push({ type: 'text', text }); }
 		for (const c of finished) { content.push({ type: 'tool_use', id: c.id, name: c.name, input: asArgs(c.input) ?? {} }); }
 
-		if (!text && !finished.length && thinking && !thinkingOff && stopReason !== 'error') {
+		if (!text.trim() && !finished.length && thinking && !thinkingOff && stopReason !== 'error') {
 			thinkingOff = true;
 			continue;
 		}

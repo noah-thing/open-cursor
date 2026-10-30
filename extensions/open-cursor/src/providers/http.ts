@@ -84,15 +84,20 @@ export async function request(provider: ProviderId, url: string, init: { method?
 
 /** A stream that sends nothing for this long is a dead connection, not a slow model. */
 const IDLE_MS = 180_000;
+/** Before the first byte a local model may still be loading or reading a long prompt on the processor. */
+const FIRST_BYTE_MS = 900_000;
 
 export async function* readLines(body: ReadableStream<Uint8Array>, idleMs = IDLE_MS): AsyncGenerator<string> {
 	const reader = body.getReader();
 	const dec = new TextDecoder();
 	let buf = '';
 	try {
+		let first = true;
 		for (; ;) {
 			let timer: ReturnType<typeof setTimeout> | undefined;
-			const idle = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`no data from the model for ${Math.round(idleMs / 1000)} seconds`)), idleMs); });
+			const wait = first ? Math.max(idleMs, FIRST_BYTE_MS) : idleMs;
+			first = false;
+			const idle = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`no data from the model for ${Math.round(wait / 1000)} seconds`)), wait); });
 			const { done, value } = await Promise.race([reader.read(), idle]).finally(() => clearTimeout(timer));
 			if (done) { break; }
 			buf += dec.decode(value, { stream: true });

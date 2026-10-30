@@ -24,7 +24,7 @@ export async function exists(uri: vscode.Uri): Promise<vscode.FileType | undefin
 const GUARDED = /(^|[\\/])(\.git|\.vscode|\.claude|\.gemini|\.cursor|\.open-cursor|\.husky|\.devcontainer)([\\/]|$)|(^|[\\/])\.github[\\/]workflows([\\/]|$)/i;
 
 /** Build and script files: once the agent changes one, allowlisted commands that run it ask again for this turn. */
-export const BUILD_FILES = /(^|[\\/])(package\.json|makefile|gnumakefile|[^\\/]*\.mk|justfile|taskfile\.ya?ml|pyproject\.toml|setup\.py|setup\.cfg|tox\.ini|noxfile\.py|conftest\.py|pytest\.ini|cargo\.toml|build\.rs|build\.gradle(\.kts)?|pom\.xml|deno\.jsonc?|bunfig\.toml|\.npmrc|\.yarnrc(\.yml)?|tsconfig[^\\/]*\.json|vite\.config\.[cm]?[jt]s|webpack\.config\.[cm]?[jt]s|jest\.config\.[cm]?[jt]s|vitest\.config\.[cm]?[jt]s|go\.mod)$/i;
+export const BUILD_FILES = /(^|[\\/])(package\.json|makefile|gnumakefile|[^\\/]*\.mk|justfile|taskfile\.ya?ml|pyproject\.toml|setup\.py|setup\.cfg|tox\.ini|noxfile\.py|conftest\.py|pytest\.ini|cargo\.toml|build\.rs|build\.gradle(\.kts)?|pom\.xml|deno\.jsonc?|bunfig\.toml|\.npmrc|\.yarnrc(\.yml)?|tsconfig[^\\/]*\.json|vite\.config\.[cm]?[jt]s|webpack\.config\.[cm]?[jt]s|jest\.config\.[cm]?[jt]s|vitest\.config\.[cm]?[jt]s|go\.mod)|next\.config\.[cm]?[jt]s|eslint\.config\.[cm]?[jt]s|\.eslintrc[^\\/]*|babel\.config\.[cm]?[jt]s|\.babelrc|\.mocharc[^\\/]*|rakefile|gulpfile\.[cm]?[jt]s|gruntfile\.[cm]?[jt]s|cmakelists\.txt|playwright\.config\.[cm]?[jt]s|rollup\.config\.[cm]?[jt]s$/i;
 
 /** Resolve a path for a mutating tool; asks the user when it lies outside the workspace or in a guarded folder. */
 export async function resolveForWrite(p: string, ctx: ToolContext, action: string): Promise<{ uri: vscode.Uri } | { error: string }> {

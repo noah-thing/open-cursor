@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { assert, done, test } from '../../agent/test/harness';
-import { assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, swapScript, windowsScript } from '../plan';
+import { assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, stagedStamp, swapScript, windowsScript } from '../plan';
 
 const NAMES = [
 	'OpenCursor-0.2.0-linux-arm64.deb', 'OpenCursor-0.2.0-linux-arm64.rpm', 'OpenCursor-0.2.0-linux-arm64.tar.gz',
@@ -194,6 +194,70 @@ test('the portable script only mirrors resources and never touches data', () => 
 	assert.ok(s.includes('rmdir /s /q "C:\\Tools\\OpenCursor.new-update"'));
 	assert.ok(s.indexOf('if not exist "C:\\Tools\\OpenCursor.new-update\\OpenCursor.exe" goto fail') < s.indexOf('robocopy'));
 	assert.ok(s.includes('if errorlevel 8 goto fail'));
+});
+
+test('waiting scripts never give up while the app runs', () => {
+	const posix = [
+		swapScript({ platform: 'linux', staged: '/a.new-update-1-2', target: '/a', relaunchFlag: '/w/r', log: '/w/l' }),
+		relaunchScript({ target: '/a', relaunchFlag: '/w/r', log: '/w/l' }),
+	];
+	for (const s of posix) { assert.ok(!/gave up|7200|\bi=/.test(s) && s.includes('while ps ax'), 'no limit in the wait loop'); }
+	const win = [
+		windowsScript({ setup: 'C:\\T\\s.exe', exe: 'C:\\P\\OpenCursor.exe', relaunchFlag: 'C:\\T\\r', log: 'C:\\T\\l' }),
+		portableScript({ staged: 'C:\\P.new-update-1-2', root: 'C:\\P', exe: 'C:\\P\\OpenCursor.exe', relaunchFlag: 'C:\\T\\r', log: 'C:\\T\\l' }),
+	];
+	for (const s of win) { assert.ok(!/gtr|set \/a n/.test(s) && s.includes('goto wait'), 'no limit in the wait loop'); }
+	const r = relaunchScript({ target: '/a', relaunchFlag: '/w/r', log: '/w/l', download: '/w/x.deb', work: '/w' }).split('\n');
+	assert.ok(r.indexOf("rm -f '/w/x.deb'") > r.findIndex(l => l.startsWith('[ -f')), 'download removed after the reopen line');
+	assert.ok(r.includes("rm -rf '/w'"));
+});
+
+test('a staged folder is aged by the time in its name, never by its mtime', () => {
+	assert.strictEqual(stagedStamp('OpenCursor.app.new-update-123-1790000000000'), 1790000000000);
+	assert.strictEqual(stagedStamp('OpenCursor.app.new-update'), undefined);
+	assert.strictEqual(stagedStamp('OpenCursor.app.new-update-123'), undefined);
+	assert.strictEqual(stagedStamp('OpenCursor.app.new-update-abc-def'), undefined);
+	assert.strictEqual(stagedStamp('OpenCursor.app.new-update-1-2'), undefined);
+});
+
+test('a percent sign in a Windows path is doubled so cmd keeps it literal', () => {
+	const w = windowsScript({ setup: 'C:\\100%\\s%TEMP%.exe', exe: 'C:\\P\\OpenCursor.exe', relaunchFlag: 'C:\\T\\r', log: 'C:\\T\\l' });
+	assert.ok(w.includes('"C:\\100%%\\s%%TEMP%%.exe" /VERYSILENT'));
+	assert.ok(!w.includes('s%TEMP%.exe'));
+	const p = portableScript({ staged: 'C:\\5%.new-update-1-2', root: 'C:\\5%', exe: 'C:\\5%\\OpenCursor.exe', relaunchFlag: 'C:\\T\\r', log: 'C:\\T\\l' });
+	assert.ok(p.includes('"C:\\5%%\\resources"'));
+	assert.ok(p.includes('start "" "C:\\5%%\\OpenCursor.exe"'));
+});
+
+test('portable: top level files are copied before resources are mirrored', () => {
+	const lines = portableScript({ staged: 'C:\\P.new-update-1-2', root: 'C:\\P', exe: 'C:\\P\\OpenCursor.exe', relaunchFlag: 'C:\\T\\r', log: 'C:\\T\\l' }).split('\r\n');
+	const top = lines.findIndex(l => l.startsWith('robocopy') && !l.includes('/MIR'));
+	const mir = lines.findIndex(l => l.includes('/MIR'));
+	assert.ok(top > 0 && mir > top);
+	assert.strictEqual(lines[top + 1], 'if errorlevel 8 goto fail');
+});
+
+test('the swap script removes its work folder on success and keeps the log on failure', () => {
+	if (process.platform === 'win32') { return; }
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-work-'));
+	try {
+		const target = path.join(dir, 'App');
+		const staged = target + '.new-update-1-2';
+		const work = path.join(dir, 'work');
+		fs.mkdirSync(work);
+		fs.mkdirSync(path.join(target, 'bin'), { recursive: true });
+		fs.mkdirSync(staged);
+		const script = path.join(work, 'install.sh');
+		fs.writeFileSync(script, swapScript({ platform: 'linux', staged, target, relaunchFlag: path.join(work, 'relaunch'), log: path.join(work, 'log'), work }));
+		execFileSync('/bin/sh', [script], { timeout: 10_000 });
+		assert.ok(!fs.existsSync(work), 'work folder removed after success');
+		fs.mkdirSync(work);
+		fs.writeFileSync(script, swapScript({ platform: 'linux', staged, target, relaunchFlag: path.join(work, 'relaunch'), log: path.join(work, 'log'), work }));
+		try { execFileSync('/bin/sh', [script], { timeout: 10_000 }); } catch { /* nothing staged: exits 1 */ }
+		assert.ok(fs.existsSync(path.join(work, 'log')), 'log kept after a failure');
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
 });
 
 void done('update');

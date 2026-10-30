@@ -401,9 +401,9 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 		// "allow always" remembers the exact normalised command, never a prefix; the denylist always wins
 		const denied = isBash && isDenied(command ?? '', o.commandDenylist ?? DEFAULT_DENYLIST);
 		const key = isBash ? 'Bash:' + (command ?? '').replace(/\s+/g, ' ').trim() : toolName;
-		const listed = isBash && (o.autoRun === 'allowlist' || o.autoRun === 'auto') && commandAllowed(command ?? '', o.commandAllowlist);
+		const listed = isBash && (o.autoRun === 'allowlist' || o.autoRun === 'auto') && commandAllowed(command ?? '', o.commandAllowlist, [o.cwd]);
 		// Auto: Claude Code says nothing about risk per command, so the rule decides: everything runs except careful commands
-		const autoOk = isBash && o.autoRun === 'auto' && !readonly && !isCareful(command ?? '');
+		const autoOk = isBash && o.autoRun === 'auto' && !readonly && !isCareful(command ?? '', [o.cwd]);
 		if (!denied && (alwaysTools.has(key) || listed || autoOk)) {
 			return { behavior: 'allow', updatedInput: input };
 		}

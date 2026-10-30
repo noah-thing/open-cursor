@@ -422,7 +422,11 @@ export async function readDocumentText(uri: vscode.Uri): Promise<string | undefi
 		// stat first: a multi GB file must not be pulled into memory just to be truncated to a few hundred lines
 		const size = (await vscode.workspace.fs.stat(uri)).size;
 		if (size > MAX_READ_BYTES) {
-			if (uri.scheme !== 'file') { return undefined; }
+			if (uri.scheme !== 'file') {
+				// no handle API for virtual files: read, keep only the head
+				const all = await vscode.workspace.fs.readFile(uri);
+				return new TextDecoder('utf-8').decode(all.subarray(0, HEAD_BYTES)) + '\n[file is larger than 4 MB, only the start was read]';
+			}
 			const fh = await fsp.open(uri.fsPath, 'r');
 			try {
 				const buf = Buffer.alloc(HEAD_BYTES);

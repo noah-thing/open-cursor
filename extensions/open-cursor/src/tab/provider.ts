@@ -32,10 +32,19 @@ class LatencyLog {
 	line(s: string): void { this.out.appendLine(`${new Date().toISOString().slice(11, 23)} ${s}`); }
 }
 
-/** Only real files that are not secrets may be read for or completed by Tab. */
-function tabAllowed(d: vscode.TextDocument): boolean {
-	if (d.uri.scheme !== 'file') { return false; }
-	return !isSecretFile(vscode.workspace.asRelativePath(d.uri, false));
+// Panels and tool buffers are never code the person is writing.
+const DENIED_SCHEMES = new Set(['output', 'vscode-terminal', 'git', 'gitlens', 'vscode-scm', 'vscode-chat-input', 'comment', 'debug', 'vscode-settings', 'vscode-userdata']);
+
+/**
+ * Whether Tab may complete in this document. Untitled buffers, notebook cells and virtual workspaces are fine.
+ * As a snippet source for another file, untitled buffers stay out since they often hold pasted tokens.
+ */
+function tabAllowed(d: vscode.TextDocument, asSnippet = false): boolean {
+	const scheme = d.uri.scheme;
+	if (DENIED_SCHEMES.has(scheme)) { return false; }
+	if (asSnippet && scheme === 'untitled') { return false; }
+	// secret names are only meaningful for real paths
+	return scheme !== 'file' || !isSecretFile(vscode.workspace.asRelativePath(d.uri, false));
 }
 
 function sleep(ms: number, token: vscode.CancellationToken): Promise<boolean> {
@@ -74,7 +83,7 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 		const snippets: Snippet[] = [];
 		const seen = new Set<string>();
 		const take = (d: vscode.TextDocument, from: number, to: number) => {
-			if (!tabAllowed(d)) { return; }
+			if (!tabAllowed(d, d.uri.toString() !== doc.uri.toString())) { return; }
 			const key = `${d.uri.toString()}:${Math.floor(from / 10)}`;
 			if (seen.has(key)) { return; }
 			seen.add(key);
@@ -93,7 +102,7 @@ export function registerTab(ctx: vscode.ExtensionContext, services: Services): v
 		}
 		for (const ed of vscode.window.visibleTextEditors) {
 			if (snippets.length >= 4) { break; }
-			if (ed.document.uri.toString() === doc.uri.toString() || ed.document.uri.scheme !== 'file') { continue; }
+			if (ed.document.uri.toString() === doc.uri.toString() || !tabAllowed(ed.document, true)) { continue; }
 			const vr = ed.visibleRanges[0];
 			if (vr) { take(ed.document, vr.start.line, Math.min(vr.end.line, vr.start.line + 12)); }
 		}

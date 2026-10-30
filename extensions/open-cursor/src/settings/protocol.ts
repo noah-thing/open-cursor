@@ -68,7 +68,7 @@ export const CONFIG_DEFAULTS: ConfigValues = {
 	'privacy.anonymousCount': true,
 	'chat.showThinking': true,
 	'agent.effort': 'auto',
-	'update.mode': 'notify',
+	'update.mode': 'auto',
 	'chat.fontSize': 13,
 	'models.default': '',
 	'models.inline': '',

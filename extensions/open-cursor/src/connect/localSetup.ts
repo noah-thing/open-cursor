@@ -19,6 +19,21 @@ export function ollamaBase(): string {
 	return (v || 'http://localhost:11434').replace(/\/+$/, '');
 }
 
+/** True when the configured Ollama address points at another machine, which this editor must not install or start anything for. */
+export function ollamaRemote(): boolean {
+	try {
+		const h = new URL(ollamaBase()).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+		return !(h === 'localhost' || h.endsWith('.localhost') || h === '::1' || h === '0.0.0.0' || /^127\./.test(h));
+	} catch {
+		return false;
+	}
+}
+
+/** Where a remote Ollama is expected, for messages. */
+export function ollamaHost(): string {
+	try { return new URL(ollamaBase()).host; } catch { return ollamaBase(); }
+}
+
 function run(file: string, args: string[], timeout = 10 * 60_000): Promise<{ code: number; out: string }> {
 	return new Promise(resolve => {
 		cp.execFile(file, args, { timeout, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
@@ -82,7 +97,11 @@ export function ollamaRunning(): Promise<boolean> {
 }
 
 export async function ollamaState(): Promise<OllamaState> {
-	if (await ollamaRunning()) { return 'running'; }
+	if (await ollamaRunning()) {
+		// the install is done; the next one may open a terminal again
+		linuxTerminal = undefined;
+		return 'running';
+	}
 	return findOllama() ? 'stopped' : 'missing';
 }
 
@@ -107,6 +126,8 @@ async function waitRunning(ms: number): Promise<boolean> {
 /** Starts the installed Ollama in the background and waits for its server. */
 export async function startOllama(): Promise<boolean> {
 	if (await ollamaRunning()) { return true; }
+	// the configured server is on another machine: starting a local one would not help
+	if (ollamaRemote()) { return false; }
 	const found = findOllama();
 	if (!found) { return false; }
 	const detach = (cmd: string, args: string[]): void => {
@@ -129,16 +150,25 @@ async function download(url: string, file: string, report: (pct: number) => void
 	if (!r.ok || !r.body) { throw new Error(`the download answered ${r.status}`); }
 	const total = Number(r.headers.get('content-length')) || 0;
 	const out = fs.createWriteStream(file);
-	const reader = r.body.getReader();
-	let got = 0;
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) { break; }
-		got += value.length;
-		if (!out.write(value)) { await new Promise<void>(res => out.once('drain', () => res())); }
-		if (total) { report(got / total); }
+	// a full disk surfaces as a stream error; without a listener the drain wait would hang forever
+	let failure: Error | undefined;
+	const broke = new Promise<never>((_, rej) => out.once('error', e => { failure = e; rej(e); }));
+	broke.catch(() => undefined);
+	try {
+		const reader = r.body.getReader();
+		let got = 0;
+		for (;;) {
+			if (failure) { throw failure; }
+			const { done, value } = await reader.read();
+			if (done) { break; }
+			got += value.length;
+			if (!out.write(value)) { await Promise.race([new Promise<void>(res => out.once('drain', () => res())), broke]); }
+			if (total) { report(got / total); }
+		}
+		await Promise.race([new Promise<void>((res, rej) => out.end((e?: Error | null) => (e ? rej(e) : res()))), broke]);
+	} finally {
+		out.destroy();
 	}
-	await new Promise<void>((res, rej) => out.end((e?: Error | null) => (e ? rej(e) : res())));
 }
 
 function writable(dir: string): boolean {
@@ -155,9 +185,22 @@ function writable(dir: string): boolean {
  * Linux needs one, so its official script runs in a terminal where the person can type it.
  * Resolves to 'terminal' when the person has to finish in that terminal.
  */
+let linuxTerminal: vscode.Terminal | undefined;
+
+/** Called when the page closes: the next install click starts fresh. */
+export function forgetInstallTerminal(): void {
+	linuxTerminal = undefined;
+}
+
 export async function installOllama(report: (message: string) => void, signal: AbortSignal): Promise<'running' | 'terminal'> {
+	if (ollamaRemote()) { throw new Error(`the Ollama server at ${ollamaHost()} is not reachable`); }
 	if (process.platform === 'linux') {
-		const term = vscode.window.createTerminal({ name: 'Install Ollama' });
+		// repeated clicks must not open more terminals and run the script again while the first is still going
+		if (linuxTerminal && linuxTerminal.exitStatus === undefined) {
+			linuxTerminal.show(false);
+			return 'terminal';
+		}
+		const term = linuxTerminal = vscode.window.createTerminal({ name: 'Install Ollama' });
 		term.show(false);
 		term.sendText('curl -fsSL https://ollama.com/install.sh | sh');
 		return 'terminal';
@@ -201,6 +244,7 @@ export async function pullModel(tag: string, report: (pct: number | undefined, s
 	const reader = r.body.getReader();
 	const dec = new TextDecoder();
 	let buf = '';
+	let succeeded = false;
 	for (;;) {
 		const { done, value } = await reader.read();
 		if (done) { break; }
@@ -213,8 +257,13 @@ export async function pullModel(tag: string, report: (pct: number | undefined, s
 			let ev: { status?: string; total?: number; completed?: number; error?: string };
 			try { ev = JSON.parse(line); } catch { continue; }
 			if (ev.error) { throw new Error(/file does not exist|not found/i.test(ev.error) ? `${tag} is not in Ollama's library` : ev.error); }
+			if (ev.status === 'success') { succeeded = true; }
 			const pct = ev.total && ev.completed !== undefined ? ev.completed / ev.total : undefined;
 			report(pct, ev.status ?? '');
 		}
 	}
+	// the last line may arrive without a newline
+	try { if ((JSON.parse(buf.trim()) as { status?: string }).status === 'success') { succeeded = true; } } catch { /* not JSON */ }
+	// a dropped connection ends the stream quietly; only Ollama's own success event proves the model is there
+	if (!succeeded) { throw new Error('Ollama stopped before the download finished'); }
 }

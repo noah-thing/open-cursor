@@ -9,9 +9,13 @@ import { spawn } from 'node:child_process';
 import { keywordsOf, rankHits, type KeywordHit } from './keywords';
 
 // secrets and heavy dirs never reach the search results
+// Exact secret names only: wide globs hid real source (credentials.ts, secrets.go, .env.d.ts).
+// Build output is left to .gitignore, which ripgrep honours.
 const EXCLUDE_GLOBS = [
-	'.env*', '*.pem', '*.key', '*.p12', '*.pfx', 'id_rsa*', 'id_ed25519*', '.npmrc', 'credentials*', 'secrets.*', 'service-account*.json',
-	'node_modules', '.git', 'dist', 'build', 'out', 'target', '.venv', '__pycache__', '.next',
+	'.env', '.env.local', '.env.*.local', '.env.development', '.env.production', '.env.test',
+	'*.pem', '*.key', '*.p12', '*.pfx', 'id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa', '.npmrc', '.pypirc', '.netrc', '.git-credentials',
+	'credentials', 'credentials.json', 'credentials.yml', 'secrets.json', 'secrets.yml', 'secrets.yaml', 'secrets.toml', 'service-account*.json',
+	'node_modules', '.git', '.venv', '__pycache__',
 ];
 
 export function findRipgrep(): string | undefined {
