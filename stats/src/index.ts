@@ -25,22 +25,69 @@ async function sha256(s: string): Promise<string> {
 	return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function ping(req: Request, env: Env): Promise<Response> {
-	let body: { id?: unknown; version?: unknown; os?: unknown; arch?: unknown };
+const MAX_BODY = 64 * 1024;
+const NEW_INSTALLS_PER_IP_PER_DAY = 20;
+const REPORTS_PER_IP_PER_HOUR = 10;
+
+/** The JSON object in the body, reading at most 64 KB. A Response when it is too big, not JSON, or not an object. */
+async function readObject(req: Request): Promise<Record<string, unknown> | Response> {
+	if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY) { return new Response('too big', { status: 413 }); }
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	if (req.body) {
+		const reader = req.body.getReader();
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) { break; }
+			size += value.length;
+			if (size > MAX_BODY) { void reader.cancel(); return new Response('too big', { status: 413 }); }
+			chunks.push(value);
+		}
+	}
+	const bytes = new Uint8Array(size);
+	let at = 0;
+	for (const c of chunks) { bytes.set(c, at); at += c.length; }
 	try {
-		body = await req.json();
+		const j: unknown = JSON.parse(new TextDecoder().decode(bytes));
+		if (!j || typeof j !== 'object' || Array.isArray(j)) { return new Response('bad json', { status: 400 }); }
+		return j as Record<string, unknown>;
 	} catch {
 		return new Response('bad json', { status: 400 });
 	}
-	const id = String(body.id ?? '').toLowerCase();
-	const version = String(body.version ?? '');
-	const os = String(body.os ?? '');
-	const arch = String(body.arch ?? '');
+}
+
+/** Counts one use for this network in the given period and says whether it is over the limit. Only a salted hash of the IP is kept, and the salt changes every day. */
+async function overIpLimit(req: Request, env: Env, kind: string, period: string, limit: number): Promise<boolean> {
+	const ip = req.headers.get('cf-connecting-ip') ?? 'unknown';
+	const hash = await sha256(`${env.STATS_KEY ?? ''}|${day()}|${ip}`);
+	const row = await env.DB.prepare(
+		'INSERT INTO ip_limits (kind, period, hash, n) VALUES (?1, ?2, ?3, 1) ON CONFLICT (kind, period, hash) DO UPDATE SET n = n + 1 RETURNING n',
+	).bind(kind, period, hash).first<{ n: number }>();
+	// old windows go with the next write; strings of this shape sort by time
+	await env.DB.prepare('DELETE FROM ip_limits WHERE period < ?1').bind(day(2)).run();
+	return Number(row?.n ?? 0) > limit;
+}
+
+const str = (v: unknown): v is string => typeof v === 'string';
+/** Optional text fields must be text when present. */
+const optionalText = (...vs: unknown[]): boolean => vs.every(v => v === undefined || v === null || str(v));
+
+async function ping(req: Request, env: Env): Promise<Response> {
+	const body = await readObject(req);
+	if (body instanceof Response) { return body; }
+	if (!str(body.id) || !str(body.version) || !str(body.os) || !str(body.arch)) { return new Response('bad ping', { status: 400 }); }
+	const id = body.id.toLowerCase();
+	const { version, os, arch } = body;
 	if (!UUID.test(id) || !VERSION.test(version) || !OS.has(os) || !ARCH.has(arch)) {
 		return new Response('bad ping', { status: 400 });
 	}
 	const hash = await sha256(id);
 	const today = day();
+	// known installs just check in; only new IDs count against the network's daily limit, so a script cannot inflate the total
+	const known = await env.DB.prepare('SELECT 1 AS k FROM installs WHERE hash = ?1').bind(hash).first();
+	if (!known && await overIpLimit(req, env, 'ping', today, NEW_INSTALLS_PER_IP_PER_DAY)) {
+		return new Response('too many new installs from this network', { status: 429 });
+	}
 	await env.DB.batch([
 		env.DB.prepare(
 			`INSERT INTO installs (hash, first_day, last_day, os, arch, version) VALUES (?1, ?2, ?2, ?3, ?4, ?5)
@@ -131,8 +178,11 @@ function signature(error: string, message: string): string {
 }
 
 async function report(req: Request, env: Env): Promise<Response> {
-	let b: Record<string, unknown>;
-	try { b = await req.json(); } catch { return new Response('bad json', { status: 400 }); }
+	const b = await readObject(req);
+	if (b instanceof Response) { return b; }
+	if (!str(b.message) || !str(b.version) || !str(b.os) || !str(b.arch) || !str(b.id) || !optionalText(b.error, b.model, b.mode, b.contact)) {
+		return new Response('bad report', { status: 400 });
+	}
 	const message = clipText(b.message, 4000);
 	const version = clipText(b.version, 24);
 	const os = clipText(b.os, 12);
@@ -146,6 +196,7 @@ async function report(req: Request, env: Env): Promise<Response> {
 	const used = Number((await env.DB.prepare('SELECT n FROM report_limits WHERE hash = ?1 AND hour = ?2').bind(hash, hour).first<{ n: number }>())?.n ?? 0);
 	const today = Number((await env.DB.prepare('SELECT COUNT(*) AS n FROM reports WHERE time >= ?1').bind(Date.now() - 86_400_000).first<{ n: number }>())?.n ?? 0);
 	if (used >= 10 || today >= 2000) { return new Response('too many reports, try again later', { status: 429 }); }
+	if (await overIpLimit(req, env, 'report', hour, REPORTS_PER_IP_PER_HOUR)) { return new Response('too many reports from this network, try again later', { status: 429 }); }
 	const error = clipText(b.error, 3000);
 	const rid = crypto.randomUUID();
 	await env.DB.batch([

@@ -131,7 +131,7 @@ test('claude: error result maps to isError', () => {
 	assert.match(p.result.message ?? '', /login/);
 });
 
-test('codex: patch fixture (non git cwd falls back to hint rows + one warning)', async () => {
+test('codex: patch fixture (folder that cannot be watched falls back to hint rows + one warning)', async () => {
 	const { host, rec } = recorder();
 	const tracker = await TurnTracker.create(CWD, process.env, host);
 	assert.strictEqual(tracker.active, false);
@@ -141,7 +141,7 @@ test('codex: patch fixture (non git cwd falls back to hint rows + one warning)',
 	}
 	assert.ok(p.sessionId && p.sawTurnCompleted);
 	assert.deepStrictEqual(rec.changed.map(x => path.basename(x)).sort(), ['a.txt', 'b.txt', 'c.txt']);
-	assert.strictEqual((rec.text.match(/not a git repository/g) ?? []).length, 1);
+	assert.strictEqual((rec.text.match(/cannot snapshot files/g) ?? []).length, 1);
 	assert.match(rec.text, /ok/);
 	assert.strictEqual(rec.usage[0].outputTokens > 0, true);
 });

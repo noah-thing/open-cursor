@@ -7,7 +7,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { CliAgentId } from './types';
+import type { CliAgentId, TurnHost } from './types';
 import { stripAnsi } from '../terminal/logic';
 
 export const COMMON_BIN_DIRS = (): string[] => {
@@ -84,30 +84,54 @@ export function withPath(env: NodeJS.ProcessEnv, value: string): NodeJS.ProcessE
 interface SpawnPlan { file: string; args: string[]; shell: boolean }
 
 /**
+ * What an npm .cmd shim launches: a script for node, or a native .exe (Codex and others ship one).
+ * The shim also mentions node.exe in its `IF EXIST` line, which is not the target.
+ */
+export function shimTarget(text: string): { kind: 'js' | 'exe'; rel: string } | undefined {
+	const prefix = '"%~?dp0%?\\\\([^"]+';
+	const js = new RegExp(prefix + '\\.(?:c|m)?js)"', 'i').exec(text);
+	if (js) {
+		return { kind: 'js', rel: js[1] };
+	}
+	for (const m of text.matchAll(new RegExp(prefix + '\\.exe)"', 'ig'))) {
+		if (!/(^|[\\/])node\.exe$/i.test(m[1])) {
+			return { kind: 'exe', rel: m[1] };
+		}
+	}
+	return undefined;
+}
+
+/** cmd.exe ends a command at a newline, so line breaks inside an argument become spaces. */
+export function cmdQuote(a: string): string {
+	return '"' + a.replace(/\r?\n/g, ' ').replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1') + '"';
+}
+
+/**
  * Node refuses to spawn .cmd/.bat files directly on Windows (CVE-2024-27980), and most npm-installed
- * CLIs are .cmd shims. A shim from npm just runs `node <script>`, so run that directly; anything else
- * goes through cmd.exe with every argument quoted.
+ * CLIs are .cmd shims. A shim from npm just runs `node <script>` or a native .exe, so run that directly;
+ * anything else goes through cmd.exe with every argument quoted.
  */
 export function planSpawn(binary: string, args: string[]): SpawnPlan {
 	if (process.platform !== 'win32' || !/\.(cmd|bat)$/i.test(binary)) {
 		return { file: binary, args, shell: false };
 	}
 	try {
-		const text = fs.readFileSync(binary, 'utf8');
-		const m = /"%dp0%\\([^"]+\.(?:c|m)?js)"/i.exec(text) ?? /"%~dp0\\([^"]+\.(?:c|m)?js)"/i.exec(text);
-		if (m) {
+		const target = shimTarget(fs.readFileSync(binary, 'utf8'));
+		if (target) {
 			const dir = path.dirname(binary);
-			const script = path.join(dir, m[1]);
-			const localNode = path.join(dir, 'node.exe');
-			if (fs.existsSync(script)) {
-				return { file: fs.existsSync(localNode) ? localNode : 'node', args: [script, ...args], shell: false };
+			const file = path.join(dir, target.rel);
+			if (fs.existsSync(file)) {
+				if (target.kind === 'exe') {
+					return { file, args, shell: false };
+				}
+				const localNode = path.join(dir, 'node.exe');
+				return { file: fs.existsSync(localNode) ? localNode : 'node', args: [file, ...args], shell: false };
 			}
 		}
 	} catch {
 		/* fall through to cmd.exe */
 	}
-	const quote = (a: string): string => '"' + a.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1') + '"';
-	return { file: '"' + binary + '"', args: args.map(quote), shell: true };
+	return { file: '"' + binary + '"', args: args.map(cmdQuote), shell: true };
 }
 
 /** Kills a process and everything it started. POSIX uses the process group; Windows needs taskkill /T. */
@@ -202,6 +226,8 @@ export function arr(v: unknown): unknown[] {
 export interface SpawnedCli {
 	readonly child: ChildProcess;
 	readonly stderr: () => string;
+	/** True when the idle watchdog (idleMs) ended the process. */
+	readonly idled: () => boolean;
 	/** Resolves when the process has exited and all stdout lines were delivered. */
 	readonly exited: Promise<{ code: number | null; signal: NodeJS.Signals | null; spawnError?: string }>;
 	kill(): void;
@@ -223,7 +249,7 @@ export function killAllClis(): void {
 export function spawnCli(
 	binary: string,
 	args: string[],
-	opts: { cwd: string; env: NodeJS.ProcessEnv; stdin?: string | 'keep-open' | 'none'; signal: AbortSignal; onLine: (line: string) => void },
+	opts: { cwd: string; env: NodeJS.ProcessEnv; stdin?: string | 'keep-open' | 'none'; signal: AbortSignal; onLine: (line: string) => void; idleMs?: number },
 ): SpawnedCli {
 	const plan = planSpawn(binary, args);
 	const child = spawn(plan.file, plan.args, {
@@ -235,8 +261,22 @@ export function spawnCli(
 		stdio: ['pipe', 'pipe', 'pipe'],
 	});
 	let err = '';
+	let idleTimer: NodeJS.Timeout | undefined;
+	let idled = false;
+	const poke = (): void => {
+		if (!opts.idleMs) {
+			return;
+		}
+		clearTimeout(idleTimer);
+		idleTimer = setTimeout(() => {
+			idled = true;
+			kill();
+		}, opts.idleMs);
+		idleTimer.unref();
+	};
 	child.stderr?.setEncoding('utf8');
 	child.stderr?.on('data', (d: string) => {
+		poke();
 		err += d;
 		if (err.length > 64_000) {
 			err = err.slice(err.length - 32_000);
@@ -244,7 +284,10 @@ export function spawnCli(
 	});
 	const splitter = new LineSplitter(opts.onLine);
 	child.stdout?.setEncoding('utf8');
-	child.stdout?.on('data', (d: string) => splitter.push(d));
+	child.stdout?.on('data', (d: string) => {
+		poke();
+		splitter.push(d);
+	});
 	child.stdin?.on('error', () => undefined);
 	if (typeof opts.stdin === 'string' && opts.stdin !== 'keep-open' && opts.stdin !== 'none') {
 		child.stdin?.end(opts.stdin);
@@ -289,10 +332,12 @@ export function spawnCli(
 	const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null; spawnError?: string }>(resolve => {
 		let spawnError: string | undefined;
 		child.on('error', e => {
+			clearTimeout(idleTimer);
 			spawnError = e.message;
 			resolve({ code: null, signal: null, spawnError });
 		});
 		child.on('close', (code, signal) => {
+			clearTimeout(idleTimer);
 			splitter.end();
 			if (killTimer) {
 				clearTimeout(killTimer);
@@ -306,7 +351,8 @@ export function spawnCli(
 			resolve({ code, signal, spawnError });
 		});
 	});
-	return { child, stderr: () => err, exited, kill };
+	poke();
+	return { child, stderr: () => err, idled: () => idled, exited, kill };
 }
 
 /**
@@ -402,6 +448,38 @@ export function readTextFile(p: string, maxBytes = 2_000_000): string | undefine
 	}
 }
 
+/** True when the CLI says the session id we passed no longer exists (history cleared, a failed first turn). */
+export function isStaleSessionError(text: string | undefined): boolean {
+	return /no (?:saved )?(?:session|conversation)s?\b|(?:session|conversation) (?:was )?not found|not find (?:the |that )?(?:session|conversation)|could not (?:find|resume)[^\n]{0,40}(?:session|conversation)|could not resume|unknown session|no such session|session [0-9a-f-]{8,} (?:does not exist|is invalid)/i.test(stripAnsi(text ?? ''));
+}
+
+/** Wraps a host so a runner can tell whether the CLI produced anything the user would see. */
+export function watchOutput(host: TurnHost): { host: TurnHost; produced: () => boolean } {
+	let any = false;
+	const mark = <A extends unknown[], R>(fn: (...a: A) => R) => (...a: A): R => { any = true; return fn(...a); };
+	return { produced: () => any, host: { ...host, text: mark(host.text), thinking: mark(host.thinking), toolStart: mark(host.toolStart) } };
+}
+
+/**
+ * A CLI that exits 0 with no text and no result event but printed to stderr failed quietly.
+ * Returns the message to show, or undefined when the turn was fine.
+ */
+export function silentFailure(agent: CliAgentId, produced: boolean, sawResult: boolean, stderr: string): string | undefined {
+	const err = stderr.split('\n').filter(l => !/rmcp::transport|^Reading additional input/.test(l)).join('\n').trim();
+	return !produced && !sawResult && err ? friendlyError(agent, err) : undefined;
+}
+
+const HTTP = (code: number): string => `(?:\\b(?:status\\w*|response)\\b[^\\n]{0,16}\\b${code}\\b|\\bhttp(?:/[\\d.]+)?[ :]+(?:error |status )?${code}\\b|\\b${code}\\b[^\\n]{0,24}\\b(?:unauthori[sz]ed|forbidden|too many|rate|authentication)\\b)`;
+const NOT_SIGNED_IN = new RegExp(
+	'not logged in|please run /login|invalid api key|api key not valid|no credentials|\\bsign in (?:to|with|again|required)\\b|please (?:sign|log) ?in|\\blog ?in (?:required|again)\\b|' +
+	'authentication (?:failed|error|required|token)|auth(?:entication)? required|failed to authenticate|not authenticated|\\bunauthori[sz]ed\\b|invalid[_ ]grant|\\boauth token\\b|(?:token|session) (?:has )?expired|' + HTTP(401),
+	'i',
+);
+const RATE_LIMITED = new RegExp(
+	'rate[ -]?limit|usage limit|(?:exceeded|exhausted|reached|out of) (?:your |the |current )*quota|quota (?:exceeded|exhausted|reached)|resource_exhausted|too many requests|\\boverloaded\\b|' + HTTP(429),
+	'i',
+);
+
 /** Short friendly hints for common failures. */
 export function friendlyError(agent: CliAgentId, text: string): string {
 	// CLIs color their errors for a terminal; the codes would show as junk in the chat
@@ -409,12 +487,13 @@ export function friendlyError(agent: CliAgentId, text: string): string {
 	const login = { 'claude-code': '`claude login`', codex: '`codex login`', grok: '`grok login`', 'gemini-cli': '`gemini` (and sign in)', opencode: '`opencode auth login`' }[agent];
 	const label = { 'claude-code': 'Claude Code', codex: 'Codex', grok: 'Grok', 'gemini-cli': 'Gemini CLI', opencode: 'OpenCode' }[agent];
 	if (agent === 'gemini-cli' && /IneligibleTierError|no longer supported for Gemini Code Assist/i.test(raw)) {
-		return 'Google no longer lets Gemini CLI sign in with a personal Google account. Use a Gemini API key instead: Settings > Models > Providers > Google Gemini (the key is free from Google AI Studio).';
+		return 'Google no longer lets Gemini CLI sign in with a personal Google account. Use a Gemini API key instead: save one under Settings > Models > Providers > Google Gemini (the key is free from Google AI Studio) and OpenCursor passes it to Gemini CLI, or set GEMINI_API_KEY in your environment.';
 	}
-	if (/not logged in|please run \/login|invalid api key|authentication|unauthori[sz]ed|401|oauth|sign in|log in|api key not valid|no credentials|auth(?:entication)? required/i.test(raw)) {
+	// OpenCode's free models need no account, so a sign in message would send the user down the wrong road
+	if (agent !== 'opencode' && NOT_SIGNED_IN.test(raw)) {
 		return `${label} is not signed in. Run ${login} in a terminal, then try again.\n\n${tail(raw, 400)}`;
 	}
-	if (/rate limit|usage limit|quota|429|overloaded/i.test(raw)) {
+	if (RATE_LIMITED.test(raw)) {
 		return `${label} hit a usage or rate limit.\n\n${tail(raw, 400)}`;
 	}
 	return tail(raw, 1200);

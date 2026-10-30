@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import { baseName, str, type ToolDef } from './types';
-import { capture, exists, msg, readDocumentText, resolveForWrite, toDisplayPath } from './fsutil';
+import { capture, exists, msg, readDocumentText, resolveForWrite, toDisplayPath, whyNotEditable } from './fsutil';
 
 interface Args { path?: string }
 
@@ -29,6 +29,9 @@ export const deleteFile: ToolDef<Args> = {
 			const type = await exists(uri);
 			if (type === undefined) { return { content: `File not found: ${p}`, isError: true }; }
 			if (type & vscode.FileType.Directory) { return { content: `${p} is a directory; delete_file only deletes files.`, isError: true }; }
+			if (type & vscode.FileType.SymbolicLink) { return { content: `${p} is a symbolic link; delete_file does not delete links because Undo could not restore one.`, isError: true }; }
+			const why = await whyNotEditable(uri, p);
+			if (why) { return { content: why.replace('was not edited', 'was not deleted'), isError: true }; }
 			const before = await readDocumentText(uri);
 			if (before === undefined || before.slice(0, 8000).includes('\u0000')) {
 				return { content: `${p} cannot be read as text (binary or too large); refusing to delete it.`, isError: true };

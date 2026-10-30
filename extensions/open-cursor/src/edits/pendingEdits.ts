@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { createHash } from 'crypto';
 import type { IPendingEdits, PendingHunk } from '../services';
 import type { PendingFileEdit } from '../shared/protocol';
 import { computeHunks, countChanges, foldAccept, applyReject, norm, type Hunk } from './hunks';
@@ -13,6 +14,8 @@ const ORIGINAL_SCHEME = 'open-cursor-original';
 /** CodeLens titles show the real shortcut: Cmd on macOS, Ctrl elsewhere. */
 const MOD = process.platform === 'darwin' ? '⌘' : 'Ctrl+';
 const STATE_KEY = 'openCursor.pendingEdits.v1';
+/** Originals longer than this live in a file, not in workspaceState. */
+const BIG_ORIGINAL = 200_000;
 
 export interface IPendingEditsInternal extends IPendingEdits {
 	/** Drops review state without touching file content. Checkpoint restore uses it. */
@@ -20,8 +23,8 @@ export interface IPendingEditsInternal extends IPendingEdits {
 }
 
 interface Session {
-	readonly uri: vscode.Uri;
-	readonly key: string;
+	uri: vscode.Uri;
+	key: string;
 	original: string;
 	readonly existed: boolean;
 	deleted: boolean;
@@ -35,6 +38,8 @@ interface Session {
 interface PersistedSession {
 	uri: string;
 	original: string;
+	/** Name of a file in the storage folder that holds a large original. */
+	file?: string;
 	existed: boolean;
 	deleted: boolean;
 	source: 'agent' | 'inline';
@@ -100,14 +105,48 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 	}
 
 	let persistTimer: ReturnType<typeof setTimeout> | undefined;
+	let lastPersisted = new Map<string, Omit<PersistedSession, 'file'>>();
+	let bigFiles = new Set<string>();
+	const storeDir = (): vscode.Uri | undefined => {
+		const base = ctx.storageUri ?? ctx.globalStorageUri;
+		return base ? vscode.Uri.joinPath(base, 'pending-edits') : undefined;
+	};
+	const fileFor = (key: string): string => `${createHash('sha1').update(key).digest('hex')}.txt`;
+
+	async function persistNow(): Promise<void> {
+		const list = sessionList();
+		const same = list.length === lastPersisted.size && list.every(s => {
+			const p = lastPersisted.get(s.key);
+			return !!p && p.original === s.original && p.existed === s.existed && p.deleted === s.deleted && p.source === s.source && p.chatId === s.chatId;
+		});
+		if (same) { return; }
+		const snap = list.map(s => ({ uri: s.key, original: s.original, existed: s.existed, deleted: s.deleted, source: s.source, chatId: s.chatId }));
+		lastPersisted = new Map(snap.map(p => [p.uri, p]));
+		const dir = storeDir();
+		const data: PersistedSession[] = [];
+		const used = new Set<string>();
+		for (const p of snap) {
+			if (p.original.length <= BIG_ORIGINAL) { data.push(p); continue; }
+			if (!dir) { continue; }
+			const file = fileFor(p.uri);
+			try {
+				await vscode.workspace.fs.createDirectory(dir);
+				await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, file), Buffer.from(p.original, 'utf8'));
+				used.add(file);
+				data.push({ ...p, original: '', file });
+			} catch { /* cannot store it; this session just will not survive a reload */ }
+		}
+		await ctx.workspaceState.update(STATE_KEY, data.length ? data : undefined);
+		if (dir) {
+			for (const f of bigFiles) {
+				if (!used.has(f)) { try { await vscode.workspace.fs.delete(vscode.Uri.joinPath(dir, f)); } catch { /* already gone */ } }
+			}
+		}
+		bigFiles = used;
+	}
 	function persistSoon(): void {
 		clearTimeout(persistTimer);
-		persistTimer = setTimeout(() => {
-			const data: PersistedSession[] = sessionList().map(s => ({
-				uri: s.key, original: s.original, existed: s.existed, deleted: s.deleted, source: s.source, chatId: s.chatId,
-			}));
-			void ctx.workspaceState.update(STATE_KEY, data.length ? data : undefined);
-		}, 300);
+		persistTimer = setTimeout(() => { void persistNow().catch(() => undefined); }, 300);
 	}
 
 	function changed(s?: Session): void {
@@ -221,6 +260,7 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 				removed: st.removed,
 				isNew: s.existed ? undefined : true,
 				deleted: s.deleted ? true : undefined,
+				chatId: s.chatId,
 			};
 		});
 	}
@@ -305,17 +345,20 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		});
 	}
 
-	function acceptAll(): Promise<void> {
+	/** With a chat id: that chat's changes and inline edits, the same set its review bar shows. */
+	const ofChat = (chatId?: string) => sessionList().filter(s => !chatId || !s.chatId || s.chatId === chatId);
+
+	function acceptAll(chatId?: string): Promise<void> {
 		return excl(async () => {
-			for (const s of sessionList()) {
+			for (const s of ofChat(chatId)) {
 				await acceptFileInner(s);
 			}
 		});
 	}
 
-	function rejectAll(): Promise<void> {
+	function rejectAll(chatId?: string): Promise<void> {
 		return excl(async () => {
-			for (const s of sessionList()) {
+			for (const s of ofChat(chatId)) {
 				try {
 					await rejectFileInner(s);
 				} catch (e) {
@@ -375,20 +418,41 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 		}, 100);
 	}));
 
+	/** Sessions for `uri` itself or, when it was a folder, for anything inside it. */
+	const sessionsUnder = (uri: vscode.Uri): Session[] => {
+		const k = keyOf(uri);
+		const prefix = k.endsWith('/') ? k : k + '/';
+		return sessionList().filter(s => s.key === k || s.key.startsWith(prefix));
+	};
+
 	disposables.push(vscode.workspace.onDidDeleteFiles(e => {
 		for (const uri of e.files) {
-			const s = sessions.get(keyOf(uri));
-			if (s && !s.deleted) {
-				endSession(s);
+			for (const s of sessionsUnder(uri)) {
+				if (!s.deleted) {
+					endSession(s);
+				}
 			}
 		}
 	}));
 
 	disposables.push(vscode.workspace.onDidRenameFiles(e => {
-		for (const { oldUri } of e.files) {
-			const s = sessions.get(keyOf(oldUri));
-			if (s) {
-				endSession(s);
+		for (const { oldUri, newUri } of e.files) {
+			const from = keyOf(oldUri);
+			for (const s of sessionsUnder(oldUri)) {
+				if (s.deleted) {
+					endSession(s);
+					continue;
+				}
+				// the review follows the file to its new path
+				clearTimeout(s.timer);
+				sessions.delete(s.key);
+				originalChanged.fire(originalUri(s.uri));
+				const key = keyOf(newUri) + s.key.slice(from.length);
+				s.key = key;
+				s.uri = vscode.Uri.parse(key);
+				sessions.set(key, s);
+				originalChanged.fire(originalUri(s.uri));
+				void excl(async () => { await refreshCurrent(s); settle(s); });
 			}
 		}
 	}));
@@ -629,6 +693,14 @@ export function createPendingEdits(ctx: vscode.ExtensionContext): IPendingEditsI
 	void (async () => {
 		const saved = ctx.workspaceState.get<PersistedSession[]>(STATE_KEY) ?? [];
 		for (const p of saved) {
+			if (p.file) {
+				const dir = storeDir();
+				try {
+					if (!dir) { continue; }
+					p.original = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, p.file))).toString('utf8');
+					bigFiles.add(p.file);
+				} catch { continue; }
+			}
 			const uri = vscode.Uri.parse(p.uri);
 			const cur = p.deleted ? '' : await readCurrent(uri);
 			if (cur === undefined) {

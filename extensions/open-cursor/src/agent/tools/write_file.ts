@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import { baseName, str, type ToolDef } from './types';
-import { capture, exists, msg, readDocumentText, resolveForWrite, toDisplayPath } from './fsutil';
+import { capture, exists, msg, readDocumentText, resolveForWrite, toDisplayPath, whyNotEditable } from './fsutil';
 
 interface Args { path?: string; contents?: string }
 
@@ -32,13 +32,17 @@ export const writeFile: ToolDef<Args> = {
 		try {
 			const type = await exists(uri);
 			if (type !== undefined && (type & vscode.FileType.Directory)) { return { content: `${p} is a directory.`, isError: true }; }
+			if (type !== undefined) {
+				const why = await whyNotEditable(uri, p);
+				if (why) { return { content: why, isError: true }; }
+			}
 			const before = type === undefined ? undefined : await readDocumentText(uri);
 			if (type !== undefined && (before === undefined || before.slice(0, 8000).includes('\u0000'))) {
 				return { content: `${p} exists but cannot be read as text (binary or too large); refusing to overwrite it.`, isError: true };
 			}
 			if (before === args.contents) { return { content: `${toDisplayPath(uri)} already has exactly this content.` }; }
-			capture(ctx, uri, before);
 			const r = await ctx.services.pendingEdits.applyContent(uri, args.contents, 'agent', ctx.chatId, undefined, before ?? null);
+			capture(ctx, uri, before);
 			const where = toDisplayPath(uri);
 			return {
 				content: `${r.isNew ? 'Created' : 'Overwrote'} ${where}: +${r.added} -${r.removed}.`,

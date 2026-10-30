@@ -53,8 +53,8 @@ export interface IPendingEdits {
 	rejectHunk(uri: vscode.Uri, hunkId: string): Promise<void>;
 	acceptFile(uri: vscode.Uri): Promise<void>;
 	rejectFile(uri: vscode.Uri): Promise<void>;
-	acceptAll(): Promise<void>;
-	rejectAll(): Promise<void>;
+	acceptAll(chatId?: string): Promise<void>;
+	rejectAll(chatId?: string): Promise<void>;
 	openDiff(uri: vscode.Uri): Promise<void>;
 }
 

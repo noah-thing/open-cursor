@@ -1,7 +1,7 @@
 import { assert, done, test } from './harness';
 import type { AssistantMessage, ChatMessage, ToolPart, UserMessage } from '../../shared/protocol';
 import { actionLine, handoffBrief, isLimitError } from '../handoff';
-import { buildHistoryFromChat } from '../history';
+import { buildHistoryFromChat, mergeUserEntry, truncateTranscript, type TranscriptEntry } from '../history';
 
 const user = (id: string, text: string): UserMessage => ({ id, role: 'user', text, context: [], createdAt: 0 });
 const tool = (p: Partial<ToolPart>): ToolPart => ({ type: 'tool', id: 't' + Math.random(), name: 'x', status: 'done', title: '', ...p });
@@ -64,6 +64,23 @@ test('a native model replays CLI turns as text, never as tool calls it does not 
 	assert.ok(a.msg.content.every(c => c.type === 'text'));
 	const text = a.msg.content.map(c => (c.type === 'text' ? c.text : '')).join('');
 	assert.ok(text.includes('Edited src/store/cart.ts (+3 -1)') && text.includes('Looking at the store.'));
+});
+
+test('OpenRouter credit errors offer another model', () => {
+	for (const m of ['402: Insufficient credits', 'This request requires more credits', 'you can only afford 4000', 'Key spending limit reached']) { assert.ok(isLimitError(m), m); }
+});
+
+test('a failed turn merged into the next message can still be cut at the newer message', () => {
+	const entries: TranscriptEntry[] = [];
+	mergeUserEntry(entries, 't1', [{ type: 'text', text: 'first' }]);
+	mergeUserEntry(entries, 't2', [{ type: 'text', text: 'second' }]);
+	assert.strictEqual(entries.length, 1);
+	assert.strictEqual(entries[0].msg.content.length, 2);
+	const cut = truncateTranscript(entries, 't2')!;
+	assert.strictEqual(cut.length, 1);
+	assert.deepStrictEqual(cut[0].msg.content, [{ type: 'text', text: 'first' }]);
+	assert.deepStrictEqual(truncateTranscript(entries, 't1'), []);
+	assert.strictEqual(truncateTranscript(entries, 'nope'), undefined);
 });
 
 void done('handoff');

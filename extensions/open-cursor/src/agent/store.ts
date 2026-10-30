@@ -97,10 +97,13 @@ export class ChatStore {
 			if (parsed && Array.isArray(parsed.chats)) {
 				this.index = {
 					version: 1,
-					chats: parsed.chats.map(c => ({ ...c, status: 'idle' as const })),
-					openChatIds: Array.isArray(parsed.openChatIds) ? parsed.openChatIds : [],
-					activeChatId: parsed.activeChatId,
+					chats: parsed.chats.filter(c => c && typeof c.id === 'string').map(c => ({ ...c, status: 'idle' as const })),
+					openChatIds: Array.isArray(parsed.openChatIds) ? parsed.openChatIds.filter(i => typeof i === 'string') : [],
+					activeChatId: typeof parsed.activeChatId === 'string' ? parsed.activeChatId : undefined,
 				};
+			} else {
+				// valid JSON that is not an index (an empty object, a newer layout): rebuild from the chat files
+				await this.rebuildIndex();
 			}
 		} catch {
 			// first run or corrupt index: rebuild from files
@@ -123,7 +126,39 @@ export class ChatStore {
 	}
 
 	summaries(): ChatSummary[] {
-		return [...this.index.chats].sort((a, b) => b.updatedAt - a.updatedAt);
+		return this.index.chats.map(c => this.unreadable.has(c.id) ? { ...c, title: `${c.title} (unreadable)` } : c).sort((a, b) => b.updatedAt - a.updatedAt);
+	}
+
+	/** Chats whose file exists but could not be read. */
+	private readonly unreadable = new Set<string>();
+	/** Set by the owner: chats that must stay in memory (a running turn). */
+	isBusy: (id: string) => boolean = () => false;
+
+	isUnreadable(id: string): boolean { return this.unreadable.has(id); }
+
+	/** Moves an unreadable chat file aside (never deletes it) and drops the chat from the list and tabs. */
+	async quarantine(id: string): Promise<void> {
+		const file = nodePath.join(this.dir, `${id}.json`);
+		try { await fs.promises.rename(file, `${file}.unreadable-${Date.now()}`); } catch { /* already gone */ }
+		this.unreadable.delete(id);
+		this.cache.delete(id);
+		this.dirty.delete(id);
+		this.deleted.add(id);
+		this.index.chats = this.index.chats.filter(c => c.id !== id);
+		this.index.openChatIds = this.index.openChatIds.filter(c => c !== id);
+		if (this.index.activeChatId === id) { this.index.activeChatId = undefined; }
+		this.markIndex();
+	}
+
+	/** Drops chats nobody is looking at, so a long session does not hold every chat it ever opened. */
+	private evict(): void {
+		if (this.cache.size <= 12) { return; }
+		const keep = new Set([...this.index.openChatIds, this.index.activeChatId ?? '']);
+		for (const id of [...this.cache.keys()]) {
+			if (this.cache.size <= 12) { break; }
+			if (keep.has(id) || this.dirty.has(id) || this.isBusy(id)) { continue; }
+			this.cache.delete(id);
+		}
 	}
 
 	get openChatIds(): string[] { return this.index.openChatIds; }
@@ -151,12 +186,12 @@ export class ChatStore {
 		try {
 			const raw = await fs.promises.readFile(nodePath.join(this.dir, `${id}.json`), 'utf8');
 			const sc = JSON.parse(raw) as StoredChat;
-			if (!sc?.chat) { return undefined; }
+			if (!sc?.chat || typeof sc.chat !== 'object') { this.unreadable.add(id); return undefined; }
 			sc.chat.status = 'idle';
-			sc.chat.messages ??= [];
-			sc.chat.queued ??= [];
-			sc.chat.todos ??= [];
-			sc.transcript ??= [];
+			sc.chat.messages = Array.isArray(sc.chat.messages) ? sc.chat.messages : [];
+			sc.chat.queued = Array.isArray(sc.chat.queued) ? sc.chat.queued : [];
+			sc.chat.todos = Array.isArray(sc.chat.todos) ? sc.chat.todos : [];
+			sc.transcript = Array.isArray(sc.transcript) ? sc.transcript : [];
 			// The window closed mid turn: nothing is running any more. Tool rows stop spinning, and a tool call
 			// saved without its result is answered, or providers would reject every later message in this chat.
 			sc.chat.messages = sc.chat.messages.map(m => m.role !== 'assistant' || m.done ? m : {
@@ -169,8 +204,11 @@ export class ChatStore {
 			const again = this.cache.get(id);
 			if (again) { return again; }
 			this.cache.set(id, sc);
+			this.evict();
 			return sc;
 		} catch {
+			// a file that is missing is just gone; one that exists but will not parse is shown as unreadable
+			if (fs.existsSync(nodePath.join(this.dir, `${id}.json`))) { this.unreadable.add(id); }
 			return undefined;
 		}
 	}
@@ -255,7 +293,7 @@ export class ChatStore {
 			try { await fs.promises.mkdir(this.dir, { recursive: true }); } catch { /* ignore */ }
 			let failed = false;
 			for (const { id, sc } of snapshot) {
-				const ok = await atomicWrite(nodePath.join(this.dir, `${id}.json`), JSON.stringify({ chat: { ...sc.chat, status: 'idle' }, transcript: sc.transcript, cliSessionId: sc.cliSessionId, cliSessionAgent: sc.cliSessionAgent, cliSessionCwd: sc.cliSessionCwd, cliSessionUpTo: sc.cliSessionUpTo, scratchDir: sc.scratchDir, titleSource: sc.titleSource }));
+				const ok = await atomicWrite(nodePath.join(this.dir, `${id}.json`), serializeChat(sc));
 				// a full disk or a locked file: keep the change and try again later instead of dropping it
 				if (!ok) { this.dirty.add(id); failed = true; }
 			}
@@ -268,6 +306,32 @@ export class ChatStore {
 		this.writing = this.writing.then(run, run).catch(() => undefined);
 		return this.writing;
 	}
+}
+
+const messageJson = new WeakMap<object, { parts: number; last: unknown; json: string }>();
+
+/** Finished messages never change, so their JSON is kept between saves; only the live message is stringified again. */
+function messageToJson(m: StoredChat['chat']['messages'][number]): string {
+	if (m.role === 'assistant' && !m.done) { return JSON.stringify(m); }
+	const parts = m.role === 'assistant' ? m.parts : undefined;
+	const hit = messageJson.get(m);
+	if (hit && hit.parts === (parts?.length ?? 0) && hit.last === parts?.[parts.length - 1]) { return hit.json; }
+	const json = JSON.stringify(m);
+	messageJson.set(m, { parts: parts?.length ?? 0, last: parts?.[parts.length - 1], json });
+	return json;
+}
+
+/** Same format as JSON.stringify of the stored chat; the messages come from the per message cache. */
+export function serializeChat(sc: StoredChat): string {
+	const { messages, ...rest } = { ...sc.chat, status: 'idle' as const };
+	const head = JSON.stringify({ ...rest, messages: [] });
+	const body = messages.map(messageToJson).join(',');
+	return `{"chat":${head.slice(0, -2)}${body}]},"transcript":${JSON.stringify(sc.transcript)}${tail(sc)}}`;
+}
+
+function tail(sc: StoredChat): string {
+	const extra = JSON.stringify({ cliSessionId: sc.cliSessionId, cliSessionAgent: sc.cliSessionAgent, cliSessionCwd: sc.cliSessionCwd, cliSessionUpTo: sc.cliSessionUpTo, scratchDir: sc.scratchDir, titleSource: sc.titleSource });
+	return extra.length > 2 ? ',' + extra.slice(1, -1) : '';
 }
 
 async function atomicWrite(file: string, data: string): Promise<boolean> {

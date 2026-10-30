@@ -176,6 +176,15 @@ export function swapScript(o: { readonly platform: 'darwin' | 'linux'; readonly 
 		'#!/bin/sh',
 		`exec >>${sh(o.log)} 2>&1`,
 		...waitForQuit(o.target),
+		// two windows can each have a script waiting; only the one that makes the lock folder swaps
+		`lock=${sh(o.target + '.update-lock')}`,
+		'got=0',
+		'if mkdir "$lock" 2>/dev/null; then got=1',
+		// a lock older than ten minutes was left by a script that died
+		'elif [ -n "$(find "$lock" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then rmdir "$lock" 2>/dev/null; mkdir "$lock" 2>/dev/null && got=1',
+		'fi',
+		`if [ "$got" != 1 ]; then echo "update: another window is already installing"; rm -rf ${sh(o.staged)}${o.work ? ' ' + sh(o.work) : ''}; exit 0; fi`,
+		'trap \'rmdir "$lock" 2>/dev/null\' EXIT',
 		`rm -rf ${old}`,
 		'ok=0',
 		`if mv ${t} ${old}; then`,

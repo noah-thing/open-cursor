@@ -3,7 +3,7 @@
  *  Trays stacked above the composer: to-dos, queued messages, pending edit review.
  *--------------------------------------------------------------------------------------------*/
 
-import { memo, useState, type ReactElement } from 'react';
+import { memo, useEffect, useState, type ReactElement } from 'react';
 import type { Chat, PendingFileEdit, TodoItem } from '../../../src/shared/protocol';
 import { Icon } from '../common/icons';
 import { post } from './host';
@@ -71,11 +71,26 @@ export const TodoTray = memo(function TodoTray({ todos }: { readonly todos: read
 });
 
 export const QueueTray = memo(function QueueTray({ chat }: { readonly chat: Chat }): ReactElement {
+	// Queued messages that nothing is sending (after an error, a stop or a reload) are shown as unsent.
+	// The short wait keeps the label from flickering in the moment between one queued message and the next.
+	const idle = chat.status === 'idle' || chat.status === 'error';
+	const [unsent, setUnsent] = useState(false);
+	useEffect(() => {
+		if (!idle) { setUnsent(false); return; }
+		const t = setTimeout(() => setUnsent(true), 700);
+		return () => clearTimeout(t);
+	}, [idle, chat.queued.length]);
 	return (
 		<div className="oc-tray oc-queue">
 			<div className="oc-tray-head is-static">
-				<span className="oc-tray-title">Queued</span>
+				<span className="oc-tray-title">{unsent ? 'Not sent' : 'Queued'}</span>
 				<span className="oc-count">{chat.queued.length}</span>
+				{unsent ? (
+					<>
+						<span className="oc-spacer" />
+						<button type="button" className="oc-btn is-sm" onClick={() => post({ type: 'sendQueued', chatId: chat.id })}>Send now</button>
+					</>
+				) : null}
 			</div>
 			<ul className="oc-queue-list">
 				{chat.queued.map(q => (
@@ -117,7 +132,7 @@ function FileRow({ f }: { readonly f: PendingFileEdit }): ReactElement {
 	);
 }
 
-export const ReviewBar = memo(function ReviewBar({ files }: { readonly files: readonly PendingFileEdit[] }): ReactElement {
+export const ReviewBar = memo(function ReviewBar({ files, chatId }: { readonly files: readonly PendingFileEdit[]; readonly chatId: string }): ReactElement {
 	const [open, setOpen] = useState(false);
 	const added = files.reduce((n, f) => n + f.added, 0);
 	const removed = files.reduce((n, f) => n + f.removed, 0);
@@ -131,8 +146,8 @@ export const ReviewBar = memo(function ReviewBar({ files }: { readonly files: re
 					<span className="oc-removed">&minus;{removed}</span>
 				</button>
 				<span className="oc-review-actions">
-					<button type="button" className="oc-btn is-ghost" onClick={() => post({ type: 'rejectAll' })} title="Undo all pending changes">Undo all</button>
-					<button type="button" className="oc-btn is-primary is-sm" onClick={() => post({ type: 'acceptAll' })} title="Keep all pending changes">Keep all</button>
+					<button type="button" className="oc-btn is-ghost" onClick={() => post({ type: 'rejectAll', chatId })} title="Undo all pending changes">Undo all</button>
+					<button type="button" className="oc-btn is-primary is-sm" onClick={() => post({ type: 'acceptAll', chatId })} title="Keep all pending changes">Keep all</button>
 				</span>
 			</div>
 			{open ? <ul className="oc-review-list">{files.map(f => <FileRow key={f.uri} f={f} />)}</ul> : null}

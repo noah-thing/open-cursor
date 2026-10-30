@@ -7,6 +7,7 @@ import type {
 	AgentStatus, ApiProviderStatus, Chat, ChatMessage, LocalServerStatus, ChatMode, ChatSummary, ContextItem, HostMessageExt, ModelOption, PendingFileEdit, SlashCommandInfo, UiSettings,
 } from '../../../src/shared/protocol';
 import { loadUiState } from './host';
+import { restoreOmitted } from '../../../src/agent/snapshot';
 
 export interface Overrides {
 	mode?: ChatMode;
@@ -42,6 +43,8 @@ export interface State {
 	connectHidden: boolean;
 	/** Local model servers and API providers; undefined until the connect panel asks for them. */
 	local: LocalServerStatus[] | undefined;
+	/** The folder is trusted; `undefined` until the host says. */
+	trusted: boolean | undefined;
 	providers: ApiProviderStatus[] | undefined;
 	/** Last outcome per connect target (a provider id, or 'server'). */
 	connectResults: Record<string, { ok: boolean; message: string }>;
@@ -83,6 +86,7 @@ export function initialState(): State {
 		agents: [],
 		connectHidden: !!saved.connectHidden,
 		local: undefined,
+		trusted: undefined,
 		providers: undefined,
 		connectResults: {},
 	};
@@ -176,7 +180,7 @@ export function reducer(s: State, a: Action): State {
 function hostReducer(s: State, m: HostMessageExt): State {
 	switch (m.type) {
 		case 'init': {
-			const chats = { ...s.chats, [m.activeChat.id]: mergeChat(s.chats[m.activeChat.id], m.activeChat) };
+			const chats = { ...s.chats, [m.activeChat.id]: mergeChat(s.chats[m.activeChat.id], restoreOmitted(s.chats[m.activeChat.id], m.activeChat)) };
 			let n: State = {
 				...s, ready: true, chats, summaries: m.chats, openIds: m.openChatIds, activeId: m.activeChat.id,
 				models: m.models, settings: m.settings, pendingEdits: m.pendingEdits, workspaceName: m.workspaceName,
@@ -185,7 +189,7 @@ function hostReducer(s: State, m: HostMessageExt): State {
 			return applyCarry(n, m.activeChat.id);
 		}
 		case 'chat': {
-			const merged = mergeChat(s.chats[m.chat.id], m.chat);
+			const merged = mergeChat(s.chats[m.chat.id], restoreOmitted(s.chats[m.chat.id], m.chat));
 			if (merged === s.chats[m.chat.id]) { return s; }
 			let n: State = { ...s, chats: { ...s.chats, [m.chat.id]: merged } };
 			n = clearOverrides(n, merged, s.chats[m.chat.id]);
@@ -218,7 +222,7 @@ function hostReducer(s: State, m: HostMessageExt): State {
 		case 'agents':
 			return { ...s, agents: m.agents };
 		case 'connectState':
-			return { ...s, local: m.local, providers: m.providers };
+			return { ...s, local: m.local, providers: m.providers, trusted: m.trusted };
 		case 'connectResult':
 			return { ...s, connectResults: { ...s.connectResults, [m.target]: { ok: m.ok, message: m.message } } };
 		case 'addContext': {
@@ -232,6 +236,17 @@ function hostReducer(s: State, m: HostMessageExt): State {
 			let n: State = { ...s, view: 'chat', focusNonce: s.focusNonce + 1, focusText: m.text };
 			if (m.text !== undefined && s.activeId) { n = { ...n, drafts: { ...n.drafts, [s.activeId]: m.text } }; }
 			return n;
+		}
+		case 'restoreDraft': {
+			// a draft the person is typing is never overwritten: the reverted message is added under it
+			const cur = s.drafts[m.chatId] ?? '';
+			const text = !cur.trim() ? m.text : cur.includes(m.text) ? cur : cur + '\n\n' + m.text;
+			const have = s.contexts[m.chatId] ?? [];
+			const add = m.context.filter(c => !have.some(h => h.id === c.id));
+			return {
+				...s, view: 'chat', focusNonce: s.focusNonce + 1, drafts: { ...s.drafts, [m.chatId]: text },
+				contexts: add.length ? { ...s.contexts, [m.chatId]: [...have, ...add] } : s.contexts,
+			};
 		}
 		case 'showHistory':
 			return { ...s, view: 'history' };

@@ -1,6 +1,6 @@
 import { DEFAULT_ALLOWLIST, DEFAULT_DENYLIST } from '../approval';
 import type { TranscriptEntry } from '../history';
-import { runAgentLoop, type LoopHooks, type LoopParams } from '../loop';
+import { describeError, isRetryable, runAgentLoop, type LoopHooks, type LoopParams } from '../loop';
 import type { ChatRequest, ModelInfo, StreamEvent } from '../../providers/types';
 import { ProviderError } from '../../providers/types';
 import type { Services } from '../../services';
@@ -154,4 +154,19 @@ test('oversized context is pruned/summarised before the request', async () => {
 	const roles = s.transcript.map(e => e.msg.role);
 	for (let i = 1; i < roles.length; i++) { assert.notStrictEqual(roles[i], roles[i - 1]); }
 });
+test('retry rules: a stopped local server and a spent quota fail at once', () => {
+	assert.ok(!isRetryable(new ProviderError('Cannot reach localhost:11434: ECONNREFUSED', 'ollama', undefined, 'network')));
+	assert.ok(isRetryable(new ProviderError('Cannot reach api.x.com: ETIMEDOUT', 'custom', undefined, 'network')));
+	assert.ok(!isRetryable(new ProviderError('429: You exceeded your quota (insufficient_quota)', 'openai', 429, 'rate')));
+	assert.ok(isRetryable(new ProviderError('429: slow down', 'openai', 429, 'rate')));
+	assert.ok(describeError(new ProviderError('Cannot reach localhost:11434: ECONNREFUSED', 'ollama', undefined, 'network'), 'ollama').message.includes('Is Ollama running?'));
+});
+
+test('a 402 "can only afford" is retried once with a smaller max_tokens', async () => {
+	const s = setup((_req, call) => call === 0 ? new ProviderError('402: This request requires more credits. You requested up to 32000 tokens, but can only afford 5000', 'openrouter', 402, 'other') : [{ type: 'text', text: 'ok' }, { type: 'done', stopReason: 'end_turn' }], []);
+	await runAgentLoop(s.params);
+	assert.ok(s.requests.length >= 2);
+	assert.ok((s.requests[1].maxTokens ?? 0) <= 5000 && (s.requests[1].maxTokens ?? 0) >= 256);
+});
+
 void done('loop');

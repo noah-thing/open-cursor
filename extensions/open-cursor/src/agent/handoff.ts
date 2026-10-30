@@ -9,7 +9,7 @@ import type { ChatMessage, ToolPart, TodoItem } from '../shared/protocol';
 
 /** Usage limits, rate limits and spent credits, as providers and CLIs phrase them. */
 export function isLimitError(message: string): boolean {
-	return /\brate[ -]?limit|\b429\b|quota|usage limit|limit reached|too many requests|insufficient[ _]?(credits|quota|balance)|credit balance|out of credits|exceeded your|resource[ _]exhausted|overloaded/i.test(message);
+	return /\brate[ -]?limit|\b429\b|quota|usage limit|limit reached|too many requests|insufficient[ _]?(credits|quota|balance)|credit balance|out of credits|exceeded your|resource[ _]exhausted|overloaded|\b402\b|requires more credits|can only afford|spending limit|payment required/i.test(message);
 }
 
 /** One line for one tool call, in the past tense; undefined for steps that did not happen. */

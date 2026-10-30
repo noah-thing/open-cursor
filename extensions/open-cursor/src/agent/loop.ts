@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ChatRequest, LLMContent, LLMMessage, ModelInfo, StreamEvent } from '../providers/types';
+import { QUOTA_RE } from '../providers/http';
 import { ProviderError } from '../providers/types';
 import type { IProviderRegistry, Services } from '../services';
 import type { ChatMode, ToolPart } from '../shared/protocol';
 import { needsApproval, suggestAllowPrefix, type ApprovalPolicy } from './approval';
-import { transcriptMessages, type TranscriptEntry } from './history';
+import { mergeUserEntry, transcriptMessages, type TranscriptEntry } from './history';
 import {
-	applySummary, appendUserContent, capText, chooseSplit, estimateRequestTokens, pruneOldToolResults, renderForSummary,
+	applySummary, capText, chooseSplit, estimateRequestTokens, pruneOldToolResults, renderForSummary,
 } from './tokens';
 import {
 	DEBUG_MARKER, cleanupReminder, formatTodoState, openTodos, toolBlockedReason, turnEndReminders, type MarkerHit,
@@ -157,7 +158,19 @@ export async function compactTranscript(registry: IProviderRegistry, model: Mode
 	return true;
 }
 
-function describeError(e: unknown, provider: string): { message: string; action?: 'openSettings' | 'retry'; kind: string } {
+/** Errors that will not fix themselves in a few seconds: a local server that is off, or a quota that is spent. */
+export function isRetryable(e: unknown): boolean {
+	if (!(e instanceof ProviderError)) { return true; }
+	if (e.kind === 'network' && isLocalRefused(e)) { return false; }
+	if (e.kind === 'rate' && QUOTA_RE.test(e.message)) { return false; }
+	return true;
+}
+
+function isLocalRefused(e: ProviderError): boolean {
+	return /ECONNREFUSED/i.test(e.message) && (e.provider === 'ollama' || e.provider === 'lmstudio' || /localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0/i.test(e.message));
+}
+
+export function describeError(e: unknown, provider: string): { message: string; action?: 'openSettings' | 'retry'; kind: string } {
 	if (e instanceof ProviderError) {
 		switch (e.kind) {
 			case 'auth': {
@@ -166,7 +179,12 @@ function describeError(e: unknown, provider: string): { message: string; action?
 			}
 			case 'rate': return { kind: 'rate', message: `Rate limited by ${e.provider}: ${e.message}`, action: 'retry' };
 			case 'context': return { kind: 'context', message: `The conversation is too long for this model: ${e.message}`, action: 'retry' };
-			case 'network': return { kind: 'network', message: `Network error talking to ${e.provider}: ${e.message}`, action: 'retry' };
+			case 'network':
+				if (isLocalRefused(e)) {
+					const hint = e.provider === 'ollama' ? 'Is Ollama running?' : e.provider === 'lmstudio' ? "Is LM Studio's local server started?" : 'Is the server running?';
+					return { kind: 'network', message: `${e.message}. ${hint}`, action: 'retry' };
+				}
+				return { kind: 'network', message: `Network error talking to ${e.provider}: ${e.message}`, action: 'retry' };
 			default: return { kind: 'other', message: e.message || `Request to ${e.provider} failed`, action: 'retry' };
 		}
 	}
@@ -196,18 +214,13 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 	const recentCalls: string[] = [];
 	let continuations = 0;
 	let forcedCompaction = false;
+	// set after a 402 "can only afford N tokens": every later request asks for no more than this
+	let affordCap: number | undefined;
+	let affordRetried = false;
 	let iterations = 0;
 
 	const push = (msg: LLMMessage): void => {
-		if (msg.role === 'user') {
-			const last = transcript[transcript.length - 1];
-			if (last && last.msg.role === 'user') {
-				const msgs = transcriptMessages(transcript);
-				appendUserContent(msgs, msg.content);
-				transcript[transcript.length - 1] = { turn: last.turn, msg: msgs[msgs.length - 1] };
-				return;
-			}
-		}
+		if (msg.role === 'user') { mergeUserEntry(transcript, p.turn, msg.content); return; }
 		transcript.push({ turn: p.turn, msg });
 	};
 
@@ -220,7 +233,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 		const reserve = Math.min(Math.min(model.maxOutputTokens || 8192, 32000), limit * 0.25);
 		if (!force && (est + reserve <= limit * COMPACT_THRESHOLD || (compactFailedAt >= 0 && transcript.length < compactFailedAt + 4))) { return; }
 		const pruned = pruneOldToolResults(transcriptMessages(transcript), 8, 800);
-		pruned.forEach((m, i) => { transcript[i] = { turn: transcript[i].turn, msg: m }; });
+		pruned.forEach((m, i) => { transcript[i] = { ...transcript[i], msg: m }; });
 		est = estimateRequestTokens(p.system, pruned, p.tools.schemas);
 		if (!force && est + reserve <= limit * COMPACT_THRESHOLD) { hooks.onContextUsage(est, limit); return; }
 		const id = `summarize_${Date.now()}`;
@@ -275,7 +288,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 			calls.clear(); text = ''; thinking = ''; signature = undefined; stopReason = undefined; failure = undefined;
 			const req: ChatRequest = {
 				model, system: p.system, messages: transcriptMessages(transcript), tools: p.tools.schemas.length ? p.tools.schemas : undefined,
-				maxTokens: Math.min(model.maxOutputTokens || 8192, 32000), thinking: !thinkingOff && settings.thinking && model.supportsThinking, effort: settings.effort, signal,
+				maxTokens: Math.min(model.maxOutputTokens || 8192, 32000, affordCap ?? Infinity), thinking: !thinkingOff && settings.thinking && model.supportsThinking, effort: settings.effort, signal,
 			};
 			try {
 				for await (const ev of registry.stream(req)) {
@@ -333,7 +346,13 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 				await manageContext(true);
 				continue;
 			}
-			if (!emitted && attempt < 3 && (info.kind === 'rate' || info.kind === 'network')) {
+			// OpenRouter refuses a request when the balance cannot cover the full max_tokens: ask for what it can afford, once
+			const afford = /can only afford ([\d,]+)/i.exec(info.message);
+			if (!emitted && afford && !affordRetried) {
+				const n = Math.floor(Number(afford[1].replace(/,/g, '')) * 0.95);
+				if (n >= 256) { affordRetried = true; affordCap = n; continue; }
+			}
+			if (!emitted && attempt < 3 && (info.kind === 'rate' || info.kind === 'network') && isRetryable(failure)) {
 				attempt++;
 				await sleep(attempt * 2500, signal);
 				if (signal.aborted) { break; }

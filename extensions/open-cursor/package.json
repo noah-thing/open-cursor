@@ -804,7 +804,7 @@
 						"type": "boolean",
 						"default": true,
 						"scope": "application",
-						"markdownDescription": "Once a day, send a random ID made on this computer, the OpenCursor version and the OS, so the project knows how many people use it. Nothing about you, your code, chats or keys is sent. Also off when `#telemetry.telemetryLevel#` is off. The counter's code is in [`stats/`](https://github.com/noah-thing/open-cursor/tree/main/stats)."
+						"markdownDescription": "Once a day, send a random ID made on this computer, the OpenCursor version and the OS, so the project knows how many people use it. Nothing about you, your code, chats or keys is sent. Also off when you set `#telemetry.telemetryLevel#` to off. The counter's code is in [`stats/`](https://github.com/noah-thing/open-cursor/tree/main/stats)."
 					}
 				}
 			},
@@ -965,7 +965,7 @@
 							"off"
 						],
 						"enumDescriptions": [
-							"Download new versions in the background. They install the next time OpenCursor quits.",
+							"Download new versions in the background. They install the next time OpenCursor quits. Linux .deb and .rpm installs need a click and your password to update.",
 							"Check GitHub for a new version at startup and every six hours, and offer it.",
 							"Never check on its own. Check for Updates still works."
 						],

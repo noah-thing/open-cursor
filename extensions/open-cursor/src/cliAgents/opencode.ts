@@ -22,7 +22,7 @@ import { commandAllowed } from './policy';
 import { CAREFUL } from '../agent/approval';
 import { TurnTracker } from './tracking';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
-import { arr, displayPath, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, spawnCli, str, truncate } from './util';
+import { arr, displayPath, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, silentFailure, spawnCli, str, truncate, watchOutput } from './util';
 
 const EDIT_TOOLS = new Set(['edit', 'write', 'patch', 'apply_patch']);
 const READ_ONLY_TOOLS = ['read', 'glob', 'grep', 'list', 'webfetch', 'websearch'];
@@ -293,6 +293,9 @@ export function setAsideOpenCodeDb(db: string, stamp = new Date().toISOString().
 	return aside;
 }
 
+/** OpenCode waits on the network forever when offline; a turn that is silent this long is stuck. Generous, because a long build or test run prints nothing until it ends. */
+const OPENCODE_IDLE_MS = 10 * 60_000;
+
 export async function runOpenCode(o: RunOptions, repaired = false): Promise<RunResult> {
 	const args = openCodeArgs(o);
 	let tmpDir: string | undefined;
@@ -310,14 +313,16 @@ export async function runOpenCode(o: RunOptions, repaired = false): Promise<RunR
 	}
 
 	const env = openCodeEnv(o);
-	const tracker = await TurnTracker.create(o.cwd, o.env, o.host);
-	const parser = new OpenCodeParser(o.cwd, o.host, tracker);
+	const watch = watchOutput(o.host);
+	const tracker = await TurnTracker.create(o.cwd, o.env, watch.host);
+	const parser = new OpenCodeParser(o.cwd, watch.host, tracker);
 	let queue: Promise<void> = Promise.resolve();
 	const proc = spawnCli(o.binary, args, {
 		cwd: o.cwd,
 		env,
 		stdin: prompt,
 		signal: o.signal,
+		idleMs: OPENCODE_IDLE_MS,
 		onLine: line => {
 			o.rawLog?.(line);
 			const ev = parseJson(line);
@@ -335,6 +340,9 @@ export async function runOpenCode(o: RunOptions, repaired = false): Promise<RunR
 	const sid = parser.sessionId ?? o.sessionId;
 	if (o.signal.aborted) {
 		return { sessionId: sid, stopReason: 'aborted' };
+	}
+	if (proc.idled()) {
+		return { sessionId: sid, stopReason: 'error', error: `OpenCode sent nothing for ${OPENCODE_IDLE_MS / 60_000} minutes, so OpenCursor stopped it. Check your internet connection and the model you picked, then send your message again.` };
 	}
 	if (exit.spawnError) {
 		return { stopReason: 'error', error: `Could not start OpenCode: ${exit.spawnError}` };
@@ -363,6 +371,10 @@ export async function runOpenCode(o: RunOptions, repaired = false): Promise<RunR
 				? `\n\n> OpenCode tried to run \`${oneLine(parser.denied[0], 80)}\`, but ${o.mode} mode is read only. Switch to Agent mode to let it run commands.\n\n`
 				: `\n\n> OpenCode tried to run \`${oneLine(parser.denied[0], 80)}\`, and OpenCode cannot stop to ask for approval. To let it run commands like this, click the shield next to the model name and choose Full access, or add the command to the allowlist in Settings, then send your message again.\n\n`,
 		);
+	}
+	const quiet = silentFailure('opencode', watch.produced(), false, proc.stderr());
+	if (quiet) {
+		return { sessionId: sid, stopReason: 'error', error: quiet };
 	}
 	return { sessionId: sid, stopReason: 'done' };
 }

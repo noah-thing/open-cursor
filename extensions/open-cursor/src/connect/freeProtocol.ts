@@ -42,6 +42,8 @@ export interface LocalState {
 	readonly ollama: 'missing' | 'stopped' | 'running';
 	/** Installing or starting Ollama, with what it is doing now. */
 	readonly busy?: string;
+	/** A problem to show without a spinner and without blocking the buttons, e.g. a remote server that is down. */
+	readonly error?: string;
 	readonly picks: readonly LocalPick[];
 	/** Models already in Ollama that are not among the picks. */
 	readonly others: readonly string[];

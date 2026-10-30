@@ -1,6 +1,6 @@
 /* Plain node test: npx esbuild src/tab/test/tab.test.ts --bundle --platform=node | node */
 import assert from 'node:assert/strict';
-import { postProcess, CompletionCache, buildHeader, cleanCompletion, extractWindow, fixIndent, parseNextEdit, restOfLineAllowsTab, trimOverlap, truncateCompletion } from '../logic';
+import { trimOverlapInfo, postProcess, CompletionCache, buildHeader, cleanCompletion, extractWindow, fixIndent, parseNextEdit, restOfLineAllowsTab, trimOverlap, truncateCompletion } from '../logic';
 
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n++; console.log('ok', name); };
@@ -115,4 +115,11 @@ t('next edit: parse', () => {
 	assert.equal(parseNextEdit('LINES 5-99\n```\nx\n```', 20), undefined);
 	assert.equal(parseNextEdit('I think so', 20), undefined);
 });
+t('overlap: closers with different indentation', () => {
+	assert.equal(trimOverlap('foo();\n    }', '\n}\n'), 'foo();');
+	assert.equal(trimOverlap('x\n    }\n  }', '\n}\n}\n'), 'x');
+	assert.equal(trimOverlap('foo();\n    }', '\n  return 1;\n}\n'), 'foo();\n    }');
+	assert.equal(trimOverlapInfo('foo();\n  }', '\n}\n').cut > 0, true);
+});
+
 console.log(`${n} tab tests passed`);

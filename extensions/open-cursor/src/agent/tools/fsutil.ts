@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { readDocumentText } from '../../context/mentions';
 import { resolvePath, toDisplayPath } from '../../context/paths';
+import { MAX_EDIT_BYTES, tooLargeMessage, unsafeEncoding } from '../../edits/encoding';
 import type { ToolContext } from './types';
 
 export { readDocumentText, toDisplayPath };
@@ -29,6 +30,9 @@ export const BUILD_FILES = /(^|[\\/])(package\.json|makefile|gnumakefile|[^\\/]*
 /** Resolve a path for a mutating tool; asks the user when it lies outside the workspace or in a guarded folder. */
 export async function resolveForWrite(p: string, ctx: ToolContext, action: string): Promise<{ uri: vscode.Uri } | { error: string }> {
 	const r = resolvePath(p);
+	if (r.ambiguous) {
+		return { error: `${p} exists in more than one workspace folder (${r.ambiguous.join(', ')}). Start the path with the folder name, for example ${r.ambiguous[0]}/${p}.` };
+	}
 	if (r.inWorkspace && GUARDED.test(toDisplayPath(r.uri))) {
 		const ok = await ctx.confirmOutsideWorkspace(r.uri.scheme === 'file' ? r.uri.fsPath : r.uri.toString(), `${action} in a folder that makes tools run programs (git, editor tasks, agent settings)`);
 		if (!ok) { return { error: `The user did not allow ${action} in ${toDisplayPath(r.uri)}.` }; }
@@ -69,4 +73,25 @@ export function capture(ctx: ToolContext, uri: vscode.Uri, before: string | unde
 
 export function msg(e: unknown): string {
 	return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Error text when an existing file must not be rewritten: too large to read whole, or not UTF-8 (a
+ * save would turn its bytes into replacement characters). Files open in the editor are checked by
+ * their VS Code encoding, which VS Code keeps on save.
+ */
+export async function whyNotEditable(uri: vscode.Uri, name: string): Promise<string | undefined> {
+	const key = uri.toString();
+	const open = vscode.workspace.textDocuments.find(d => d.uri.toString() === key);
+	const enc = open ? (open as { encoding?: string }).encoding : undefined;
+	if (open && typeof enc === 'string' && !/^utf-?8/i.test(enc)) { return undefined; }
+	if (open && !open.getText().includes('\uFFFD')) { return undefined; }
+	try {
+		const size = (await vscode.workspace.fs.stat(uri)).size;
+		if (size > MAX_EDIT_BYTES) { return open ? undefined : tooLargeMessage(name, size); }
+		const bad = unsafeEncoding(await vscode.workspace.fs.readFile(uri));
+		return bad ? `${name} was not edited because ${bad}, and saving would damage its characters.` : undefined;
+	} catch {
+		return undefined;
+	}
 }

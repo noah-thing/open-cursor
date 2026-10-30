@@ -5,6 +5,7 @@
 import { openaiEffort } from '../agent/effort';
 import { PROVIDER_LABELS, guessModelInfo, isChatModelId, isFimName, isReasoningName, modelId } from './catalog';
 import { guarded, joinUrl, missingKey, parseArgs, request, resolveBase, sseFromBody, verifyByListing, errorKind, type BaseUrl, type KeyGetter, type Rec, type SseEvent } from './http';
+import { remapToolIds } from './toolIds';
 import { ProviderError, type ChatRequest, type FimRequest, type LLMContent, type LLMMessage, type LLMProvider, type ModelInfo, type ProviderId, type StreamEvent } from './types';
 
 export interface CompatOptions {
@@ -36,10 +37,12 @@ type OAMessage = Rec;
 
 function dataUrl(mediaType: string, data: string): string { return `data:${mediaType};base64,${data}`; }
 
-export function toOpenAIMessages(req: ChatRequest, o: Pick<CompatOptions, 'echoReasoning' | 'reasoningSystemRole'>): OAMessage[] {
+export function toOpenAIMessages(req: ChatRequest, o: Pick<CompatOptions, 'echoReasoning' | 'reasoningSystemRole'> & { id?: ProviderId }): OAMessage[] {
 	const out: OAMessage[] = [];
 	if (req.system) { out.push({ role: req.model.supportsThinking && o.reasoningSystemRole === 'developer' ? 'developer' : 'system', content: req.system }); }
-	for (const m of req.messages) {
+	// Mistral only takes 9 character ids; ids from other providers are mapped, call and result alike
+	const history = o.id === 'mistral' ? remapToolIds(req.messages, 'mistral') : req.messages;
+	for (const m of history) {
 		if (m.role === 'assistant') { out.push(assistantMessage(m, !!o.echoReasoning)); continue; }
 		const parts: Rec[] = [];
 		const later: Rec[] = [];
@@ -88,7 +91,7 @@ export function buildOpenAIBody(req: ChatRequest, o: CompatOptions): Rec {
 	}
 	if (m.supportsThinking && req.thinking !== undefined) {
 		if (o.reasoning === 'openai') { body.reasoning_effort = req.thinking ? openaiEffort(req.effort) : 'low'; }
-		else if (o.reasoning === 'openrouter') { body.reasoning = req.thinking ? { effort: openaiEffort(req.effort) } : { enabled: false }; }
+		else if (o.reasoning === 'openrouter' && req.thinking) { body.reasoning = { effort: openaiEffort(req.effort) }; }
 	}
 	return body;
 }
@@ -140,10 +143,11 @@ export async function* parseOpenAIStream(events: AsyncIterable<SseEvent>, opts: 
 	const calls = new Map<number, Call>();
 	let last = -1;
 	let finish: string | undefined;
+	let done = false;
 	let usage: Rec | undefined;
 	const split = opts.thinkTags ? new ThinkSplitter() : undefined;
 	for await (const ev of events) {
-		if (ev.data === '[DONE]') { break; }
+		if (ev.data === '[DONE]') { done = true; break; }
 		let j: Rec;
 		try { j = JSON.parse(ev.data); } catch { continue; }
 		if (j.error) {
@@ -184,6 +188,8 @@ export async function* parseOpenAIStream(events: AsyncIterable<SseEvent>, opts: 
 		}
 		if (ch.finish_reason) { finish = ch.finish_reason; }
 	}
+	// a stream that just stops is a dropped connection, and cut off tool calls must not run
+	if (!done && !finish) { throw new ProviderError('The connection closed before the reply finished.', opts.provider, undefined, 'network'); }
 	if (split) { yield* split.flush(); }
 	let sawCalls = false;
 	for (const [idx, c] of [...calls.entries()].sort((a, b) => a[0] - b[0])) {
@@ -232,7 +238,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
 		const res = await request(this.id, joinUrl(this.base(req.model.id), '/chat/completions'), {
 			method: 'POST', headers: { ...await this.headers(), accept: 'text/event-stream' }, body: JSON.stringify(buildOpenAIBody(req, this.o)),
 		}, req.signal, req.retries);
-		yield* parseOpenAIStream(sseFromBody(res), { provider: this.id, thinkTags: this.o.thinkTags });
+		yield* parseOpenAIStream(sseFromBody(res, req.onActivity), { provider: this.id, thinkTags: this.o.thinkTags });
 	}
 
 	async* fim(req: FimRequest): AsyncGenerator<string> {
@@ -301,7 +307,7 @@ function parseOpenRouter(raw: Rec): ModelInfo | undefined {
 	const id = String(raw.id ?? '');
 	const sp: string[] = raw.supported_parameters ?? [];
 	const outMods: string[] = raw.architecture?.output_modalities ?? ['text'];
-	if (!id || !sp.includes('tools') || !outMods.includes('text') || outMods.includes('image')) { return undefined; }
+	if (!id || !isChatModelId('openrouter', id) || !sp.includes('tools') || !outMods.includes('text') || outMods.includes('image')) { return undefined; }
 	const ctx = raw.context_length ?? 128_000;
 	return {
 		id: modelId('openrouter', id), provider: 'openrouter', model: id, label: raw.name ?? id,
@@ -316,7 +322,7 @@ function parseOpenRouter(raw: Rec): ModelInfo | undefined {
 function parseMistral(raw: Rec): ModelInfo | undefined {
 	const id = String(raw.id ?? '');
 	const cap: Rec = raw.capabilities ?? {};
-	if (!id || raw.deprecation || /embed|moderation|ocr|voxtral|transcribe/i.test(id) || (cap.completion_chat === false && !cap.completion_fim)) { return undefined; }
+	if (!id || !isChatModelId('mistral', id) || raw.deprecation || /embed|moderation|ocr|voxtral|transcribe/i.test(id) || (cap.completion_chat === false && !cap.completion_fim)) { return undefined; }
 	const fim = !!cap.completion_fim || isFimName('mistral', id);
 	const ctx = raw.max_context_length ?? 128_000;
 	return {
@@ -340,7 +346,8 @@ function parseGroq(raw: Rec): ModelInfo | undefined {
 function parseLmStudio(raw: Rec): ModelInfo | undefined {
 	const id = String(raw.id ?? '');
 	if (!id || /embed/i.test(id) || raw.type === 'embeddings') { return undefined; }
-	const ctx = raw.loaded_context_length ?? raw.max_context_length ?? 32_768;
+	// a model that is not loaded reports its trained maximum but loads with a small default window
+	const ctx = raw.loaded_context_length ?? (raw.state === 'loaded' ? raw.max_context_length : undefined) ?? Math.min(raw.max_context_length ?? 8_192, 8_192);
 	return {
 		id: modelId('lmstudio', id), provider: 'lmstudio', model: id, label: id,
 		contextWindow: ctx, maxOutputTokens: Math.min(8_192, ctx),

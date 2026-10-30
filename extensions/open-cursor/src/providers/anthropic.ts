@@ -5,6 +5,7 @@
 import { anthropicBudget } from '../agent/effort';
 import { ANTHROPIC_MODELS, guessModelInfo, isChatModelId } from './catalog';
 import { guarded, joinUrl, missingKey, parseArgs, request, resolveBase, sseFromBody, verifyByListing, errorKind, type BaseUrl, type KeyGetter, type Rec, type SseEvent } from './http';
+import { remapToolIds } from './toolIds';
 import { ProviderError, type ChatRequest, type LLMContent, type LLMMessage, type LLMProvider, type ModelInfo, type StreamEvent } from './types';
 
 const VERSION = '2023-06-01';
@@ -44,7 +45,8 @@ function block(c: LLMContent): Rec | undefined {
 
 export function toAnthropicMessages(messages: LLMMessage[]): Rec[] {
 	const out: Rec[] = [];
-	for (const m of messages) {
+	// ids from other providers may hold characters Anthropic rejects
+	for (const m of remapToolIds(messages, 'anthropic')) {
 		let blocks = m.content.map(block).filter((b): b is Rec => !!b);
 		if (!blocks.length) { continue; }
 		if (m.role === 'user') {
@@ -176,7 +178,7 @@ export class AnthropicProvider implements LLMProvider {
 		const res = await request('anthropic', joinUrl(this.base(req.model.id), '/v1/messages'), {
 			method: 'POST', headers: { ...await this.headers(), accept: 'text/event-stream' }, body: JSON.stringify(buildAnthropicBody(req)),
 		}, req.signal);
-		yield* parseAnthropicStream(sseFromBody(res));
+		yield* parseAnthropicStream(sseFromBody(res, req.onActivity));
 	}
 
 	async listModels(signal?: AbortSignal): Promise<ModelInfo[]> {

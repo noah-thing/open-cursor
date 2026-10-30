@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as nodePath from 'path';
+import { pickRoot } from './pickRoot';
 
 export function workspaceRoots(): vscode.Uri[] {
 	return (vscode.workspace.workspaceFolders ?? []).map(f => f.uri);
@@ -29,6 +30,8 @@ export function toDisplayPath(uri: vscode.Uri): string {
 export interface ResolvedPath {
 	readonly uri: vscode.Uri;
 	readonly inWorkspace: boolean;
+	/** Names of the folders that all hold this relative path, when it was not in the first one. Writes must not guess. */
+	readonly ambiguous?: readonly string[];
 }
 
 /**
@@ -47,6 +50,7 @@ export function resolvePath(input: string): ResolvedPath {
 	}
 	const roots = workspaceRoots();
 	let uri: vscode.Uri;
+	let ambiguous: string[] | undefined;
 	if (nodePath.isAbsolute(p)) {
 		uri = vscode.Uri.file(nodePath.normalize(p));
 	} else {
@@ -60,11 +64,15 @@ export function resolvePath(input: string): ResolvedPath {
 			if (match) {
 				base = match.uri;
 				rel = clean.slice(first.length + 1);
+			} else if (folders.every(f => f.uri.scheme === 'file')) {
+				const pick = pickRoot(clean, folders.map(f => f.uri.fsPath), (root, r) => fs.existsSync(nodePath.join(root, r)));
+				base = folders[pick.index].uri;
+				if (pick.ambiguous) { ambiguous = pick.ambiguous.map(i => folders[i].name); }
 			}
 		}
 		uri = base ? vscode.Uri.joinPath(base, rel) : vscode.Uri.file(nodePath.resolve(clean));
 	}
-	return { uri, inWorkspace: !!vscode.workspace.getWorkspaceFolder(uri) && !leavesThroughLink(uri) };
+	return { uri, inWorkspace: !!vscode.workspace.getWorkspaceFolder(uri) && !leavesThroughLink(uri), ambiguous };
 }
 
 /** Real path of the deepest part of `p` that exists, so a path through a symlink resolves to where it really points. */

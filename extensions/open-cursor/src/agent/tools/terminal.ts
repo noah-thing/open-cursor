@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import { stripAnsi } from '../../context/html';
 import { tailLines } from '../tokens';
+import { cdLine, shellKind } from './shellSyntax';
 
 export interface RunOptions {
 	readonly command: string;
@@ -30,10 +31,6 @@ export interface RunResult {
 const TERMINAL_NAME = 'OpenCursor';
 const SI_WAIT_MS = 3000;
 const ENV = { PAGER: 'cat', GIT_PAGER: 'cat', GIT_TERMINAL_PROMPT: '0', NO_COLOR: '1', CI: '1' };
-
-function quote(p: string): string {
-	return process.platform === 'win32' ? `"${p}"` : `'${p.replace(/'/g, `'\\''`)}'`;
-}
 
 function waitForShellIntegration(terminal: vscode.Terminal, ms: number): Promise<vscode.TerminalShellIntegration | undefined> {
 	if (terminal.shellIntegration) { return Promise.resolve(terminal.shellIntegration); }
@@ -100,7 +97,8 @@ export class TerminalRunner implements vscode.Disposable {
 		let line = opts.command;
 		const current = si.cwd?.fsPath;
 		if (opts.cwdExplicit && current !== opts.cwd) {
-			line = `cd ${quote(opts.cwd)} && ${opts.command}`;
+			const shellPath = (terminal.creationOptions as vscode.TerminalOptions).shellPath ?? vscode.env.shell;
+			line = cdLine(shellKind(shellPath), opts.cwd, opts.command);
 		}
 		const exec = si.executeCommand(line);
 		let output = '';
@@ -133,7 +131,12 @@ export class TerminalRunner implements vscode.Disposable {
 		if (outcome.kind !== 'done') {
 			terminal.sendText('\u0003', false);
 			// give the shell a moment to report the interrupted command
-			await Promise.race([finished, new Promise(r => setTimeout(r, 1500))]);
+			const ended = await Promise.race([finished.then(() => true), new Promise<boolean>(r => setTimeout(() => r(false), 1500))]);
+			if (!ended && this.terminal === terminal) {
+				// the program ignored Ctrl-C; the next command would be typed into it, so start a fresh shell
+				this.terminal = undefined;
+				terminal.dispose();
+			}
 			return { output: stripAnsi(output), timedOut: outcome.kind === 'timeout', aborted: outcome.kind === 'abort', exitCode: undefined, via: 'terminal' };
 		}
 		return { output: stripAnsi(output), exitCode: outcome.code, timedOut: false, aborted: false, via: 'terminal' };

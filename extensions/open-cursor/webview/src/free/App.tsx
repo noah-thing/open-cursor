@@ -129,7 +129,7 @@ function LocalCard({ local, active, result, act, flash }: {
 		? <span className="fm-status"><Spinner size={12} /> {local.busy}</span>
 		: local.ollama === 'running'
 			? <span className="fm-status is-on"><Check /> Ollama running</span>
-			: local.ollama === 'stopped'
+			: local.ollama === 'stopped' && !local.error
 				? <button type="button" className="fm-btn" onClick={() => act({ type: 'startOllama' })}>Start Ollama</button>
 				: null;
 	return (
@@ -170,6 +170,7 @@ function LocalCard({ local, active, result, act, flash }: {
 					})}
 				</div>
 			) : null}
+			{local.error && !result ? <div className="fm-result is-err">{local.error}</div> : null}
 			{result ? <div key={result.message} className={'fm-result' + (result.ok ? ' is-ok' : ' is-err')}>{result.message}</div> : null}
 			<div className="fm-hero-foot">Runs through Ollama, free and open source. Your code and chats never leave this computer.</div>
 		</section>

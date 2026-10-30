@@ -11,6 +11,26 @@ import { actionLine } from './handoff';
 export interface TranscriptEntry {
 	readonly turn: string;
 	readonly msg: LLMMessage;
+	/** Later user messages folded into this entry because the turn before them left no reply (see mergeUserEntry). */
+	readonly merged?: readonly { turn: string; content: LLMContent[] }[];
+}
+
+/**
+ * Adds a user message to the transcript. When the last entry is a user message (the turn before failed
+ * without a reply) the two share one model message, but the entry remembers which text came from which turn
+ * so that editing the newer message can cut exactly its text. Returns the new last entry.
+ */
+export function mergeUserEntry(entries: TranscriptEntry[], turn: string, content: LLMContent[]): TranscriptEntry {
+	const last = entries[entries.length - 1];
+	if (last && last.msg.role === 'user') {
+		const merged = last.turn === turn ? last.merged : [...(last.merged ?? []), { turn, content }];
+		const e: TranscriptEntry = { turn: last.turn, msg: { role: 'user', content: [...last.msg.content, ...content] }, ...(merged ? { merged } : {}) };
+		entries[entries.length - 1] = e;
+		return e;
+	}
+	const e: TranscriptEntry = { turn, msg: { role: 'user', content } };
+	entries.push(e);
+	return e;
 }
 
 export function transcriptMessages(entries: readonly TranscriptEntry[]): LLMMessage[] {
@@ -20,7 +40,18 @@ export function transcriptMessages(entries: readonly TranscriptEntry[]): LLMMess
 /** Drops every entry from the turn of `messageId` onward. Returns undefined when the turn is not in the transcript. */
 export function truncateTranscript(entries: readonly TranscriptEntry[], messageId: string): TranscriptEntry[] | undefined {
 	const idx = entries.findIndex(e => e.turn === messageId);
-	return idx === -1 ? undefined : entries.slice(0, idx);
+	if (idx !== -1) { return entries.slice(0, idx); }
+	// the message was merged into an earlier user entry: keep that entry with only the text before it
+	const at = entries.findIndex(e => e.merged?.some(x => x.turn === messageId));
+	if (at === -1) { return undefined; }
+	const e = entries[at];
+	const merged = e.merged!;
+	const k = merged.findIndex(x => x.turn === messageId);
+	const extra = merged.reduce((n, x) => n + x.content.length, 0);
+	const base = e.msg.content.slice(0, e.msg.content.length - extra);
+	const kept = merged.slice(0, k);
+	const content = [...base, ...kept.flatMap(x => x.content)];
+	return [...entries.slice(0, at), { turn: e.turn, msg: { role: 'user', content }, ...(kept.length ? { merged: kept } : {}) }];
 }
 
 /**

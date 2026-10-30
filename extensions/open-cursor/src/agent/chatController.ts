@@ -22,9 +22,10 @@ import type { IContextServiceEx } from '../context/service';
 import { toDisplayPath } from '../context/paths';
 import type { CliAgentInfo } from '../services';
 import { cliHint, installCommand } from '../shared/cliHints';
+import { commandWithBinary, findLmStudioApp } from '../connect/lmStudio';
 import { cliEnv, loginShellInfo } from '../cliAgents/detect';
 import { installWithPrivateNode } from '../cliAgents/npmSetup';
-import { COMMON_BIN_DIRS, executableNames } from '../cliAgents/util';
+import { COMMON_BIN_DIRS, executableNames, isStaleSessionError } from '../cliAgents/util';
 import { ConnectService } from '../connect/connect';
 import { FREE_AUTO_ID, isFreeModel } from '../providers/free';
 import { HelpNavigator } from '../help/navigator';
@@ -37,11 +38,12 @@ import { applyCodeToFile } from './applyCode';
 import {
 	buildEnv, editorSnapshot, parseDataUrl, readAutoRun, readDefaultMode, readLists, readMaxIterations, readUiSettings, referencedFiles, selectionItem, setAutoRun, readEffort, setEffort,
 } from './env';
-import { buildHistoryFromChat, truncateTranscript } from './history';
+import { buildHistoryFromChat, mergeUserEntry, truncateTranscript } from './history';
 import { compactTranscript, runAgentLoop, type LoopHooks } from './loop';
 import { buildEditorState, buildSystemPrompt, type PromptRule } from './prompts';
+import { SnapshotTrimmer } from './snapshot';
 import { ChatStore, DEFAULT_TITLE, fallbackTitle, generateTitle, newId, type StoredChat } from './store';
-import { estimateMessagesTokens, appendUserContent } from './tokens';
+import { estimateMessagesTokens } from './tokens';
 import { getToolSet, type ToolSet } from './tools';
 import { disposeTerminalRunner, getTerminalRunner } from './tools/terminal';
 
@@ -54,6 +56,8 @@ export interface IChatController extends vscode.Disposable {
 	activeModelId(): string;
 	/** Put the active chat on this model, make it the default for new chats, and bring the chat forward. */
 	useModel(modelId: string): Promise<void>;
+	/** Writes every unsaved chat to disk. */
+	flush(): Promise<void>;
 }
 
 interface Runtime {
@@ -116,6 +120,9 @@ const BUILTIN_COMMANDS: { name: string; description: string }[] = [
 ];
 
 const CHAT_VISIBLE_KEY = 'openCursor.chat.visible';
+const LAST_WORK_CHAT_KEY = 'openCursor.chat.lastWork';
+/** How often streamed text marks the chat as unsaved, so closing the window mid turn loses seconds, not the turn. */
+const STREAM_SAVE_MS = 3000;
 
 /** The CLI agent that is the same company's subscription for an API provider. */
 const SUBSCRIPTION_FOR: Record<string, string> = { anthropic: 'claude-code', openai: 'codex', xai: 'grok', google: 'gemini-cli' };
@@ -184,7 +191,20 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		});
 		const base = ctx.storageUri ?? ctx.globalStorageUri;
 		this.store = new ChatStore(nodePath.join(base.fsPath, 'chats'));
+		this.store.isBusy = id => !!this.runtimes.get(id)?.running;
+		this.lastWorkChatId = ctx.workspaceState.get<string>(LAST_WORK_CHAT_KEY);
 		this.ready = this.store.init();
+	}
+
+	flush(): Promise<void> { return this.store.flush(); }
+
+	private readonly trimmer = new SnapshotTrimmer();
+	private lastStreamSave = 0;
+
+	private setLastWork(id: string): void {
+		if (this.lastWorkChatId === id) { return; }
+		this.lastWorkChatId = id;
+		void this.ctx.workspaceState.update(LAST_WORK_CHAT_KEY, id);
 	}
 
 	/** A GitHub issue prefilled from the Help chat on screen and the chat the user came from. */
@@ -258,13 +278,14 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	resolveWebviewView(view: vscode.WebviewView): void {
 		this.view = view;
 		this.webviewReady = false;
+		this.trimmer.reset();
 		const dist = vscode.Uri.joinPath(this.ctx.extensionUri, 'dist', 'webview');
 		view.webview.options = { enableScripts: true, localResourceRoots: [dist, vscode.Uri.joinPath(this.ctx.extensionUri, 'media')] };
 		view.webview.html = this.html(view.webview, dist);
 		const sub: vscode.Disposable[] = [];
 		sub.push(view.webview.onDidReceiveMessage((m: WebviewMessage) => { void this.onMessage(m).catch(err => console.error('[open-cursor] message failed', m?.type, err)); }));
 		sub.push(view.onDidChangeVisibility(() => {
-			this.setChatFocused(view.visible);
+			if (!view.visible) { this.setChatFocused(false); }
 			void this.ctx.globalState.update(CHAT_VISIBLE_KEY, view.visible);
 			if (view.visible) {
 				this.post({ type: 'pendingEdits', files: this.services.pendingEdits.getFiles() });
@@ -276,7 +297,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			sub.forEach(s => s.dispose());
 			if (this.view === view) { this.view = undefined; this.webviewReady = false; this.setChatFocused(false); }
 		}));
-		this.setChatFocused(view.visible);
 		this.viewResolved?.();
 	}
 
@@ -297,6 +317,10 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private post(msg: HostMessage | HostMessageExt): void {
 		if (this.view && this.webviewReady) {
+			if (msg.type === 'chat' || msg.type === 'init') {
+				// long output and pasted images are not sent again with every streamed token
+				msg = msg.type === 'chat' ? { ...msg, chat: this.trimmer.trim(msg.chat) } : { ...msg, activeChat: this.trimmer.trim(msg.activeChat) };
+			}
 			void Promise.resolve(this.view.webview.postMessage(msg)).catch(() => undefined);
 		} else if (msg.type === 'addContext' || msg.type === 'focusInput' || msg.type === 'showHistory') {
 			this.outbox.push(msg);
@@ -366,7 +390,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			await vscode.commands.executeCommand('workbench.view.extension.openCursor').then(undefined, () => undefined);
 		}
 		this.view?.show?.(false);
-		this.setChatFocused(true);
 	}
 
 	private async onMessage(m: WebviewMessage | WebviewMessageExt): Promise<void> {
@@ -377,7 +400,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'agentAction': return this.onAgentAction(m.id, m.action);
 			case 'requestConnect': return this.postConnectState();
 			case 'connectKey': {
-				const r = await this.connect.setKey(m.provider, m.key);
+				const r = await this.connect.setKey(m.provider, m.key).catch(e => ({ ok: false, message: `Could not save the key in your system keychain: ${e instanceof Error ? e.message : String(e)}` }));
 				this.post({ type: 'connectResult', target: m.provider, ok: r.ok, message: r.message });
 				return this.postConnectState();
 			}
@@ -389,7 +412,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'resetServer': await this.connect.resetServer(m.id); return this.postConnectState();
 			case 'localApp': return this.openLocalApp(m.id);
 			case 'workbench': {
-				const command = { openFolder: 'workbench.action.files.openFolder', openRecent: 'workbench.action.openRecent', cloneRepo: 'git.clone', showEditor: 'workbench.action.restoreAuxiliaryBar' }[m.action];
+				const command = { openFolder: 'workbench.action.files.openFolder', openRecent: 'workbench.action.openRecent', cloneRepo: 'git.clone', showEditor: 'workbench.action.restoreAuxiliaryBar', trustFolder: 'workbench.trust.manage' }[m.action];
 				await vscode.commands.executeCommand(command).then(undefined, e => console.warn('[open-cursor] workbench action failed', m.action, e));
 				return;
 			}
@@ -402,6 +425,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'newChat': await this.newChat(); return;
 			case 'openHelp': await this.openHelp(m.text); return;
 			case 'leaveHelp': await this.leaveHelp(); return;
+			case 'chatFocus': this.setChatFocused(m.focused); return;
+			case 'sendQueued': return this.sendQueued(m.chatId);
 			case 'helpAction': {
 				const a = parseHelpLink(m.href);
 				if (a) { await this.help.run(a).catch(e => console.warn('[open-cursor] help action failed', m.href, e)); }
@@ -437,8 +462,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			}
 			case 'openFile': return this.openFile(m.uri, m.range);
 			case 'openDiff': await this.services.pendingEdits.openDiff(vscode.Uri.parse(m.uri)); return;
-			case 'acceptAll': await this.services.pendingEdits.acceptAll(); return;
-			case 'rejectAll': await this.services.pendingEdits.rejectAll(); return;
+			case 'acceptAll': await this.services.pendingEdits.acceptAll(m.chatId); return;
+			case 'rejectAll': await this.services.pendingEdits.rejectAll(m.chatId); return;
 			case 'acceptFile': await this.services.pendingEdits.acceptFile(vscode.Uri.parse(m.uri)); return;
 			case 'rejectFile': await this.services.pendingEdits.rejectFile(vscode.Uri.parse(m.uri)); return;
 			case 'openSettings': return this.openSettings(m.section);
@@ -454,11 +479,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	}
 
 	private async onReady(): Promise<void> {
+		this.trimmer.reset();
 		this.webviewReady = true;
 		await this.refreshModels(false);
 		const sc = await this.ensureActive();
 		this.repairChat(sc);
-		if (sc.chat.mode !== 'help') { this.lastWorkChatId = sc.chat.id; }
+		if (sc.chat.mode !== 'help') { this.setLastWork(sc.chat.id); }
 		void vscode.commands.executeCommand('setContext', 'openCursor.helpActive', sc.chat.mode === 'help');
 		const openIds = this.store.openChatIds;
 		this.post({
@@ -498,7 +524,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private async postConnectState(): Promise<void> {
 		const [local, providers] = await Promise.all([this.connect.localServers(), this.connect.apiProviders()]);
-		this.post({ type: 'connectState', local, providers });
+		this.post({ type: 'connectState', local, providers, trusted: vscode.workspace.isTrusted });
 	}
 
 	/** Starts Ollama if it is installed (in a terminal, so its output is visible), otherwise opens its download page. */
@@ -520,12 +546,28 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			// Not installed: the Free models page installs it, picks a model that fits and downloads it.
 			await this.help.run({ target: 'free-models', arg: 'local' });
 			return;
+		} else if (id === 'lmstudio' && await this.launchLmStudio()) {
+			// started the app itself; it needs a moment to serve
 		} else {
 			await vscode.env.openExternal(vscode.Uri.parse('https://lmstudio.ai'));
 			return;
 		}
 		// Give the server a moment, then look again.
 		setTimeout(() => { void this.refreshModels().then(() => this.postConnectState()); }, 2500);
+	}
+
+	/** Starts the installed LM Studio app. False when it is not installed or would not start. */
+	private launchLmStudio(): Promise<boolean> {
+		const app = findLmStudioApp();
+		if (!app) { return Promise.resolve(false); }
+		return new Promise(res => {
+			if (process.platform === 'darwin') { cp.execFile('open', ['-a', 'LM Studio'], err => res(!err)); return; }
+			try {
+				const child = cp.spawn(app, [], { detached: true, stdio: 'ignore', windowsHide: false });
+				child.once('error', () => res(false));
+				child.once('spawn', () => { child.unref(); res(true); });
+			} catch { res(false); }
+		});
 	}
 
 	private async postAgents(fresh = false): Promise<void> {
@@ -580,7 +622,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		await vscode.commands.executeCommand('workbench.action.restoreAuxiliaryBar').then(undefined, () => undefined);
 		const term = vscode.window.createTerminal({ name: (action === 'install' ? 'Install ' : 'Sign in to ') + label });
 		term.show();
-		term.sendText(command);
+		// A one click install may not be on the terminal's PATH, so sign in through the path we detected.
+		term.sendText(action === 'signIn' ? commandWithBinary(command, this.services.cli.get(id as CliAgentInfo['id'])?.binaryPath, vscode.env.shell) : command);
 		this.watchAgent(id, term);
 	}
 
@@ -729,7 +772,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.post({ type: 'chat', chat: sc.chat });
 		this.postChats();
 		this.post({ type: 'activeChat', chatId: sc.chat.id });
-		if (sc.chat.mode !== 'help') { this.lastWorkChatId = sc.chat.id; }
+		if (sc.chat.mode !== 'help') { this.setLastWork(sc.chat.id); }
 		void vscode.commands.executeCommand('setContext', 'openCursor.helpActive', sc.chat.mode === 'help');
 	}
 
@@ -750,7 +793,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			return cur;
 		}
 		// ...or any other untouched chat left behind, so the list never fills with empty "New chat" rows
-		for (const s of this.store.summaries().filter(x => x.title === DEFAULT_TITLE && x.status === 'idle')) {
+		for (const s of this.store.summaries().filter(x => x.title === DEFAULT_TITLE && x.status === 'idle' && !this.store.isUnreadable(x.id)).slice(0, 3)) {
 			const empty = await this.store.get(s.id);
 			if (empty && empty.chat.messages.length === 0 && empty.chat.mode !== 'help') {
 				await this.activate(empty);
@@ -844,7 +887,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private async openChat(chatId: string): Promise<void> {
 		const sc = await this.store.get(chatId);
-		if (sc) { await this.activate(sc); }
+		if (sc) { await this.activate(sc); return; }
+		if (!this.store.isUnreadable(chatId)) { return; }
+		const pick = await vscode.window.showWarningMessage('This chat\'s file could not be read. It may be damaged. Remove it from the list? The file is kept next to the others, renamed, and is not deleted.', 'Remove from list');
+		if (pick !== 'Remove from list') { return; }
+		await this.store.quarantine(chatId);
+		if (!this.store.activeChatId || !this.store.openChatIds.length) { await this.activate(await this.ensureActive()); } else { this.postChats(); }
 	}
 
 	private async closeTab(chatId: string): Promise<void> {
@@ -931,6 +979,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	}
 
 	private schedulePost(sc: StoredChat): void {
+		const now = Date.now();
+		if (now - this.lastStreamSave > STREAM_SAVE_MS) { this.lastStreamSave = now; this.store.markDirty(sc.chat.id); }
 		const rt = this.runtime(sc.chat.id);
 		if (rt.postTimer) { return; }
 		// nothing to draw while the chat is hidden; it gets one fresh snapshot when it shows again
@@ -959,7 +1009,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		await this.onSend(sc.chat.id, { text: opts.text, context: opts.context ?? [], mode: opts.mode ?? sc.chat.mode, modelId: sc.chat.modelId || this.defaultModelId() });
 	}
 
-	private async onSend(chatId: string, req: SendRequest): Promise<void> {
+	private async onSend(chatId: string, req: SendRequest, fromQueue = false): Promise<void> {
 		const sc = await this.store.get(chatId);
 		if (!sc) { return; }
 		const text = req.text.trim();
@@ -981,7 +1031,19 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			this.postChatNow(sc);
 			return;
 		}
+		if (sc.chat.queued.length && !fromQueue) {
+			// earlier messages never went out (an error, a stop, a reload): they go first, so the order holds
+			sc.chat.queued = [...sc.chat.queued, { id: newId('q'), text: effective.text, context: effective.context }];
+			this.dequeue(sc, rt, true);
+			return;
+		}
 		await this.startTurn(sc, effective);
+	}
+
+	private async sendQueued(chatId: string): Promise<void> {
+		const sc = await this.store.get(chatId);
+		const rt = this.runtime(chatId);
+		if (sc && !rt.running && sc.chat.queued.length) { this.dequeue(sc, rt, true); }
 	}
 
 	/** Returns 'done' when fully handled, a replacement request for custom commands, or undefined to send as is. */
@@ -1010,7 +1072,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'help': await this.openHelp(args); return 'done';
 			case 'new': await this.newChat(); if (args) { const n = this.store.activeChatId; if (n) { await this.onSend(n, { ...req, text: args, mode: req.mode === 'help' ? undefined : req.mode }); } } return 'done';
 			case 'clear': {
-				if (rt.running) { return 'done'; }
+				if (rt.running) { this.queueCommand(sc, '/clear'); return 'done'; }
 				sc.chat.messages = [];
 				sc.chat.todos = [];
 				sc.chat.queued = [];
@@ -1023,7 +1085,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 				return 'done';
 			}
 			case 'summarize': {
-				if (rt.running) { return 'done'; }
+				if (rt.running) { this.queueCommand(sc, '/summarize'); return 'done'; }
 				await this.summarizeChat(sc);
 				return 'done';
 			}
@@ -1063,6 +1125,13 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		try { await vscode.commands.executeCommand('revealInExplorer', dir); } catch { await vscode.commands.executeCommand('revealFileInOS', dir); }
 	}
 
+	/** A command typed during a reply waits in the queue and runs when the reply is done. */
+	private queueCommand(sc: StoredChat, text: string): void {
+		sc.chat.queued = [...sc.chat.queued, { id: newId('q'), text, context: [] }];
+		this.touch(sc);
+		this.postChatNow(sc);
+	}
+
 	private async queueMessage(chatId: string, text: string, context: ContextItem[]): Promise<void> {
 		const sc = await this.store.get(chatId);
 		if (!sc || (!text.trim() && !context.length)) { return; }
@@ -1093,7 +1162,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const sc = await this.store.get(chatId);
 		if (!sc) { return; }
 		const rt = this.runtime(chatId);
-		if (rt.running) { sc.chat.queued = []; await this.stop(chatId); await rt.idle; }
+		const wasRunning = rt.running;
+		if (wasRunning) { sc.chat.queued = []; await this.stop(chatId); await rt.idle; }
 		const idx = sc.chat.messages.findIndex(m => m.id === messageId && m.role === 'user');
 		if (idx === -1) { return; }
 		const target = sc.chat.messages[idx] as UserMessage;
@@ -1101,7 +1171,6 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			try { await this.services.checkpoints.restore(chatId, target.checkpointId); } catch (e) { void vscode.window.showWarningMessage(`Could not restore files: ${e instanceof Error ? e.message : String(e)}`); return; }
 		}
 		this.truncateFrom(sc, idx);
-		sc.chat.queued = [];
 		await this.startTurn(sc, { text, context, modelId });
 	}
 
@@ -1123,7 +1192,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		}
 		this.truncateFrom(sc, idx);
 		this.postChatNow(sc);
-		this.post({ type: 'focusInput', text: target.text });
+		this.post({ type: 'restoreDraft', chatId, text: target.text, context: target.context });
 	}
 
 	/** Remove the message at `idx` and everything after it, keeping the model transcript in step. */
@@ -1208,7 +1277,9 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 		const turn: TurnState = { sc, rt, parts, msg: assistant, usage: { inputTokens: 0, outputTokens: 0 }, errored: false };
 		try {
-			if (blocked) {
+			if (blocked && mode === 'help' && await this.answerInstantly(turn, userMsg, req.text)) {
+				// the built in answers need no model, so a first time user can still ask how to connect one
+			} else if (blocked) {
 				const isCli = blocked.provider === 'cli';
 				const alt = this.subscription();
 				const who = isCli ? blocked.label.split(':')[0] : PROVIDER_NAMES[blocked.provider] ?? blocked.provider;
@@ -1274,13 +1345,13 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (!turn.errored) { this.dequeue(sc, rt); }
 	}
 
-	private dequeue(sc: StoredChat, rt: Runtime): void {
-		const next = rt.stopped ? undefined : sc.chat.queued[0];
+	private dequeue(sc: StoredChat, rt: Runtime, force = false): void {
+		const next = rt.stopped && !force ? undefined : sc.chat.queued[0];
 		if (next && !this.disposed) {
 			sc.chat.queued = sc.chat.queued.slice(1);
 			this.touch(sc);
 			this.postChatNow(sc);
-			void this.onSend(sc.chat.id, { text: next.text, context: next.context }).catch(() => undefined);
+			void this.onSend(sc.chat.id, { text: next.text, context: next.context }, true).catch(() => undefined);
 		}
 	}
 
@@ -1430,14 +1501,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (earlier.length && (sc.transcript.length === 0 || missedCli)) {
 			sc.transcript = buildHistoryFromChat(earlier);
 		}
-		const msgs = sc.transcript.map(e => e.msg);
-		const lastTurn = sc.transcript[sc.transcript.length - 1];
-		appendUserContent(msgs, content);
-		if (lastTurn && lastTurn.msg.role === 'user') {
-			sc.transcript[sc.transcript.length - 1] = { turn: lastTurn.turn, msg: msgs[msgs.length - 1] };
-		} else {
-			sc.transcript.push({ turn: userMsg.id, msg: msgs[msgs.length - 1] });
-		}
+		// after a turn that left no reply, this message joins the previous user entry but keeps its own turn id
+		mergeUserEntry(sc.transcript, userMsg.id, content);
 		this.touch(sc);
 
 		const hooks: LoopHooks = {
@@ -1630,9 +1695,9 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			await edits.applyContent(uri, after, 'agent', sc.chat.id, override);
 		};
 
-		const result = await this.services.cli.runTurn({
+		const runOnce = (sessionId: string | undefined, prompt: string) => this.services.cli.runTurn({
 			agent, model, mode: sc.chat.mode, prompt, images: images.length ? images : undefined, cwd,
-			sessionId: resume,
+			sessionId,
 			autoRun: readAutoRun(), effort: readEffort(), signal,
 			callbacks: {
 				onText: d => this.appendText(turn, d),
@@ -1649,8 +1714,15 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 				onUsage: u => { turn.usage = { inputTokens: u.inputTokens, outputTokens: u.outputTokens }; this.syncMsg(turn); },
 			},
 		});
+		let result = await runOnce(resume, prompt);
+		if (result.stopReason === 'error' && resume && isStaleSessionError(result.error) && !turn.parts.some(p => p.type === 'text' || p.type === 'tool')) {
+			// the CLI no longer has the session: run again from scratch, with the conversation handed over in writing
+			await chain;
+			const fresh = [ruleText ? `<project_rules>\n${ruleText}\n</project_rules>` : '', !help && earlier.length ? handoffBrief(earlier, { todos: sc.chat.todos }) : '', first && first.type === 'text' ? first.text : (req.promptText ?? req.text)].filter(Boolean).join('\n\n');
+			result = await runOnce(undefined, fresh);
+		}
 		await chain;
-		if (result.stopReason === 'error' && /no conversation found|session not found|could not find session|no such session|unknown session/i.test(result.error ?? '')) {
+		if (result.stopReason === 'error' && isStaleSessionError(result.error)) {
 			// the CLI lost this session (its history was cleared): the next turn starts fresh with a full handoff
 			sc.cliSessionId = undefined; sc.cliSessionAgent = undefined; sc.cliSessionCwd = undefined; sc.cliSessionUpTo = undefined;
 		} else if (result.sessionId) {

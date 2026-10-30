@@ -209,6 +209,7 @@ window.addEventListener('message', e => {
 		if (f.model) parts.push('model <b></b>');
 		if (f.mode) parts.push('mode <b></b>');
 		parts.push(f.folder ? 'a folder was open' : '<b>no folder open</b>');
+		parts.push('a random ID for this install');
 		$('facts').innerHTML = 'Sent with it: ' + parts.join(' · ') + '. Never your code, chats or API keys.';
 		const bs = $('facts').querySelectorAll('b');
 		let i = 2;

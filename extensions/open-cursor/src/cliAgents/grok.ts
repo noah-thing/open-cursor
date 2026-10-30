@@ -19,7 +19,7 @@ import { CAREFUL } from '../agent/approval';
 import { cliPromptPrefix } from './modeArgs';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
 import { TurnTracker } from './tracking';
-import { arr, displayPath, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, spawnCli, str, truncate } from './util';
+import { arr, displayPath, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, silentFailure, spawnCli, str, truncate, watchOutput } from './util';
 
 const EDIT_TOOLS = new Set(['search_replace', 'write', 'edit_notebook', 'delete_file']);
 // eslint-disable-next-line no-control-regex
@@ -285,8 +285,9 @@ export async function runGrok(o: RunOptions): Promise<RunResult> {
 		args.push('-p', prompt);
 	}
 
-	const tracker = await TurnTracker.create(o.cwd, o.env, o.host);
-	const parser = new GrokParser(o.cwd, o.host, tracker);
+	const watch = watchOutput(o.host);
+	const tracker = await TurnTracker.create(o.cwd, o.env, watch.host);
+	const parser = new GrokParser(o.cwd, watch.host, tracker);
 	let queue: Promise<void> = Promise.resolve();
 	const proc = spawnCli(o.binary, args, {
 		cwd: o.cwd,
@@ -307,7 +308,8 @@ export async function runGrok(o: RunOptions): Promise<RunResult> {
 	if (tmpDir) {
 		fs.rmSync(tmpDir, { recursive: true, force: true });
 	}
-	const sid = parser.sessionId ?? sessionId;
+	// the id we made up is only worth keeping once Grok really started the session; a failed first turn leaves nothing to resume
+	const sid = parser.sessionId ?? (parser.sawEnd ? sessionId : o.sessionId);
 	if (o.signal.aborted) {
 		return { sessionId: sid, stopReason: 'aborted' };
 	}
@@ -319,6 +321,10 @@ export async function runGrok(o: RunOptions): Promise<RunResult> {
 	}
 	if (!parser.sawEnd && exit.code !== 0) {
 		return { sessionId: sid, stopReason: 'error', error: friendlyError('grok', proc.stderr() || `grok exited with code ${exit.code}`) };
+	}
+	const quiet = exit.code === 0 ? silentFailure('grok', watch.produced(), parser.sawEnd, proc.stderr()) : undefined;
+	if (quiet) {
+		return { sessionId: sid, stopReason: 'error', error: quiet };
 	}
 	return { sessionId: sid, stopReason: 'done' };
 }

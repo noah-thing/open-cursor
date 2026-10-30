@@ -8,6 +8,8 @@
 import * as vscode from 'vscode';
 import type { Services } from '../services';
 import type { ProviderId } from '../providers/types';
+import { judgeKeyStatus, keyCheckRequest } from './keyCheck';
+import { findLmStudioApp } from './lmStudio';
 import { PROVIDER_LABELS } from '../providers/catalog';
 import type { ApiProviderStatus, LocalServerStatus, ModelOption } from '../shared/protocol';
 
@@ -72,6 +74,18 @@ export function candidates(address: string): string[] {
 	return [`${host}:11434`, `${host}:1234/v1`, `${host}:8080/v1`, `${host}:8000/v1`];
 }
 
+async function checkKey(id: ProviderId, key: string): Promise<'ok' | 'refused' | 'unreachable' | 'unsure'> {
+	const req = keyCheckRequest(id, key);
+	if (!req) { return 'unsure'; }
+	let res: Response;
+	try {
+		res = await fetch(req.url, { headers: req.headers, signal: AbortSignal.timeout(15_000) });
+	} catch {
+		return 'unreachable';
+	}
+	return judgeKeyStatus(id, res.status);
+}
+
 export class ConnectService {
 	constructor(
 		private readonly services: Services,
@@ -91,6 +105,7 @@ export class ConnectService {
 			const row: LocalServerStatus = {
 				id, label: LABEL[id], baseUrl, remote: !isLoopback(baseUrl), configured: !!configured && configured.replace(/\/+$/, '') !== LOCAL_DEFAULT[id],
 				reachable: !!found, models: found?.models ?? 0, ...(first ? { modelId: first.id } : {}),
+				...(id === 'lmstudio' && findLmStudioApp() ? { appInstalled: true } : {}),
 			};
 			return row;
 		}));
@@ -106,15 +121,24 @@ export class ConnectService {
 		}));
 	}
 
-	/** Saves a key in the OS keychain and checks it against the provider before saying it works. */
+	/** Checks the key with the provider first, then saves it in the OS keychain. A refused key is never saved. */
 	async setKey(provider: string, key: string): Promise<{ ok: boolean; message: string }> {
 		const id = provider as ProviderId;
 		if (!KEY_PROVIDERS.includes(id)) { return { ok: false, message: 'Unknown provider.' }; }
-		await this.services.registry.setKey(id, key);
-		if (!key.trim()) { await this.reload(); return { ok: true, message: 'Key removed.' }; }
-		const r = await this.services.registry.verify(id);
+		const k = key.trim();
+		let note = 'Connected.';
+		if (k) {
+			const verdict = await checkKey(id, k);
+			if (verdict === 'refused') { return { ok: false, message: `${PROVIDER_LABELS[id]} did not accept that key. Copy it again from the key page.` }; }
+			if (verdict === 'unreachable') { note = `Could not check it, ${PROVIDER_LABELS[id]} did not answer. Saved anyway. Remove it if it is wrong.`; }
+		}
+		try {
+			await this.services.registry.setKey(id, k || undefined);
+		} catch (e) {
+			return { ok: false, message: `Could not save the key in your system keychain: ${e instanceof Error ? e.message : String(e)}` };
+		}
 		await this.reload();
-		return r.ok ? { ok: true, message: 'Connected.' } : { ok: false, message: `Saved, but ${PROVIDER_LABELS[id]} refused it: ${r.message}` };
+		return { ok: true, message: k ? note : 'Key removed.' };
 	}
 
 	/**

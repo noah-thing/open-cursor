@@ -123,11 +123,36 @@ export function parseVersion(text: string): string | undefined {
 	return m?.[0];
 }
 
+/** Claude Code sign in that lives in its settings: a key helper script, or env entries for a token, Bedrock or Vertex. */
+export function claudeSettingsAuth(settings: Record<string, unknown> | undefined): boolean {
+	if (!settings) {
+		return false;
+	}
+	if (typeof settings.apiKeyHelper === 'string' && settings.apiKeyHelper.trim()) {
+		return true;
+	}
+	const e = rec(settings.env);
+	return !!e && ['ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX'].some(k => !!e[k] && e[k] !== '0' && e[k] !== 'false');
+}
+
+function claudeSettingsHaveAuth(home: string): boolean {
+	const dir = process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude');
+	return ['settings.json', 'settings.local.json'].some(f => {
+		try {
+			return claudeSettingsAuth(parseJson(fs.readFileSync(path.join(dir, f), 'utf8')));
+		} catch {
+			return false;
+		}
+	});
+}
+
+/** Returns undefined, never false, when the answer is not certain: a false locks the model picker. */
 async function checkLogin(id: CliAgentId, binary: string, env: NodeJS.ProcessEnv): Promise<boolean | undefined> {
 	const home = os.homedir();
 	switch (id) {
 		case 'claude-code': {
-			if (env.ANTHROPIC_API_KEY || env.CLAUDE_CODE_OAUTH_TOKEN) {
+			const on = (k: string): boolean => !!env[k] && env[k] !== '0' && env[k] !== 'false';
+			if (env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN || env.CLAUDE_CODE_OAUTH_TOKEN || on('CLAUDE_CODE_USE_BEDROCK') || on('CLAUDE_CODE_USE_VERTEX') || claudeSettingsHaveAuth(home)) {
 				return true;
 			}
 			const r = await runQuick(binary, ['auth', 'status'], { env, timeoutMs: 6000 });
@@ -142,8 +167,12 @@ async function checkLogin(id: CliAgentId, binary: string, env: NodeJS.ProcessEnv
 				return true;
 			}
 			const r = await runQuick(binary, ['login', 'status'], { env, timeoutMs: 6000 });
-			if (r) {
-				return r.code === 0;
+			if (r && r.code === 0) {
+				return true;
+			}
+			// only a clear "not logged in" counts; an older Codex without `login status`, or a custom provider, says something else
+			if (r && /not logged in/i.test(r.stdout + '\n' + r.stderr) && !fs.existsSync(path.join(env.CODEX_HOME ?? path.join(home, '.codex'), 'auth.json'))) {
+				return false;
 			}
 			return fs.existsSync(path.join(env.CODEX_HOME ?? path.join(home, '.codex'), 'auth.json')) ? true : undefined;
 		}
@@ -265,7 +294,8 @@ export async function detectAgent(id: CliAgentId, cfg: DetectConfig): Promise<Cl
 		return { ...base, models, binaryPath: binary, version: gver ? parseVersion(gver.stdout + ' ' + gver.stderr) : undefined, loggedIn: st.loggedIn };
 	}
 	if (id === 'opencode') {
-		const ver = await runQuick(binary, ['--version'], { env, timeoutMs: 6000 });
+		// a cold Windows exe can take longer than 6 s the first time; one longer retry beats guessing the major version
+		const ver = (await runQuick(binary, ['--version'], { env, timeoutMs: 6000 })) ?? (await runQuick(binary, ['--version'], { env, timeoutMs: 20_000 }));
 		const version = ver ? parseVersion(ver.stdout + ' ' + ver.stderr) : undefined;
 		return { ...base, models: await listOpenCodeModels(binary, version, env), binaryPath: binary, version, loggedIn: true };
 	}

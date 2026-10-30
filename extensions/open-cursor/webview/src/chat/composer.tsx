@@ -345,7 +345,8 @@ export function Composer({ chat, models, settings, mode, modelId, text, contexts
 			{imageNote ? <div className="oc-notice" role="status"><span>{imageNote}</span></div> : null}
 			{!hasUsableModel ? (
 				<div className="oc-notice">
-					<span>No model is ready. Add an API key or sign in to an agent CLI.</span>
+					<span>No model is ready. Get a free one, add an API key, or sign in to an agent CLI.</span>
+					<button type="button" className="oc-linkbtn" onClick={() => post({ type: 'helpAction', href: 'opencursor:free-models' })}>Get free models</button>
 					<button type="button" className="oc-linkbtn" onClick={() => post({ type: 'openSettings', section: 'models' })}>Open settings</button>
 				</div>
 			) : null}

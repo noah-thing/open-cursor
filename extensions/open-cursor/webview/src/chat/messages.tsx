@@ -102,11 +102,13 @@ function RunSummary({ message }: { readonly message: AssistantMessage }): ReactE
 	return <span className="oc-run-summary">{bits.join(', ')}</span>;
 }
 
-export const AssistantBlock = memo(function AssistantBlock({ message, chatId, showThinking, onRetry }: {
+export const AssistantBlock = memo(function AssistantBlock({ message, chatId, showThinking, current, onRetry }: {
 	readonly message: AssistantMessage;
 	readonly chatId: string;
 	readonly showThinking: boolean;
-	readonly onRetry: (modelId?: string) => void;
+	/** The last turn of the chat: only its errors can be retried. */
+	readonly current: boolean;
+	readonly onRetry: (assistantId: string, modelId?: string) => void;
 }): ReactElement {
 	const nodes = useMemo(() => buildNodes(message.parts), [message.parts]);
 	const fullText = useMemo(() => message.parts.filter((p): p is Extract<MessagePart, { type: 'text' }> => p.type === 'text').map(p => p.text).join('\n\n'), [message.parts]);
@@ -133,8 +135,8 @@ export const AssistantBlock = memo(function AssistantBlock({ message, chatId, sh
 								fix={p.fix}
 								limit={p.limit}
 								chatId={chatId}
-								onRetry={() => onRetry()}
-								onSwitch={id => onRetry(id)}
+								onRetry={current ? () => onRetry(message.id) : undefined}
+								onSwitch={current ? id => onRetry(message.id, id) : undefined}
 							/>
 						);
 				}
@@ -265,7 +267,7 @@ export const UserBubble = memo(function UserBubble({ message, chatId, running, e
 			{confirming ? (
 				<div className="oc-confirm" role="alertdialog" aria-label="Restore checkpoint">
 					<div className="oc-confirm-title">Revert files to this message?</div>
-					<div className="oc-confirm-body">Changes the agent made after this message are undone. Later messages stay in the chat.</div>
+					<div className="oc-confirm-body">Changes the agent made after this message are undone. This message and every message after it are removed from the chat, and the text goes back into the message box.</div>
 					<div className="oc-confirm-actions">
 						<button type="button" className="oc-btn" onClick={() => setConfirming(false)}>Cancel</button>
 						<button

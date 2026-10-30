@@ -47,6 +47,8 @@ export interface ToolPart {
 	readonly title: string;
 	/** Collapsed body: command output, search results, error text. */
 	readonly output?: string;
+	/** Host snapshots only: `output` is left out because this webview already has it. */
+	readonly outputKept?: boolean;
 	/** Set for file edits. */
 	readonly edit?: { uri: string; path: string; added: number; removed: number; isNew?: boolean; deleted?: boolean };
 	/** Set for run_terminal_cmd awaiting approval. */
@@ -138,6 +140,8 @@ export interface PendingFileEdit {
 	readonly removed: number;
 	readonly isNew?: boolean;
 	readonly deleted?: boolean;
+	/** The chat whose agent made the change; inline edits have none. */
+	readonly chatId?: string;
 }
 
 /** How hard models think. Auto: API models think at high, CLIs keep their own default. */
@@ -203,8 +207,8 @@ export type WebviewMessage =
 	| { readonly type: 'searchMentions'; readonly requestId: number; readonly query: string; readonly kind?: ContextKind }
 	| { readonly type: 'openFile'; readonly uri: string; readonly range?: { startLine: number; endLine: number } }
 	| { readonly type: 'openDiff'; readonly uri: string }
-	| { readonly type: 'acceptAll' }
-	| { readonly type: 'rejectAll' }
+	| { readonly type: 'acceptAll'; readonly chatId?: string }
+	| { readonly type: 'rejectAll'; readonly chatId?: string }
 	| { readonly type: 'acceptFile'; readonly uri: string }
 	| { readonly type: 'rejectFile'; readonly uri: string }
 	| { readonly type: 'openSettings'; readonly section?: string }
@@ -222,6 +226,8 @@ export interface SlashCommandInfo {
 
 export type HostMessageExt =
 	| HostMessage
+	/** After a revert: the removed message goes back into the composer without overwriting what is typed there. */
+	| { readonly type: 'restoreDraft'; readonly chatId: string; readonly text: string; readonly context: ContextItem[] }
 	/** Reply to `requestSlashCommands`; also pushed whenever commands change. */
 	| { readonly type: 'slashCommands'; readonly commands: SlashCommandInfo[] }
 	/** The file in the active editor, shown as a suggested context pill. `null` when there is none. */
@@ -229,7 +235,7 @@ export type HostMessageExt =
 	/** Agent CLIs on this machine and whether they are signed in, for the start screen. */
 	| { readonly type: 'agents'; readonly agents: AgentStatus[] }
 	/** Local model servers and API providers, for the start screen's connect panel. */
-	| { readonly type: 'connectState'; readonly local: LocalServerStatus[]; readonly providers: ApiProviderStatus[] }
+	| { readonly type: 'connectState'; readonly local: LocalServerStatus[]; readonly providers: ApiProviderStatus[]; readonly trusted?: boolean }
 	/** Outcome of the key or server the user just tried to connect. */
 	| { readonly type: 'connectResult'; readonly target: string; readonly ok: boolean; readonly message: string }
 	/** Help sent the user to the connect panel of a new chat. */
@@ -246,6 +252,8 @@ export interface LocalServerStatus {
 	readonly reachable: boolean;
 	readonly models: number;
 	readonly modelId?: string;
+	/** LM Studio only: the app is on this computer, so Open can start it. */
+	readonly appInstalled?: boolean;
 }
 
 export interface ApiProviderStatus {
@@ -270,7 +278,7 @@ export type WebviewMessageExt =
 	| { readonly type: 'requestSlashCommands' }
 	| { readonly type: 'requestActiveEditor' }
 	/** Start screen actions that hand off to the workbench. */
-	| { readonly type: 'workbench'; readonly action: 'openFolder' | 'openRecent' | 'cloneRepo' | 'showEditor' }
+	| { readonly type: 'workbench'; readonly action: 'openFolder' | 'openRecent' | 'cloneRepo' | 'showEditor' | 'trustFolder' }
 	/** Start screen: install or sign in to an agent CLI in a terminal, or look again after doing so. */
 	| { readonly type: 'agentAction'; readonly id: string; readonly action: 'install' | 'signIn' | 'refresh' }
 	| { readonly type: 'requestConnect' }
@@ -282,6 +290,10 @@ export type WebviewMessageExt =
 	/** Open the Help chat; with text, ask it straight away. */
 	| { readonly type: 'openHelp'; readonly text?: string }
 	| { readonly type: 'leaveHelp' }
+	/** The chat panel gained or lost keyboard focus; drives the keybinding context. */
+	| { readonly type: 'chatFocus'; readonly focused: boolean }
+	/** Send the messages that never went out (after an error or a reload), in order. */
+	| { readonly type: 'sendQueued'; readonly chatId: string }
 	/** A clicked opencursor: link in a Help answer. The host checks it against the catalog. */
 	| { readonly type: 'helpAction'; readonly href: string }
 	/** The credit line: open an https link on x.com or github.com in the browser. */

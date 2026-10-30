@@ -108,10 +108,11 @@ export function fallbackOpenCodeModels(): OpenCodeModel[] {
 	return buildOpenCodeModels(OPENCODE_FALLBACK_MODELS, []);
 }
 
-/** OpenCode 2 runs a background server unless told otherwise; `--standalone` keeps every call self contained. */
+/** OpenCode 2 runs a background server unless told otherwise; `--standalone` keeps every call self contained. 0 when the version is unknown. */
 export function openCodeMajor(version: string | undefined): number {
 	const m = /^(\d+)\./.exec(version ?? '');
-	return m ? Number(m[1]) : 2;
+	// unknown version (the probe timed out): 0, so only flags that both versions accept are passed
+	return m ? Number(m[1]) : 0;
 }
 
 let modelCache: { key: string; at: number; models: OpenCodeModel[] } | undefined;

@@ -4,7 +4,7 @@
  *  Gemini): after each tool call, report originals, changed files and an "Edited x +n -m" row.
  *--------------------------------------------------------------------------------------------*/
 
-import { GitTracker } from './fileTracker';
+import { createFileTracker, type FileScanner } from './fileTracker';
 import type { TurnHost } from './types';
 import { displayPath } from './util';
 
@@ -13,13 +13,13 @@ export class TurnTracker {
 	private warned = false;
 
 	private constructor(
-		private readonly tracker: GitTracker | undefined,
+		private readonly tracker: FileScanner | undefined,
 		private readonly cwd: string,
 		private readonly host: TurnHost,
 	) {}
 
 	static async create(cwd: string, env: NodeJS.ProcessEnv, host: TurnHost): Promise<TurnTracker> {
-		return new TurnTracker(await GitTracker.create(cwd, env).catch(() => undefined), cwd, host);
+		return new TurnTracker(await createFileTracker(cwd, env).catch(() => undefined), cwd, host);
 	}
 
 	get active(): boolean {
@@ -28,7 +28,7 @@ export class TurnTracker {
 
 	async afterToolCall(hint?: readonly string[]): Promise<void> {
 		if (!this.tracker) {
-			// Not a git repo: no baseline to diff against. Still tell the UI which files changed.
+			// Neither git nor the folder watcher could start: no baseline. Still tell the UI which files changed.
 			if (hint?.length) {
 				for (const abs of hint) {
 					this.row(abs, 0, 0, undefined);
@@ -63,7 +63,7 @@ export class TurnTracker {
 	private warn(): void {
 		if (!this.warned) {
 			this.warned = true;
-			this.host.text('\n\n> OpenCursor cannot snapshot files here because this folder is not a git repository, so these edits are not available for Keep/Undo review or checkpoints.\n\n');
+			this.host.text('\n\n> OpenCursor cannot snapshot files here because this folder could not be watched for changes, so these edits are not available for Keep/Undo review or checkpoints.\n\n');
 		}
 	}
 }

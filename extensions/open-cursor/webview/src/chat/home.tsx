@@ -94,9 +94,11 @@ function Busy({ busy, children, ...rest }: { readonly busy: boolean; readonly ch
  * Every way to give OpenCursor a model, in one place: subscriptions you already pay for (agent CLIs),
  * local models on this computer or another one on the network, and API keys typed in place.
  */
-export function ConnectBlock({ agents, local, providers, results, modelId, needed, onUse, onHide }: {
+export function ConnectBlock({ agents, local, trusted, providers, results, modelId, needed, onUse, onHide }: {
 	readonly agents: readonly AgentStatus[];
 	readonly local: readonly LocalServerStatus[] | undefined;
+	/** The open folder is trusted; `undefined` until the host says. */
+	readonly trusted?: boolean;
 	readonly providers: readonly ApiProviderStatus[] | undefined;
 	readonly results: Readonly<Record<string, { ok: boolean; message: string }>>;
 	readonly modelId: string;
@@ -155,13 +157,16 @@ export function ConnectBlock({ agents, local, providers, results, modelId, neede
 							<ul className="oc-conn-list">
 								{[...agents].sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id)).map((a, i) => {
 									const using = !!a.modelId && modelId.startsWith('cli:' + a.id + '/');
-									const ready = a.installed && a.loggedIn !== false;
+									// OpenCode runs project code, so it is refused in a folder that is not trusted
+									const restricted = a.id === 'opencode' && trusted === false;
+									const ready = a.installed && a.loggedIn !== false && !restricted;
 									return (
 										<li key={a.id} className={'oc-conn-row' + (ready ? ' is-ready' : '')} style={{ ['--i' as string]: i }}>
 											<Logo id={a.id} fallback="terminal" />
 											<span className="oc-conn-name">{a.label}</span>
-											<span className={'oc-conn-status' + (ready ? ' is-ok' : '')}>{!a.installed ? (a.id === 'opencode' ? 'Free, no account' : 'Not installed') : a.loggedIn === false ? 'Not signed in' : using ? 'In use' : a.id === 'opencode' ? 'Ready, free' : 'Signed in'}</span>
-											{using ? <Icon name="check" size={13} className="oc-conn-check" />
+											<span className={'oc-conn-status' + (ready ? ' is-ok' : '')}>{restricted ? 'Needs a trusted folder' : !a.installed ? (a.id === 'opencode' ? 'Free, no account' : 'Not installed') : a.loggedIn === false ? 'Not signed in' : using ? 'In use' : a.id === 'opencode' ? 'Ready, free' : 'Signed in'}</span>
+											{restricted ? <button type="button" className="oc-btn is-sm is-ghost" title="OpenCode does not run in Restricted Mode" onClick={() => post({ type: 'workbench', action: 'trustFolder' })}>Trust</button>
+												: using ? <Icon name="check" size={13} className="oc-conn-check" />
 												: ready && a.modelId ? <button type="button" className="oc-btn is-sm" onClick={() => onUse(a.modelId!)}>Use</button>
 													: a.installed ? <button type="button" className="oc-btn is-sm" onClick={() => post({ type: 'agentAction', id: a.id, action: 'signIn' })}>Sign in</button>
 														: <button type="button" className="oc-btn is-sm is-ghost" onClick={() => post({ type: 'agentAction', id: a.id, action: 'install' })}>Install</button>}
@@ -216,7 +221,7 @@ function LocalPane({ local, result, busy, onStart, inUse, onUse }: {
 							{s.reachable ? `${s.models} ${s.models === 1 ? 'model' : 'models'}` : s.remote ? 'Not reachable' : 'Not running'}
 						</span>
 						{s.reachable && s.modelId ? (inUse(s.modelId) ? <Icon name="check" size={13} className="oc-conn-check" /> : <button type="button" className="oc-btn is-sm" onClick={() => onUse(s.modelId!)}>Use</button>)
-							: !s.remote && s.id !== 'custom' ? <button type="button" className="oc-btn is-sm is-ghost" onClick={() => post({ type: 'localApp', id: s.id as 'ollama' | 'lmstudio' })}>{s.id === 'ollama' ? 'Start' : 'Open'}</button>
+							: !s.remote && s.id !== 'custom' ? <button type="button" className="oc-btn is-sm is-ghost" onClick={() => post({ type: 'localApp', id: s.id as 'ollama' | 'lmstudio' })}>{s.id === 'ollama' ? 'Start' : s.appInstalled ? 'Open' : 'Get'}</button>
 								: <span />}
 						{s.configured ? <button type="button" className="oc-iconbtn oc-conn-x" title="Use this computer again" aria-label={'Disconnect ' + s.label} onClick={() => post({ type: 'resetServer', id: s.id })}><Icon name="x" size={12} /></button> : null}
 					</li>
@@ -269,9 +274,11 @@ function KeysPane({ providers, results, busy, onStart, inUse, onUse }: {
 						<Logo id={p.id} fallback="key" />
 						<span className="oc-conn-name">{p.label}</span>
 						<span className={'oc-conn-status' + (p.hasKey ? ' is-ok' : '')}>{p.hasKey ? (inUse(p.modelId) ? 'In use' : 'Key saved') : ''}</span>
-						{p.hasKey && p.modelId ? (inUse(p.modelId) ? <Icon name="check" size={13} className="oc-conn-check" /> : <button type="button" className="oc-btn is-sm" onClick={() => onUse(p.modelId!)}>Use</button>)
-							: <button type="button" className="oc-btn is-sm is-ghost" aria-expanded={open === p.id} onClick={() => { setOpen(open === p.id ? undefined : p.id); setKey(''); }}>{p.hasKey ? 'Change' : 'Add key'}</button>}
+						{p.hasKey && p.modelId ? (inUse(p.modelId) ? <Icon name="check" size={13} className="oc-conn-check" /> : <button type="button" className="oc-btn is-sm" onClick={() => onUse(p.modelId!)}>Use</button>) : null}
+						{p.hasKey && p.modelId ? null : <button type="button" className="oc-btn is-sm is-ghost" aria-expanded={open === p.id} onClick={() => { setOpen(open === p.id ? undefined : p.id); setKey(''); }}>{p.hasKey ? 'Change' : 'Add key'}</button>}
+						{p.hasKey ? <button type="button" className="oc-iconbtn oc-conn-x" title="Remove the saved key" aria-label={'Remove the ' + p.label + ' key'} onClick={() => { onStart(p.id); post({ type: 'connectKey', provider: p.id, key: '' }); }}><Icon name="x" size={12} /></button> : null}
 					</div>
+					{open !== p.id && p.hasKey && results[p.id]?.ok && !/^(Connected\.|Key removed\.)$/.test(results[p.id].message) ? <div className="oc-conn-hint">{results[p.id].message}</div> : null}
 					{open === p.id ? (
 						<div className="oc-conn-keyform">
 							<div className="oc-conn-field">

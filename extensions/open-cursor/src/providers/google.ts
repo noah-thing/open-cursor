@@ -15,6 +15,8 @@ export interface GoogleOptions {
 	baseUrl?: BaseUrl;
 }
 
+const BAD_FINISH = new Set(['SAFETY', 'RECITATION', 'MALFORMED_FUNCTION_CALL', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII', 'IMAGE_SAFETY']);
+
 const SCHEMA_KEYS = new Set(['type', 'description', 'properties', 'required', 'items', 'enum', 'format', 'nullable', 'minimum', 'maximum', 'minItems', 'maxItems', 'minLength', 'maxLength', 'pattern', 'anyOf', 'title']);
 
 /** Reduce a JSON Schema to the OpenAPI subset Gemini accepts. */
@@ -25,6 +27,8 @@ export function sanitizeSchema(s: unknown): unknown {
 	const out: Rec = {};
 	for (const [k, v] of Object.entries(src)) {
 		if (!SCHEMA_KEYS.has(k)) { continue; }
+		// Gemini rejects any other format (uri, email, uuid, int64 ...) with a 400
+		if (k === 'format' && v !== 'enum' && v !== 'date-time') { continue; }
 		if (k === 'properties' && v && typeof v === 'object') {
 			out.properties = Object.fromEntries(Object.entries(v as Rec).map(([n, p]) => [n, sanitizeSchema(p)]));
 		} else if (k === 'type' && Array.isArray(v)) {
@@ -105,11 +109,13 @@ export async function* parseGeminiStream(events: AsyncIterable<SseEvent>): Async
 	let usage: Rec | undefined;
 	let finish: string | undefined;
 	let calls = 0;
+	let blocked: string | undefined;
 	for await (const ev of events) {
 		let j: Rec;
 		try { j = JSON.parse(ev.data); } catch { continue; }
 		if (j.error) { throw new ProviderError(String(j.error.message ?? 'stream error'), 'google', j.error.code, j.error.code === 429 ? 'rate' : 'other'); }
 		if (j.usageMetadata) { usage = j.usageMetadata; }
+		if (j.promptFeedback?.blockReason) { blocked = String(j.promptFeedback.blockReason); }
 		const cand = j.candidates?.[0];
 		if (!cand) { continue; }
 		if (cand.finishReason) { finish = cand.finishReason; }
@@ -137,6 +143,10 @@ export async function* parseGeminiStream(events: AsyncIterable<SseEvent>): Async
 			...(usage.cachedContentTokenCount ? { cacheReadTokens: usage.cachedContentTokenCount } : {}),
 		};
 	}
+	if (blocked) { throw new ProviderError(`Gemini refused the request (${blocked}). Rephrase it or try another model.`, 'google', undefined, 'other'); }
+	if (finish && BAD_FINISH.has(finish)) {
+		throw new ProviderError(finish === 'MALFORMED_FUNCTION_CALL' ? 'Gemini produced a broken tool call. Try again, or pick another model.' : `Gemini stopped the reply (${finish}). Rephrase the request or try another model.`, 'google', undefined, 'other');
+	}
 	yield { type: 'done', stopReason: calls ? 'tool_use' : finish === 'MAX_TOKENS' ? 'max_tokens' : finish && finish !== 'STOP' ? 'stop' : 'end_turn' };
 }
 
@@ -160,7 +170,7 @@ export class GoogleProvider implements LLMProvider {
 	private async* run(req: ChatRequest): AsyncGenerator<StreamEvent> {
 		const url = joinUrl(this.base(req.model.id), `/v1beta/models/${encodeURIComponent(req.model.model)}:streamGenerateContent?alt=sse`);
 		const res = await request('google', url, { method: 'POST', headers: await this.headers(), body: JSON.stringify(buildGeminiBody(req)) }, req.signal, req.retries);
-		yield* parseGeminiStream(sseFromBody(res));
+		yield* parseGeminiStream(sseFromBody(res, req.onActivity));
 	}
 
 	async listModels(signal?: AbortSignal): Promise<ModelInfo[]> {

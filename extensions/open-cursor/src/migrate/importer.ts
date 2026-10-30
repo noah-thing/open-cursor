@@ -5,6 +5,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { summarizeImport } from './summary';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
@@ -17,6 +18,7 @@ interface Source {
 }
 
 const PROMPTED_KEY = 'openCursor.import.prompted';
+const IGNORED_KEY = 'openCursor.import.ignored';
 
 function appSupport(): string {
 	switch (process.platform) {
@@ -119,6 +121,15 @@ function parseJsonc(text: string): Record<string, unknown> {
 	return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
 }
 
+async function openVsxReachable(): Promise<boolean> {
+	try {
+		await fetch('https://open-vsx.org/api/-/search?size=1', { signal: AbortSignal.timeout(6000) });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 async function runImport(ctx: vscode.ExtensionContext, src: Source): Promise<void> {
 	// globalStorageUri = <user data>/User/globalStorage/<extension id>
 	const userDir = path.dirname(path.dirname(ctx.globalStorageUri.fsPath));
@@ -133,7 +144,9 @@ async function runImport(ctx: vscode.ExtensionContext, src: Source): Promise<voi
 		const ids = (await listExtensionIds(src.extensionsDir)).filter(id => !installed.has(id) && !/^(anysphere|github\.copilot|codeium)/.test(id));
 		const failed: string[] = [];
 		let done = 0;
-		for (const id of ids) {
+		// Offline, every install fails the same way; say so instead of blaming the extensions.
+		const offline = ids.length > 0 && !(await openVsxReachable());
+		for (const id of offline ? [] : ids) {
 			if (token.isCancellationRequested) {
 				break;
 			}
@@ -146,13 +159,7 @@ async function runImport(ctx: vscode.ExtensionContext, src: Source): Promise<voi
 			done++;
 		}
 
-		const parts = [`${settings} settings`];
-		if (keybindings) { parts.push('keybindings'); }
-		if (snippets) { parts.push('snippets'); }
-		parts.push(`${done - failed.length} extensions`);
-		const tail = failed.length ? ` ${failed.length} extensions are not on Open VSX: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}.` : '';
-		const warn = settingsResult.error ? ` ${settingsResult.error}` : '';
-		return `Imported ${parts.join(', ')} from ${src.label}.${tail}${warn}`;
+		return summarizeImport({ label: src.label, settings, keybindings, snippets, installed: done - failed.length, failed, offline, warning: settingsResult.error });
 	});
 	// Asked after the progress closes, so the spinner does not hang around until the user answers.
 	const reload = await vscode.window.showInformationMessage(summary, 'Reload Window');
@@ -174,15 +181,21 @@ export function registerImporter(ctx: vscode.ExtensionContext): void {
 		}
 	}));
 
-	// Offer once, on the first launch only.
+	// Offer until the user answers. Closing the window without answering asks again next time, up to three times.
 	if (!ctx.globalState.get<boolean>(PROMPTED_KEY)) {
-		void ctx.globalState.update(PROMPTED_KEY, true);
 		void findSources().then(async sources => {
 			if (!sources.length) {
 				return;
 			}
 			const names = sources.map(s => s.label).join(' or ');
 			const choice = await vscode.window.showInformationMessage(`Bring your settings, keybindings and extensions over from ${names}?`, 'Import', 'Not now');
+			if (choice === undefined) {
+				const ignored = ctx.globalState.get<number>(IGNORED_KEY, 0) + 1;
+				await ctx.globalState.update(IGNORED_KEY, ignored);
+				if (ignored >= 3) { await ctx.globalState.update(PROMPTED_KEY, true); }
+				return;
+			}
+			await ctx.globalState.update(PROMPTED_KEY, true);
 			if (choice === 'Import') {
 				await vscode.commands.executeCommand('openCursor.import');
 			}

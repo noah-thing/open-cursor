@@ -260,6 +260,36 @@ test('the swap script removes its work folder on success and keeps the log on fa
 	}
 });
 
+test('a second swap script exits cleanly while the first holds the lock, and a stale lock is taken over', () => {
+	if (process.platform === 'win32') { return; }
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-lock-'));
+	try {
+		const target = path.join(dir, 'App');
+		const staged = target + '.new-update-1-2';
+		fs.mkdirSync(path.join(target, 'bin'), { recursive: true });
+		fs.writeFileSync(path.join(target, 'version'), 'old');
+		fs.mkdirSync(staged);
+		fs.writeFileSync(path.join(staged, 'version'), 'new');
+		const script = path.join(dir, 'install.sh');
+		fs.writeFileSync(script, swapScript({ platform: 'linux', staged, target, relaunchFlag: path.join(dir, 'relaunch'), log: path.join(dir, 'log') }));
+		fs.mkdirSync(target + '.update-lock');
+		execFileSync('/bin/sh', [script], { timeout: 10_000 });
+		assert.strictEqual(fs.readFileSync(path.join(target, 'version'), 'utf8'), 'old', 'locked: nothing swapped');
+		assert.ok(!fs.existsSync(staged), 'the loser removes its own staged copy');
+		assert.ok(fs.existsSync(target + '.update-lock'), 'the loser leaves the winner lock alone');
+		// a lock left by a dead script is taken over
+		const old = new Date(Date.now() - 30 * 60_000);
+		fs.utimesSync(target + '.update-lock', old, old);
+		fs.mkdirSync(staged);
+		fs.writeFileSync(path.join(staged, 'version'), 'new');
+		execFileSync('/bin/sh', [script], { timeout: 10_000 });
+		assert.strictEqual(fs.readFileSync(path.join(target, 'version'), 'utf8'), 'new');
+		assert.ok(!fs.existsSync(target + '.update-lock'), 'lock released');
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
 void done('update');
 
 {

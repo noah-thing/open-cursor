@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { minimalEdit, norm, withEol } from './hunks';
+import { minimalRawEdit, norm } from './hunks';
 
 export async function openDoc(uri: vscode.Uri): Promise<vscode.TextDocument | undefined> {
 	try {
@@ -47,8 +47,7 @@ export async function writeDocument(uri: vscode.Uri, text: string, opts: { save?
 		return;
 	}
 	const old = doc.getText();
-	const next = withEol(text, doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n');
-	const m = minimalEdit(old, next);
+	const m = minimalRawEdit(old, text, doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n');
 	if (m) {
 		const we = new vscode.WorkspaceEdit();
 		we.replace(uri, new vscode.Range(doc.positionAt(m.start), doc.positionAt(m.end)), m.text);
@@ -56,7 +55,10 @@ export async function writeDocument(uri: vscode.Uri, text: string, opts: { save?
 		doc = (await openDoc(uri)) ?? doc;
 	}
 	if (doc.isDirty && opts.save !== false && !holdSave.has(uri.toString())) {
-		await doc.save();
+		const saved = await doc.save();
+		if (!saved && doc.isDirty) {
+			throw new Error(`Could not save ${vscode.workspace.asRelativePath(uri, false)}. It may be read-only or changed on disk; the change is only in the editor and the file on disk is unchanged.`);
+		}
 	}
 }
 

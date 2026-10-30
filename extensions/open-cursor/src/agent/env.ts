@@ -28,11 +28,16 @@ export async function setAutoRun(v: AutoRun): Promise<void> {
 export function readEffort(): Effort {
 	const v = cfg().get<string>('agent.effort', 'auto');
 	if (v === 'off' || v === 'low' || v === 'medium' || v === 'high' || v === 'max') { return v; }
+	// an explicit Auto wins over the old thinking switch
+	const set = cfg().inspect<string>('agent.effort');
+	if (set?.globalValue === 'auto' || set?.workspaceValue === 'auto') { return 'auto'; }
 	return cfg().get<boolean>('agent.thinking', true) === false ? 'off' : 'auto';
 }
 
 export async function setEffort(v: Effort): Promise<void> {
-	await cfg().update('agent.effort', v === 'auto' ? undefined : v, vscode.ConfigurationTarget.Global);
+	// with the old switch off, Auto has to be written down or it would read as Off again
+	const keepAuto = v === 'auto' && cfg().get<boolean>('agent.thinking', true) === false;
+	await cfg().update('agent.effort', v === 'auto' && !keepAuto ? undefined : v, vscode.ConfigurationTarget.Global);
 }
 
 export function readLists(): { allowlist: string[]; denylist: string[] } {

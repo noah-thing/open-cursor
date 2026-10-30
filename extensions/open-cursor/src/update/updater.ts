@@ -24,6 +24,21 @@ const SNOOZE_MS = 24 * 60 * 60 * 1000;
 const SNOOZE_KEY = 'openCursor.update.snoozed';
 const ENABLE_AUTO = 'Enable auto updates';
 const UPDATE_NOW = 'Update and restart';
+const DOWNLOAD = 'Download';
+const RELEASES = 'https://github.com/noah-thing/open-cursor/releases';
+const RETRY_BASE_MS = 6 * 60 * 60 * 1000;
+const RETRY_MAX_MS = 48 * 60 * 60 * 1000;
+
+/** A reason a person can read: node's fetch only says "fetch failed", and a set proxy is the likely cause. */
+function explain(e: unknown): string {
+	const msg = e instanceof Error ? e.message : String(e);
+	const proxy = String(vscode.workspace.getConfiguration('http').get<string>('proxy') ?? '').trim();
+	const network = e instanceof TypeError || (e instanceof Error && (e.name === 'TimeoutError' || /fetch failed|ECONN|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/i.test(msg)));
+	if (!network) { return msg; }
+	return proxy
+		? `could not reach GitHub. OpenCursor's updater does not use the proxy set in http.proxy (${proxy}), so updates may need the download page`
+		: 'could not reach GitHub. Check the connection';
+}
 
 interface Ready {
 	readonly version: string;
@@ -93,6 +108,8 @@ class Updater implements vscode.Disposable {
 	private timer: NodeJS.Timeout | undefined;
 	private busy = false;
 	private ready: Ready | undefined;
+	/** Background download failures for one version; two in a row earn a notice, then the retries back off. */
+	private fails: { version: string; n: number; until: number; told: boolean } | undefined;
 	private readonly status = vscode.window.createStatusBarItem('openCursor.update', vscode.StatusBarAlignment.Right, 1000);
 
 	constructor(private readonly ctx: vscode.ExtensionContext) {
@@ -116,8 +133,13 @@ class Updater implements vscode.Disposable {
 		const feed = cfg().get<string>('feedUrl') || FEED;
 		const r = await fetch(feed, { headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'OpenCursor' }, signal: AbortSignal.timeout(15_000) });
 		if (r.status === 404) { return undefined; }
+		if (r.status === 429 || (r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0')) { throw new Error('GitHub\'s rate limit was reached, try again in an hour'); }
 		if (!r.ok) { throw new Error(`GitHub answered ${r.status}`); }
-		return parseRelease(await r.json());
+		const json = await r.json();
+		const release = parseRelease(json);
+		const tag = (json as { tag_name?: unknown; draft?: unknown } | null)?.tag_name;
+		if (!release && typeof tag === 'string' && (json as { draft?: unknown }).draft !== true) { throw new Error(`could not read the version of the newest release (${tag.slice(0, 40)})`); }
+		return release;
 	}
 
 	/** `manual` comes from the command: it always answers, and ignores Later. */
@@ -132,26 +154,34 @@ class Updater implements vscode.Disposable {
 		try {
 			release = await this.latest();
 		} catch (e) {
-			if (manual) { void vscode.window.showWarningMessage(`Could not check for updates: ${e instanceof Error ? e.message : String(e)}`); }
+			if (manual) { void this.warn(`Could not check for updates: ${explain(e)}.`); }
 			return;
 		}
 		// a release whose file for this system is still uploading is not offered yet
 		const kind = this.kind();
-		const waiting = !!release && kind !== 'unknown' && !pickAsset(release, kind, process.arch);
-		if (!release || !isNewer(release.version, this.current) || waiting) {
-			if (manual) { void vscode.window.showInformationMessage(`OpenCursor ${this.current} is the latest version.`); }
+		const newer = !!release && isNewer(release.version, this.current);
+		const waiting = newer && kind !== 'unknown' && !pickAsset(release!, kind, process.arch);
+		if (!release || !newer || waiting) {
+			if (manual) {
+				void vscode.window.showInformationMessage(waiting ? `OpenCursor ${release!.version} is out but has no build for this system yet. Try again later.` : `OpenCursor ${this.current} is the latest version.`);
+			}
 			return;
 		}
+		if (manual) { this.fails = undefined; }
 		if (!manual && this.auto() && this.silent(kind, release)) {
+			if (this.fails && this.fails.version === release.version && Date.now() < this.fails.until) { return; }
 			await this.install(release, true);
 			return;
 		}
 		const snoozed = this.ctx.globalState.get<{ version: string; until: number }>(SNOOZE_KEY);
 		if (!manual && snoozed && snoozed.version === release.version && Date.now() < snoozed.until) { return; }
 		// one click either way: Update and restart installs and reopens; Enable auto updates also does it for every later version
-		const actions = this.auto() ? [UPDATE_NOW, 'What\'s new', 'Later'] : [ENABLE_AUTO, UPDATE_NOW, 'What\'s new', 'Later'];
+		// at most three buttons, or the message source is cut off; the X dismisses. A copy that cannot update itself gets the download.
+		const actions = kind === 'unknown' ? [DOWNLOAD, 'What\'s new'] : this.auto() ? [UPDATE_NOW, 'What\'s new'] : [ENABLE_AUTO, UPDATE_NOW, 'What\'s new'];
 		const pick = await vscode.window.showInformationMessage(`OpenCursor ${release.version} is available. You have ${this.current}.`, ...actions);
-		if (pick === ENABLE_AUTO) {
+		if (pick === DOWNLOAD) {
+			void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || RELEASES));
+		} else if (pick === ENABLE_AUTO) {
 			await cfg().update('mode', 'auto', vscode.ConfigurationTarget.Global);
 			await this.install(release);
 		} else if (pick === UPDATE_NOW) {
@@ -161,6 +191,11 @@ class Updater implements vscode.Disposable {
 		} else {
 			await this.ctx.globalState.update(SNOOZE_KEY, { version: release.version, until: Date.now() + SNOOZE_MS });
 		}
+	}
+
+	private async warn(text: string): Promise<void> {
+		const go = await vscode.window.showWarningMessage(text, 'Open release page');
+		if (go) { void vscode.env.openExternal(vscode.Uri.parse(RELEASES)); }
 	}
 
 	private auto(): boolean {
@@ -215,6 +250,7 @@ class Updater implements vscode.Disposable {
 				return this.prepare(release, asset, kind, progress, token);
 			});
 			if (ready) {
+				this.fails = undefined;
 				this.ready = ready;
 				this.status.text = '$(sync) Restart to update';
 				this.status.tooltip = `OpenCursor ${ready.version} is ready. It installs when you quit, or restart now.`;
@@ -224,12 +260,29 @@ class Updater implements vscode.Disposable {
 		} catch (e) {
 			// the person pressed Cancel: that is an answer, not a failure
 			if (cancelled || (e instanceof Error && e.name === 'AbortError')) { return; }
-			// a background attempt fails quietly and tries again at the next check
-			if (quiet) { return; }
-			const go = await vscode.window.showErrorMessage(`The update did not finish: ${e instanceof Error ? e.message : String(e)}`, 'Open release page');
-			if (go) { void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || 'https://github.com/noah-thing/open-cursor/releases')); }
+			// a background attempt stays quiet once, then says why and backs off between tries
+			if (quiet) {
+				await this.failedQuietly(release, e);
+				return;
+			}
+			const go = await vscode.window.showErrorMessage(`The update did not finish: ${explain(e)}.`, 'Open release page');
+			if (go) { void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || RELEASES)); }
 		} finally {
 			this.busy = false;
+		}
+	}
+
+	private async failedQuietly(release: Release, e: unknown): Promise<void> {
+		const n = (this.fails?.version === release.version ? this.fails.n : 0) + 1;
+		const told = this.fails?.version === release.version && this.fails.told;
+		this.fails = { version: release.version, n, until: Date.now() + Math.min(RETRY_BASE_MS * 2 ** (n - 1), RETRY_MAX_MS), told: told || n >= 2 };
+		if (n < 2 || told) { return; }
+		const pick = await vscode.window.showWarningMessage(`OpenCursor ${release.version} could not be downloaded in the background: ${explain(e)}.`, 'Try again', 'Download manually');
+		if (pick === 'Try again') {
+			this.fails = undefined;
+			await this.install(release, false, true);
+		} else if (pick === 'Download manually') {
+			void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || RELEASES));
 		}
 	}
 

@@ -113,14 +113,17 @@ export function guessModelInfo(provider: ProviderId, model: string, over: Partia
 	};
 }
 
-// `:batch` variants (gateways list them next to the normal model) only work with a batch API, never chat
-const NON_CHAT = /embed|whisper|tts|dall-e|moderation|transcribe|realtime|audio|image|imagen|veo|rerank|guard|playai|orpheus|speech|aqa|babbage|davinci|search|instruct$|codex|computer-use|omni-moderation|[:-]batch$/i;
+// `:batch` variants (gateways list them next to the normal model) only work with a batch API, never chat.
+// Only the old completion models are excluded by name: modern "-instruct" ids are normal chat models.
+const NON_CHAT = /embed|whisper|tts|dall-e|moderation|transcribe|realtime|audio|image|imagen|veo|rerank|guard|playai|orpheus|speech|aqa|babbage|davinci|search-preview|[-_/]search($|[-_:])|gpt-3\.5-turbo-instruct|omni-moderation|[:-]batch$/i;
+// OpenAI serves these only on the Responses API; chat/completions answers 404 or 400
+const OPENAI_NO_CHAT = /codex|computer-use|(^|[-/])o\d+(-\w+)*-pro($|-)|gpt-5[\w.]*-pro($|-)/i;
 
 /** True if an id from a provider's /models listing looks like a chat model. */
 export function isChatModelId(provider: ProviderId, id: string): boolean {
 	if (NON_CHAT.test(id)) { return false; }
 	switch (provider) {
-		case 'openai': return /^(gpt-|o\d|chatgpt-)/i.test(id);
+		case 'openai': return /^(gpt-|o\d|chatgpt-)/i.test(id) && !OPENAI_NO_CHAT.test(id);
 		case 'google': return /^gemini/i.test(id);
 		case 'anthropic': return /^claude/i.test(id);
 		case 'xai': return /^grok/i.test(id);

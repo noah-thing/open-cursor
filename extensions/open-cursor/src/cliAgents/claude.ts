@@ -10,13 +10,13 @@ import * as path from 'path';
 import { diffLines } from 'diff';
 import type { ToolPart } from '../shared/protocol';
 import { ApprovalBroker, type ApprovalDecision, type ApprovalRequest } from './approvalBroker';
-import { GitTracker } from './fileTracker';
+import { createFileTracker, type FileScanner } from './fileTracker';
 import { isCareful, isDenied, DEFAULT_DENYLIST } from '../agent/approval';
 import { isReadOnlyCommand } from '../agent/modes';
 import { claudeModeArgs } from './modeArgs';
 import { commandAllowed } from './policy';
 import { MODE_READONLY, type RunOptions, type RunResult, type TurnHost } from './types';
-import { arr, countLines, displayPath, friendlyError, num, oneLine, parseJson, readTextFile, rec, resolveInCwd, spawnCli, str, truncate } from './util';
+import { arr, countLines, displayPath, friendlyError, num, oneLine, parseJson, readTextFile, rec, resolveInCwd, silentFailure, spawnCli, str, truncate, watchOutput } from './util';
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 // WebFetch and WebSearch reach the internet and could carry data out, so they follow the policy like commands
@@ -349,7 +349,8 @@ function toolResultText(content: unknown): string {
 
 
 export async function runClaude(o: RunOptions): Promise<RunResult> {
-	const host = o.host;
+	const watch = watchOutput(o.host);
+	const host = watch.host;
 	const originals = new Map<string, string | undefined>();
 	const alwaysTools = new Set<string>();
 	const readonly = MODE_READONLY(o.mode);
@@ -420,7 +421,7 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 	};
 
 	let broker: ApprovalBroker | undefined;
-	let tracker: GitTracker | undefined;
+	let tracker: FileScanner | undefined;
 	const args = ['-p', '--output-format', 'stream-json', '--input-format', 'stream-json', '--verbose', '--include-partial-messages'];
 	if (o.model && o.model !== 'default' && o.mode !== 'help') {
 		args.push('--model', o.model);
@@ -452,8 +453,9 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 		if (!readonly) {
 			args.splice(args.indexOf('--permission-mode'), 2, '--permission-mode', o.autoRun === 'always' ? 'bypassPermissions' : 'acceptEdits');
 		}
-		tracker = await GitTracker.create(o.cwd, o.env);
 	}
+	// Also with the approval broker: it only sees file tools, so edits made by Bash (sed -i, redirects, formatters) need the scan
+	tracker = await createFileTracker(o.cwd, o.env).catch(() => undefined);
 	args.push(...o.extraArgs);
 
 	const parser = new ClaudeParser(o.cwd, host, abs => (originals.has(abs) ? originals.get(abs) : 'unknown'));
@@ -477,7 +479,8 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 			if (tracker && ev.type === 'user') {
 				void tracker.scan().then(files => {
 					for (const f of files) {
-						if (f.first) {
+						// the broker already captured the original of files the file tools touch
+						if (f.first && !originals.has(f.absPath)) {
 							host.fileOriginal(f.absPath, f.original);
 						}
 						host.fileChanged(f.absPath);
@@ -511,6 +514,10 @@ export async function runClaude(o: RunOptions): Promise<RunResult> {
 	}
 	if (!parser.result.sawResult && exit.code !== 0) {
 		return { sessionId, stopReason: 'error', error: friendlyError('claude-code', proc.stderr() || `claude exited with code ${exit.code}`) };
+	}
+	const quiet = exit.code === 0 ? silentFailure('claude-code', watch.produced(), parser.result.sawResult, proc.stderr()) : undefined;
+	if (quiet) {
+		return { sessionId, stopReason: 'error', error: quiet };
 	}
 	return { sessionId, stopReason: 'done' };
 }

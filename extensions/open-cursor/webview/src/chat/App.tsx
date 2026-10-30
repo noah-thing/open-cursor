@@ -16,6 +16,7 @@ import { CodeActions } from './markdown';
 import { AssistantBlock, UserBubble } from './messages';
 import { QueueTray, ReviewBar, TodoTray } from './trays';
 import { initialState, lastAssistant, reducer, type State } from './store';
+import { retryTarget } from './util';
 
 const scrollPositions: Record<string, number> = {};
 
@@ -116,18 +117,16 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 	// Read through a ref so retry keeps one identity and streamed tokens do not re-render every AssistantBlock.
 	const chatRef = useRef(chat);
 	chatRef.current = chat;
-	const retry = useCallback((modelId?: string) => {
+	const retry = useCallback((assistantId: string, modelId?: string) => {
 		const c = chatRef.current;
-		for (let i = c.messages.length - 1; i >= 0; i--) {
-			const m = c.messages[i];
-			if (m.role === 'user') {
-				post({ type: 'resend', chatId: c.id, messageId: m.id, text: m.text, context: m.context, revert: false, modelId });
-				return;
-			}
-		}
+		// the message that owns this error's turn, and only while it is the last turn
+		const m = retryTarget(c.messages, assistantId);
+		if (m) { post({ type: 'resend', chatId: c.id, messageId: m.id, text: m.text, context: m.context, revert: false, modelId }); }
 	}, []);
+	const built = useRef(false);
 
 	const last = lastAssistant(chat);
+	useEffect(() => { built.current = false; }, [chat.mode, chat.messages.length]);
 	const showBuild = chat.mode === 'plan' && chat.status === 'idle' && !!last && last.done && chat.messages[chat.messages.length - 1] === last && last.parts.some(p => p.type === 'text' && p.text.trim().length > 0);
 
 	return (
@@ -140,7 +139,7 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 							{m.role === 'user' ? (
 								<UserBubble message={m} chatId={chat.id} running={running} editing={editingId === m.id} onEditChange={setEditingId} />
 							) : (
-								<AssistantBlock message={m} chatId={chat.id} showThinking={showThinking} onRetry={retry} />
+								<AssistantBlock message={m} chatId={chat.id} showThinking={showThinking} current={m === chat.messages[chat.messages.length - 1]} onRetry={retry} />
 							)}
 						</div>
 					))}
@@ -151,6 +150,8 @@ const MessageList = memo(function MessageList({ chat, showThinking, editingId, s
 								type="button"
 								className="oc-btn is-primary"
 								onClick={() => {
+									if (built.current) { return; }
+									built.current = true;
 									post({ type: 'setMode', chatId: chat.id, mode: 'agent' });
 									post({ type: 'send', chatId: chat.id, text: 'Implement the plan above.', context: [], mode: 'agent', modelId: chat.modelId });
 								}}
@@ -308,10 +309,12 @@ export function App(): ReactElement {
 			if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) { return; }
 			const s = stateRef.current;
 			const chat = s.activeId ? s.chats[s.activeId] : undefined;
-			if (chat && (chat.status === 'running' || chat.status === 'awaiting-approval') && s.view === 'chat') { post({ type: 'stop', chatId: chat.id }); return; }
-			// Esc is also the way out of Help, once nothing else (a menu, a running answer, a rename) wanted it.
+			// Esc in another field (the chat list search, a rename, an edit box) belongs to that field
 			const t = e.target as HTMLElement | null;
 			const otherField = !!t && (t.tagName === 'INPUT' || (t.tagName === 'TEXTAREA' && !t.closest('.oc-composer')));
+			if (otherField && chat && (chat.status === 'running' || chat.status === 'awaiting-approval')) { return; }
+			if (chat && (chat.status === 'running' || chat.status === 'awaiting-approval') && s.view === 'chat') { post({ type: 'stop', chatId: chat.id }); return; }
+			// Esc is also the way out of Help, once nothing else (a menu, a running answer, a rename) wanted it.
 			if (chat?.mode === 'help' && s.view === 'chat' && !e.isComposing && !otherField) { e.preventDefault(); post({ type: 'leaveHelp' }); }
 		};
 		window.addEventListener('keydown', h);
@@ -319,6 +322,17 @@ export function App(): ReactElement {
 	}, []);
 
 	useEffect(() => { setEditingId(undefined); }, [state.activeId]);
+
+	// The host turns the keybinding context on only while this panel really has focus.
+	useEffect(() => {
+		const send = (focused: boolean): void => post({ type: 'chatFocus', focused });
+		const on = (): void => send(true);
+		const off = (): void => send(false);
+		window.addEventListener('focus', on);
+		window.addEventListener('blur', off);
+		if (document.hasFocus()) { on(); }
+		return () => { window.removeEventListener('focus', on); window.removeEventListener('blur', off); };
+	}, []);
 
 	const shown = useRef<Chat | undefined>(undefined);
 	const chat = (state.activeId ? state.chats[state.activeId] : undefined) ?? (state.ready ? shown.current : undefined);
@@ -426,7 +440,7 @@ export function App(): ReactElement {
 					<div className="oc-dock" ref={dockRef}>
 						{chat.todos.length > 0 ? <TodoTray todos={chat.todos} /> : null}
 						{chat.queued.length > 0 ? <QueueTray chat={chat} /> : null}
-						{state.pendingEdits.length > 0 ? <ReviewBar files={state.pendingEdits} /> : null}
+						{(() => { const mine = state.pendingEdits.filter(f => !f.chatId || f.chatId === chat.id); return mine.length > 0 ? <ReviewBar files={mine} chatId={chat.id} /> : null; })()}
 						<Composer
 							chat={effectiveChat}
 							models={state.models}
@@ -465,6 +479,7 @@ export function App(): ReactElement {
 								<ConnectBlock
 									agents={state.agents}
 									local={state.local}
+									trusted={state.trusted}
 									providers={state.providers}
 									results={state.connectResults}
 									modelId={modelId}

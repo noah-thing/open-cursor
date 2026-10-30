@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import { applyEdit } from '../editMatch';
 import { baseName, bool, str, type ToolDef } from './types';
-import { capture, exists, msg, readDocumentText, resolveForWrite, toDisplayPath } from './fsutil';
+import { capture, exists, msg, readDocumentText, resolveForWrite, toDisplayPath, whyNotEditable } from './fsutil';
 
 interface Args { path?: string; old_string?: string; new_string?: string; replace_all?: boolean }
 
@@ -37,6 +37,10 @@ export const editFile: ToolDef<Args> = {
 		try {
 			const type = await exists(uri);
 			if (type !== undefined && (type & vscode.FileType.Directory)) { return { content: `${p} is a directory.`, isError: true }; }
+			if (type !== undefined) {
+				const why = await whyNotEditable(uri, p);
+				if (why) { return { content: why, isError: true }; }
+			}
 			const before = type === undefined ? undefined : await readDocumentText(uri);
 			if (type !== undefined && before === undefined) { return { content: `Could not read ${p}.`, isError: true }; }
 			if (before === undefined) {
@@ -46,8 +50,8 @@ export const editFile: ToolDef<Args> = {
 			}
 			const result = applyEdit(before ?? '', args.old_string, args.new_string, bool(args.replace_all) ?? false);
 			if (!result.ok) { return { content: `Edit failed for ${p}: ${result.error}`, isError: true }; }
-			capture(ctx, uri, before);
 			const r = await ctx.services.pendingEdits.applyContent(uri, result.content, 'agent', ctx.chatId, undefined, before ?? null);
+			capture(ctx, uri, before);
 			const where = toDisplayPath(uri);
 			const note = result.fuzzy ? ' (matched ignoring whitespace differences)' : '';
 			const many = result.replacements > 1 ? `${result.replacements} replacements, ` : '';

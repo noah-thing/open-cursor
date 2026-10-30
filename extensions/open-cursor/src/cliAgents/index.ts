@@ -56,6 +56,22 @@ export async function installOpenCode(): Promise<{ ok: boolean; message: string 
 }
 
 export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
+	// Gemini CLI never sees OpenCursor's stored keys, so the Google key saved in Settings goes to it as GEMINI_API_KEY
+	const cliEnvWithKeys = async (binary: string | undefined, agent: CliAgentId): Promise<NodeJS.ProcessEnv> => {
+		const env = await cliEnv(binary);
+		if (agent === 'gemini-cli' && !env.GEMINI_API_KEY && !env.GOOGLE_API_KEY) {
+			try {
+				const key = (await ctx.secrets.get('openCursor.key.google'))?.trim();
+				if (key) {
+					env.GEMINI_API_KEY = key;
+				}
+			} catch {
+				/* no stored key */
+			}
+		}
+		return env;
+	};
+
 	const emitter = new vscode.EventEmitter<void>();
 	let infos: CliAgentInfo[] = [];
 	let detectedAt = 0;
@@ -141,6 +157,9 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 				info = (await run()).find(i => i.id === opts.agent);
 			}
 			if (!info?.binaryPath) {
+				if (opts.agent === 'opencode') {
+					return { stopReason: 'error', error: `OpenCode is not installed yet. ${installCommand(cliHint('opencode'))} You can also set openCursor.cli.paths.` };
+				}
 				const hint = `Install it with \`${installCommand(cliHint(opts.agent))}\`, then sign in.`;
 				return { stopReason: 'error', error: `${info?.label ?? opts.agent} was not found on this machine. ${hint} You can also set openCursor.cli.paths.` };
 			}
@@ -161,7 +180,7 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 				commandAllowlist: cfg.allowlist,
 				commandDenylist: cfg.denylist,
 				extraArgs: cfg.extraArgs[opts.agent],
-				env: await cliEnv(info.binaryPath),
+				env: await cliEnvWithKeys(info.binaryPath, opts.agent),
 				signal: opts.signal,
 				host: adaptHost(opts.callbacks),
 				permissionServerPath: path.join(ctx.extensionPath, 'dist', 'permissionServer.js'),

@@ -5,11 +5,13 @@
 
 import assert from 'node:assert/strict';
 import { buildAnthropicBody, parseAnthropicStream } from './anthropic';
-import { errorKind, linesOf, parseSse, type SseEvent } from './http';
+import { errorKind, linesOf, messageOf, normalizeBase, parseSse, type SseEvent } from './http';
+import { remapToolIds } from './toolIds';
+import { FREE_CHAIN, FREE_MODELS } from './free';
 import { buildGeminiBody, parseGeminiStream, sanitizeSchema } from './google';
 import { OpenAICompatibleProvider, ThinkSplitter, buildOpenAIBody, parseOpenAIStream } from './openai';
 import { buildOllamaBody, parseOllamaStream } from './ollama';
-import { ANTHROPIC_MODELS } from './catalog';
+import { ANTHROPIC_MODELS, isChatModelId } from './catalog';
 import { ProviderError, type ChatRequest, type StreamEvent } from './types';
 
 async function collect<T>(it: AsyncIterable<T>): Promise<T[]> { const o: T[] = []; for await (const x of it) { o.push(x); } return o; }
@@ -280,6 +282,84 @@ test('ollama: ndjson with thinking, content, tool call, usage; request body', as
 	assert.deepEqual(b.messages[1].images, ['AA']);
 	assert.deepEqual(b.messages[2].tool_calls[0].function, { name: 'f', arguments: { a: 1 } });
 	assert.deepEqual(b.messages[3], { role: 'tool', tool_name: 'f', content: 'r' });
+});
+
+test('catalog: chat filter keeps instruct models and drops batch, pro and search ids', async () => {
+	for (const [p, id] of [['custom', 'meta-llama/Llama-3.3-70B-Instruct'], ['custom', 'Qwen2.5-Coder-32B-Instruct'], ['openrouter', 'deepseek/deepseek-research-1'], ['openai', 'gpt-5'], ['openai', 'o3']] as const) {
+		assert.ok(isChatModelId(p, id), id);
+	}
+	for (const [p, id] of [['openrouter', 'anthropic/claude-sonnet-5-5:batch'], ['openai', 'gpt-3.5-turbo-instruct'], ['openai', 'o1-pro'], ['openai', 'o3-pro-2025-06-10'], ['openai', 'gpt-5-pro'], ['openai', 'gpt-5.2-pro'], ['openai', 'gpt-4o-search-preview']] as const) {
+		assert.ok(!isChatModelId(p, id), id);
+	}
+});
+
+test('openrouter: thinking off sends no reasoning field', async () => {
+	const m = { ...model, supportsThinking: true };
+	const o = { id: 'openrouter' as const, baseUrl: '', getKey: () => 'k', reasoning: 'openrouter' as const };
+	assert.equal('reasoning' in buildOpenAIBody(baseReq({ model: m, thinking: false }), o), false);
+	assert.ok('reasoning' in buildOpenAIBody(baseReq({ model: m, thinking: true }), o));
+});
+
+test('http: error text carries OpenRouter detail, hides HTML, and 403 is auth only when it says so', async () => {
+	assert.equal(messageOf(JSON.stringify({ error: { message: 'Provider returned error', metadata: { raw: 'upstream overloaded', provider_name: 'Chutes' } } })), 'Provider returned error (Chutes: upstream overloaded)');
+	assert.ok(!messageOf('<html><body>502 Bad Gateway</body></html>', 502).includes('<'));
+	assert.ok(messageOf('<!DOCTYPE html><html>', 504).startsWith('Gateway timeout'));
+	assert.equal(errorKind(403, 'Invalid API key'), 'auth');
+	assert.equal(errorKind(403, 'Country, region, or territory not supported'), 'other');
+	assert.equal(errorKind(403, 'Insufficient credits'), 'other');
+	assert.equal(errorKind(401, 'x'), 'auth');
+	assert.equal(errorKind(400, 'the request exceeds the available context size (n_ctx = 4096)'), 'context');
+});
+
+test('http: base addresses are normalized', async () => {
+	assert.equal(normalizeBase('localhost:1234', { v1: true }), 'http://localhost:1234/v1');
+	assert.equal(normalizeBase('localhost:1234/v1/', { v1: true }), 'http://localhost:1234/v1');
+	assert.equal(normalizeBase('http://192.168.1.5:8000', { v1: true }), 'http://192.168.1.5:8000/v1');
+	assert.equal(normalizeBase('api.example.com/openai', { v1: true }), 'https://api.example.com/openai');
+	assert.equal(normalizeBase('localhost:11434/v1', { stripV1: true }), 'http://localhost:11434');
+	assert.equal(normalizeBase('http://localhost:11434/', { stripV1: true }), 'http://localhost:11434');
+});
+
+test('http: SSE comment lines count as activity', async () => {
+	let n = 0;
+	await collect(parseSse(linesOf(': queued\n\n: queued\n\ndata: x\n\n'), () => { n++; }));
+	assert.equal(n, 2);
+});
+
+test('openai: a stream that just stops is an error, a finished one is not', async () => {
+	await assert.rejects(collect(parseOpenAIStream(sse(ev({ choices: [{ delta: { content: 'hi' } }] })), { provider: 'custom' })), /closed before the reply finished/);
+	const ok = await collect(parseOpenAIStream(sse(ev({ choices: [{ delta: { content: 'hi' }, finish_reason: 'stop' }] })), { provider: 'custom' }));
+	assert.equal(ok[ok.length - 1].type, 'done');
+});
+
+test('tool call ids are mapped per provider, consistently', async () => {
+	const msgs = [
+		{ role: 'assistant' as const, content: [{ type: 'tool_use' as const, id: 'call_abc.123|x', name: 'f', input: {} }, { type: 'tool_use' as const, id: 'call_abc.123_x', name: 'g', input: {} }] },
+		{ role: 'user' as const, content: [{ type: 'tool_result' as const, toolUseId: 'call_abc.123|x', content: 'r' }] },
+	];
+	const m = remapToolIds(msgs, 'mistral');
+	const use = (m[0].content[0] as { id: string }).id;
+	assert.match(use, /^[a-zA-Z0-9]{9}$/);
+	assert.equal((m[1].content[0] as { toolUseId: string }).toolUseId, use);
+	assert.notEqual((m[0].content[1] as { id: string }).id, use);
+	const a = remapToolIds(msgs, 'anthropic');
+	assert.match((a[0].content[0] as { id: string }).id, /^[a-zA-Z0-9_-]+$/);
+	assert.equal((a[1].content[0] as { toolUseId: string }).toolUseId, (a[0].content[0] as { id: string }).id);
+	assert.notEqual((a[0].content[1] as { id: string }).id, (a[0].content[0] as { id: string }).id);
+	assert.equal(remapToolIds([{ role: 'user', content: [{ type: 'tool_result', toolUseId: 'toolu_01', content: '' }] }], 'anthropic')[0].content[0].type, 'tool_result');
+});
+
+test('google: blocked prompts and unsafe stops are errors; odd formats are dropped from schemas', async () => {
+	await assert.rejects(collect(parseGeminiStream(sse(ev({ promptFeedback: { blockReason: 'SAFETY' } })))), /refused/);
+	await assert.rejects(collect(parseGeminiStream(sse(ev({ candidates: [{ finishReason: 'SAFETY' }] })))), /stopped the reply/);
+	await assert.rejects(collect(parseGeminiStream(sse(ev({ candidates: [{ finishReason: 'MALFORMED_FUNCTION_CALL' }] })))), /broken tool call/);
+	const s = sanitizeSchema({ type: 'object', properties: { u: { type: 'string', format: 'uri' }, d: { type: 'string', format: 'date-time' } } }) as { properties: Record<string, { format?: string }> };
+	assert.equal(s.properties.u.format, undefined); assert.equal(s.properties.d.format, 'date-time');
+});
+
+test('free chain lists all free models once', async () => {
+	assert.equal(FREE_CHAIN.length, FREE_MODELS.length);
+	assert.equal(new Set(FREE_CHAIN.map(m => m.provider + '/' + m.model)).size, FREE_MODELS.length);
 });
 
 (async () => {

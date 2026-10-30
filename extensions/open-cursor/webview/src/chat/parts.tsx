@@ -268,6 +268,25 @@ export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fi
 	readonly onSwitch?: (id: string) => void;
 }): ReactElement {
 	const [switched, setSwitched] = useState(false);
+	// if the host did not take the switch, the buttons come back
+	useEffect(() => {
+		if (!switched) { return; }
+		const t = setTimeout(() => setSwitched(false), 5000);
+		return () => clearTimeout(t);
+	}, [switched]);
+	if (limit && chatId && !onRetry) {
+		return (
+			<div className="oc-error is-limit" role="alert">
+				<Icon name="warning" size={14} className="oc-error-icon" />
+				<div className="oc-error-main">
+					<div className="oc-error-text">{message}</div>
+					<div className="oc-error-actions">
+						<button type="button" className="oc-linkbtn oc-error-report" onClick={() => post({ type: 'reportProblem', chatId, error: message })}>Report this</button>
+					</div>
+				</div>
+			</div>
+		);
+	}
 	if (limit && chatId) {
 		const go = (modelId?: string): void => { if (modelId) { setSwitched(true); } post({ type: 'continueOn', chatId, ...(modelId ? { modelId } : {}) }); };
 		return (
@@ -316,7 +335,7 @@ export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fi
 							<button type="button" className="oc-btn" onClick={() => post({ type: 'helpAction', href: 'opencursor:trust' })}>Trust this folder</button>
 						) : fix?.kind === 'addKey' ? (
 							<button type="button" className="oc-btn" onClick={() => post({ type: 'openSettings', section: 'models' })}>Add an API key</button>
-						) : action === 'retry' ? (
+						) : action === 'retry' && onRetry ? (
 							<button type="button" className="oc-btn" onClick={onRetry}>Try again</button>
 						) : action === 'openSettings' ? (
 							<button type="button" className="oc-btn" onClick={() => post({ type: 'openSettings', section: 'models' })}>Open settings</button>

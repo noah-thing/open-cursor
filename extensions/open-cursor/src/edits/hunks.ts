@@ -136,3 +136,42 @@ export function minimalEdit(oldText: string, newText: string): { start: number; 
 export function withEol(text: string, eol: '\n' | '\r\n'): string {
 	return eol === '\n' ? norm(text) : norm(text).replace(/\n/g, '\r\n');
 }
+
+/**
+ * Like minimalEdit, but `oldRaw` may mix `\n` and `\r\n`. The diff runs on normalized text and maps back, so
+ * untouched lines keep their endings. Inserted text takes the ending of the lines around the change.
+ */
+export function minimalRawEdit(oldRaw: string, text: string, defaultEol: '\n' | '\r\n'): { start: number; end: number; text: string } | undefined {
+	const nOld = norm(oldRaw);
+	const nNew = norm(text);
+	const m = minimalEdit(nOld, nNew);
+	if (!m) {
+		return undefined;
+	}
+	let start = m.start;
+	let end = m.end;
+	if (nOld.length !== oldRaw.length) {
+		// walk the raw text once, counting normalized characters
+		let n = 0;
+		let rs = -1;
+		let re = -1;
+		for (let i = 0; i <= oldRaw.length; i++) {
+			if (n === m.start && rs < 0) { rs = i; }
+			if (n === m.end && re < 0) { re = i; break; }
+			if (i === oldRaw.length) { break; }
+			if (oldRaw[i] === '\r' && oldRaw[i + 1] === '\n') { i++; }
+			n++;
+		}
+		start = rs < 0 ? oldRaw.length : rs;
+		end = re < 0 ? oldRaw.length : re;
+	}
+	let eol = defaultEol;
+	const before = start > 0 ? oldRaw.lastIndexOf('\n', start - 1) : -1;
+	if (before >= 0) {
+		eol = oldRaw[before - 1] === '\r' ? '\r\n' : '\n';
+	} else {
+		const after = oldRaw.indexOf('\n', end);
+		if (after >= 0) { eol = oldRaw[after - 1] === '\r' ? '\r\n' : '\n'; }
+	}
+	return { start, end, text: withEol(m.text, eol) };
+}

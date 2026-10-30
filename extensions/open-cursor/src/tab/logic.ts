@@ -106,6 +106,16 @@ export function trimOverlapInfo(completion: string, suffix: string): { text: str
 			}
 		}
 	}
+	// closing lines the model repeated with different indentation
+	const sufLines = suffix.split('\n').map(l => l.trim()).filter(l => l !== '');
+	const cLines = c.split('\n');
+	for (let n = Math.min(cLines.length, sufLines.length, 6); n >= 1; n--) {
+		const tail = cLines.slice(-n).map(l => l.trim());
+		if (tail.every((l, i) => l === sufLines[i] && CLOSER.test(l))) {
+			const text = cLines.slice(0, -n).join('\n').replace(/\s+$/, '');
+			return { text, cut: c.length - text.length };
+		}
+	}
 	return { text: c, cut: 0 };
 }
 

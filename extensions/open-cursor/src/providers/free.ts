@@ -52,8 +52,11 @@ export function isFreeModel(id: string): boolean {
 /** The order Free (auto) tries models in: generous limits first, small daily caps last. */
 const CHAIN_ORDER = [
 	'nvidia/deepseek-ai/deepseek-v4.1-flash', 'zai/glm-4.7-flash', 'groq/openai/gpt-oss-120b', 'nvidia/z-ai/glm-5.3-flash',
-	'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free', 'google/gemini-3.8-flash', 'groq/qwen/qwen3.8-27b',
-	'mistral/mistral-medium-3-5', 'openrouter/poolside/laguna-s-2.1:free', 'google/gemini-3.5-flash-lite', 'sambanova/DeepSeek-V3.1',
+	'nvidia/moonshotai/kimi-k2.6', 'nvidia/nvidia/nemotron-3-super-120b-a12b',
+	'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free', 'google/gemini-3.8-flash', 'zai/glm-4.5-flash', 'groq/qwen/qwen3.8-27b',
+	'groq/llama-3.3-70b-versatile', 'mistral/mistral-medium-3-5', 'openrouter/poolside/laguna-s-2.1:free',
+	'openrouter/cohere/north-mini-code:free', 'google/gemini-3.5-flash-lite', 'mistral/codestral-2508',
+	'sambanova/DeepSeek-V3.1', 'sambanova/gpt-oss-120b',
 ];
 
 export const FREE_CHAIN: readonly FreeModel[] = CHAIN_ORDER.map(id => {

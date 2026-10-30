@@ -2,7 +2,7 @@
  *  OpenCursor. MIT License.
  *  The anonymous install count. Once a day it sends a random ID made on first launch, the version
  *  and the OS, so the project knows how many copies are in use. Nothing about the person, their
- *  code, chats or keys. Off when the user turns it off here or turns telemetry off in the editor.
+ *  code, chats or keys. Off when the user turns it off here or sets telemetry.telemetryLevel to off.
  *  The counter it talks to is in /stats of the repository.
  *--------------------------------------------------------------------------------------------*/
 

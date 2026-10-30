@@ -12,7 +12,7 @@ import * as path from 'path';
 import { codexModeArgs } from './modeArgs';
 import type { RunOptions, RunResult, TurnHost } from './types';
 import { TurnTracker } from './tracking';
-import { arr, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, spawnCli, str, truncate } from './util';
+import { arr, friendlyError, num, oneLine, parseJson, rec, resolveInCwd, silentFailure, spawnCli, str, truncate, watchOutput } from './util';
 
 /** `/bin/zsh -lc "echo hi"` -> `echo hi` */
 export function unwrapShell(cmd: string): string {
@@ -184,8 +184,9 @@ export async function runCodex(o: RunOptions): Promise<RunResult> {
 	}
 	args.push('-'); // prompt from stdin
 
-	const tracker = await TurnTracker.create(o.cwd, o.env, o.host);
-	const parser = new CodexParser(o.cwd, o.host, tracker);
+	const watch = watchOutput(o.host);
+	const tracker = await TurnTracker.create(o.cwd, o.env, watch.host);
+	const parser = new CodexParser(o.cwd, watch.host, tracker);
 	let queue: Promise<void> = Promise.resolve();
 	const proc = spawnCli(o.binary, args, {
 		cwd: o.cwd,
@@ -219,6 +220,10 @@ export async function runCodex(o: RunOptions): Promise<RunResult> {
 	if (!parser.sawTurnCompleted && exit.code !== 0) {
 		const err = proc.stderr().split('\n').filter(l => !/rmcp::transport|^Reading additional input/.test(l)).join('\n');
 		return { sessionId, stopReason: 'error', error: friendlyError('codex', err || `codex exited with code ${exit.code}`) };
+	}
+	const quiet = exit.code === 0 ? silentFailure('codex', watch.produced(), parser.sawTurnCompleted, proc.stderr()) : undefined;
+	if (quiet) {
+		return { sessionId, stopReason: 'error', error: quiet };
 	}
 	return { sessionId, stopReason: 'done' };
 }

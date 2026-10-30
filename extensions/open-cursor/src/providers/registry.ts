@@ -7,11 +7,12 @@ import type { IProviderRegistry } from '../services';
 import type { ModelOption } from '../shared/protocol';
 import { CATALOG, ENV_KEYS, KEYLESS, LOCAL, PROVIDER_LABELS, guessModelInfo, modelId } from './catalog';
 import { createAdapter } from './factory';
+import { normalizeBase } from './http';
 import { FREE_AUTO_ID, FREE_CHAIN, FREE_MODELS, FREE_ONLY, isFreeModel } from './free';
 import { ProviderError, type ChatRequest, type FimRequest, type LLMProvider, type ModelInfo, type ProviderId, type StreamEvent } from './types';
 
 const SECRET_PREFIX = 'openCursor.key.';
-const CACHE_KEY = 'openCursor.models.discovery.v1';
+const CACHE_KEY = 'openCursor.models.discovery.v2';
 const TTL_MS = 24 * 60 * 60 * 1000;
 
 const PROVIDERS: readonly ProviderId[] = ['anthropic', 'openai', 'google', 'openrouter', 'deepseek', 'xai', 'mistral', 'groq', 'nvidia', 'zai', 'sambanova', 'ollama', 'lmstudio', 'custom'];
@@ -67,6 +68,8 @@ const INLINE_PREFS: Pref[] = [
 
 /** How long Free (auto) waits for a model's first token before trying the next one. */
 const FIRST_EVENT_MS = 25_000;
+/** A queued request that only sends keep-alive lines is given this long in total. */
+const QUEUE_CAP_MS = 120_000;
 
 class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 	private readonly emitter = new vscode.EventEmitter<void>();
@@ -159,7 +162,8 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 			const s = BASE_SETTING[id];
 			const v = (o || (s ? this.cfg<string>(s, '') : '') || DEFAULT_BASE[id]).trim();
 			if (!v) { throw new ProviderError('Set openCursor.providers.custom.baseUrl to your OpenAI-compatible endpoint.', id, undefined, 'other'); }
-			return v;
+			// Ollama is called on its native /api, everything else here speaks /v1
+			return normalizeBase(v, id === 'ollama' ? { stripV1: true } : id === 'lmstudio' || id === 'custom' || id === 'openai' ? { v1: true } : {});
 		};
 	}
 
@@ -330,10 +334,17 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 			const attempt = new AbortController();
 			const onAbort = (): void => attempt.abort();
 			req.signal?.addEventListener('abort', onAbort, { once: true });
-			const timer = setTimeout(() => attempt.abort(), FIRST_EVENT_MS);
+			const began = Date.now();
 			let started = false;
+			let timer = setTimeout(() => attempt.abort(), FIRST_EVENT_MS);
+			// queue notices (SSE comment lines) show the provider is alive: wait on, up to a hard cap
+			const onActivity = (): void => {
+				if (started) { return; }
+				clearTimeout(timer);
+				timer = setTimeout(() => attempt.abort(), Math.max(1000, Math.min(FIRST_EVENT_MS, QUEUE_CAP_MS - (Date.now() - began))));
+			};
 			try {
-				for await (const ev of this.getProvider(fm.provider).stream({ ...req, model, signal: attempt.signal, retries: 0 })) {
+				for await (const ev of this.getProvider(fm.provider).stream({ ...req, model, signal: attempt.signal, retries: 0, onActivity })) {
 					// our own timer aborting shows up as a clean 'aborted' end: that is a model that never answered
 					if (!started && ev.type === 'done' && ev.stopReason === 'aborted' && attempt.signal.aborted && !req.signal?.aborted) { throw new Error('no answer in time'); }
 					if (!started) { started = true; clearTimeout(timer); }
@@ -356,9 +367,11 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 			}
 		}
 		if (!(last instanceof ProviderError)) { throw last; }
+		const busyOnly = [...kinds].every(k => k === 'rate' || k === 'network');
 		const why = kinds.size === 1 && kinds.has('auth') ? 'None of your free keys were accepted. Check them on the Free models page.'
 			: kinds.size === 1 && kinds.has('context') ? 'This conversation is too long for the connected free models. Start a new chat, or shorten this one with /summarize.'
-			: 'Every connected free model is busy or out of quota right now.';
+			: busyOnly ? 'Every connected free model is busy or out of quota right now.'
+			: 'Every connected free model failed. The last error was:';
 		throw new ProviderError(`${why} ${last.message}`, 'free', last.status, last.kind);
 	}
 

@@ -1,7 +1,8 @@
 /* Plain node test: bundle + run with `npm run test:edits` or
    npx esbuild src/edits/test/edits.test.ts --bundle --platform=node | node */
 import assert from 'node:assert/strict';
-import { computeHunks, foldAccept, applyReject, minimalEdit, norm, withEol } from '../hunks';
+import { computeHunks, foldAccept, applyReject, minimalEdit, minimalRawEdit, norm, withEol } from '../hunks';
+import { unsafeEncoding } from '../encoding';
 import { planRestore, type CheckpointRecord } from '../checkpointLogic';
 
 let n = 0;
@@ -107,6 +108,37 @@ t('checkpoint restore picks earliest before-content at or after target', () => {
 	const p3 = planRestore(recs, 'c3')!;
 	assert.equal(p3.get('file:///b'), 'h-b2');
 	assert.equal(planRestore(recs, 'nope'), undefined);
+});
+
+const apply = (old: string, m: { start: number; end: number; text: string } | undefined) => m ? old.slice(0, m.start) + m.text + old.slice(m.end) : old;
+
+t('raw edit: mixed endings keep untouched lines', () => {
+	const old = 'a\r\nb\nc\r\nd\ne';
+	const m = minimalRawEdit(old, 'a\nb\nc\nD\ne', '\r\n');
+	assert.equal(apply(old, m), 'a\r\nb\nc\r\nD\ne');
+});
+
+t('raw edit: inserted lines match the surrounding ending', () => {
+	const old = 'a\r\nb\r\nc\n';
+	assert.equal(apply(old, minimalRawEdit(old, 'a\nb\nX\nY\nc\n', '\n')), 'a\r\nb\r\nX\r\nY\r\nc\n');
+	const lf = 'a\nb\nc\n';
+	assert.equal(apply(lf, minimalRawEdit(lf, 'a\nX\nb\nc\n', '\r\n')), 'a\nX\nb\nc\n');
+});
+
+t('raw edit: unchanged and pure CRLF', () => {
+	assert.equal(minimalRawEdit('a\r\nb', 'a\nb', '\r\n'), undefined);
+	const old = 'a\r\nb\r\n';
+	assert.equal(apply(old, minimalRawEdit(old, 'a\nB\n', '\r\n')), 'a\r\nB\r\n');
+});
+
+t('encoding: utf8, bom, latin1, utf16', () => {
+	const enc = (s: string) => new Uint8Array(Buffer.from(s, 'utf8'));
+	assert.equal(unsafeEncoding(enc('håll å fäll')), null);
+	assert.equal(unsafeEncoding(new Uint8Array([0xef, 0xbb, 0xbf, 0x61])), null);
+	assert.ok(unsafeEncoding(new Uint8Array(Buffer.from('håll', 'latin1'))));
+	assert.ok(unsafeEncoding(new Uint8Array([0xff, 0xfe, 0x61, 0x00])));
+	assert.ok(unsafeEncoding(new Uint8Array([0xfe, 0xff, 0x00, 0x61])));
+	assert.equal(unsafeEncoding(enc('a\ufffdb')), null);
 });
 
 console.log(`${n} tests passed`);

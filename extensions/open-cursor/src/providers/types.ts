@@ -71,6 +71,8 @@ export interface ChatRequest {
 	readonly signal: AbortSignal;
 	/** Waits on 429 before giving up; Free (auto) sets 0 to move on to the next model at once. */
 	readonly retries?: number;
+	/** Called when the server sends a keep-alive or queue notice before any reply (SSE comment lines). */
+	readonly onActivity?: () => void;
 }
 
 export type StreamEvent =

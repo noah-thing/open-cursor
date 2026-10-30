@@ -1,0 +1,23 @@
+import { assert, done, test } from '../../agent/test/harness';
+import { commandWithBinary, lmStudioAppPaths } from '../lmStudio';
+
+test('PowerShell needs the call operator', () => {
+	assert.strictEqual(commandWithBinary('codex login', 'C:\\Users\\A B\\codex.cmd', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'), "& 'C:\\Users\\A B\\codex.cmd' login");
+});
+
+test('POSIX shells get single quotes', () => {
+	assert.strictEqual(commandWithBinary('opencode auth login', "/home/o'neil/bin/opencode", '/bin/zsh'), "'/home/o'\\''neil/bin/opencode' auth login");
+});
+
+test('cmd gets double quotes, and no path leaves the command alone', () => {
+	assert.strictEqual(commandWithBinary('gemini', 'C:\\x y\\gemini.cmd', 'cmd.exe'), '"C:\\x y\\gemini.cmd"');
+	assert.strictEqual(commandWithBinary('claude', undefined, '/bin/bash'), 'claude');
+});
+
+test('LM Studio app paths exist per system', () => {
+	assert.ok(lmStudioAppPaths('darwin')[0].endsWith('LM Studio.app'));
+	assert.ok(lmStudioAppPaths('win32', { LOCALAPPDATA: 'C:\\Users\\a\\AppData\\Local' })[0].endsWith('LM Studio.exe'));
+	assert.strictEqual(lmStudioAppPaths('linux').length, 0);
+});
+
+void done('lmStudio');

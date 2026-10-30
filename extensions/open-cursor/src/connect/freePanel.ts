@@ -113,8 +113,8 @@ export class FreeModelsPanel implements vscode.Disposable {
 		return {
 			hardware: b.summary, speed: b.speed, ollama, picks,
 			others: tags.filter(t => !picks.some(p => p.tag === t || p.tag + ':latest' === t)),
-			// the page has no state for a remote server, so its busy line carries the message and blocks the buttons
-			...(this.localBusy ? { busy: this.localBusy } : remoteDown ? { busy: `The Ollama server at ${ollamaHost()} is not reachable. Check openCursor.providers.ollama.baseUrl.` } : {}),
+			...(this.localBusy ? { busy: this.localBusy } : {}),
+			...(remoteDown && !this.localBusy ? { error: `The Ollama server at ${ollamaHost()} is not reachable. Check openCursor.providers.ollama.baseUrl.` } : {}),
 			...(this.pulling ? { pulling: this.pulling } : {}),
 		};
 	}
@@ -168,7 +168,13 @@ export class FreeModelsPanel implements vscode.Disposable {
 	private async connect(spec: FreeProviderSpec, key: string): Promise<void> {
 		const k = key.trim();
 		const r = await verifyFreeKey(spec, k);
-		if (r.ok) { await this.services.registry.setKey(spec.id as ProviderId, k); }
+		if (r.ok) {
+			try { await this.services.registry.setKey(spec.id as ProviderId, k); } catch (e) {
+				this.post({ type: 'result', id: spec.id, ok: false, message: `Could not save the key in your system keychain: ${e instanceof Error ? e.message : String(e)}` });
+				await this.pushState();
+				return;
+			}
+		}
 		this.post({ type: 'result', id: spec.id, ok: r.ok, message: r.message });
 		await this.pushState();
 	}
@@ -200,7 +206,9 @@ export class FreeModelsPanel implements vscode.Disposable {
 				const cts = this.signIn = new vscode.CancellationTokenSource();
 				try {
 					const key = await signInWithOpenRouter(cts.token);
-					await this.services.registry.setKey(spec.id as ProviderId, key);
+					try { await this.services.registry.setKey(spec.id as ProviderId, key); } catch (e) {
+						throw new Error(`Could not save the key in your system keychain: ${e instanceof Error ? e.message : String(e)}`);
+					}
 					this.post({ type: 'result', id: spec.id, ok: true, message: 'Connected' });
 				} catch (e) {
 					this.post({ type: 'result', id: spec.id, ok: false, message: e instanceof Error ? e.message : String(e) });
@@ -215,7 +223,11 @@ export class FreeModelsPanel implements vscode.Disposable {
 				return;
 			case 'disconnect': {
 				const spec = this.spec(m.id);
-				if (spec) { await this.services.registry.setKey(spec.id as ProviderId, undefined); }
+				if (spec) {
+					try { await this.services.registry.setKey(spec.id as ProviderId, undefined); } catch (e) {
+						this.post({ type: 'result', id: spec.id, ok: false, message: `Could not remove the key from your system keychain: ${e instanceof Error ? e.message : String(e)}` });
+					}
+				}
 				return this.pushState();
 			}
 			case 'installOpenCode': {

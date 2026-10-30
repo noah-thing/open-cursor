@@ -2,8 +2,16 @@
  *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChatMode, ChatSummary, ContextKind } from '../../../src/shared/protocol';
+import type { ChatMessage, ChatMode, ChatSummary, ContextKind, UserMessage } from '../../../src/shared/protocol';
 import type { IconName } from '../common/icons';
+
+/** The user message that owns an assistant message's turn, only while that turn is the last one in the chat. */
+export function retryTarget(messages: readonly ChatMessage[], assistantId: string): UserMessage | undefined {
+	const i = messages.findIndex(m => m.id === assistantId);
+	if (i === -1 || i !== messages.length - 1) { return undefined; }
+	const prev = messages[i - 1];
+	return prev?.role === 'user' ? prev : undefined;
+}
 
 export function basename(p: string): string {
 	const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));

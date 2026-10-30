@@ -26,6 +26,8 @@ import { ReportPanel, type ReportContext } from './report/reportPanel';
 import { readEffort, setEffort } from './agent/env';
 import type { Effort } from './shared/protocol';
 
+let chatHost: ReturnType<typeof createChatController> | undefined;
+
 export function activate(ctx: vscode.ExtensionContext): void {
 	const registry = createProviderRegistry(ctx);
 	const pendingEdits = createPendingEdits(ctx);
@@ -41,6 +43,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	};
 
 	const chat = createChatController(ctx, services);
+	chatHost = chat;
 	registerInlineEdit(ctx, services);
 	registerTab(ctx, services);
 	registerTerminalCmdK(ctx, services);
@@ -71,6 +74,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('openCursor.localModels.open', () => free.open({ local: true })));
 }
 
-export function deactivate(): void {
+export function deactivate(): Thenable<void> {
 	killAllClis();
+	// VS Code waits a moment for this, so a turn cut off by closing the window still reaches the disk
+	return chatHost?.flush() ?? Promise.resolve();
 }
