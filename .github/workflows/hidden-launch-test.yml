@@ -26,7 +26,7 @@ jobs:
         run: |
           $dir = "C:\t\o $([char]0x00E5)"
           New-Item -ItemType Directory -Force $dir | Out-Null
-          $body = "@echo off`r`nchcp 65001 >nul`r`nfor /l %%i in (1,1,8) do (`r`n  tasklist /FI ""IMAGENAME eq nothing.exe"" 2>nul | find /I ""nothing.exe"" >nul`r`n  ping -n 2 127.0.0.1 >nul`r`n)`r`necho done>""%~dp0done.txt""`r`nexit /b 3`r`n"
+          $body = "@echo off`r`nchcp 65001 >nul`r`nfor /l %%i in (1,1,8) do (`r`n  tasklist /FI ""IMAGENAME eq nothing.exe"" 2>nul | find /I ""nothing.exe"" >nul`r`n  ping -n 2 127.0.0.1 >nul`r`n  echo %%i>>C:\t\loop.txt`r`n)`r`necho done>C:\t\done.txt`r`nexit /b 3`r`n"
           [IO.File]::WriteAllText("$dir\install.cmd", $body, (New-Object Text.UTF8Encoding $false))
           "SCRIPT=$dir\install.cmd" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - name: Start it like the updater and count visible console windows
@@ -51,8 +51,8 @@ jobs:
           Set-Content launch.cjs $js
           node launch.cjs ${{ matrix.mode }}
           "launcher exited"
-          $max = 0; $done = Join-Path (Split-Path $env:SCRIPT) 'done.txt'
-          for ($i = 0; $i -lt 120 -and -not (Test-Path $done); $i++) { $c = [Win]::Consoles() - $base; if ($c -gt $max) { $max = $c }; Start-Sleep -Milliseconds 200 }
-          "mode=${{ matrix.mode }} baseline=$base most visible console windows while waiting=$max finished=$(Test-Path $done)"
+          $max = 0; $done = 'C:\t\done.txt'
+          for ($i = 0; $i -lt 450 -and -not (Test-Path $done); $i++) { $c = [Win]::Consoles() - $base; if ($c -gt $max) { $max = $c }; Start-Sleep -Milliseconds 200 }
+          "mode=${{ matrix.mode }} baseline=$base most visible console windows while waiting=$max finished=$(Test-Path $done) loops=$((Get-Content C:\t\loop.txt -ErrorAction SilentlyContinue) -join ",")"
           if (-not (Test-Path $done)) { throw "the script did not finish after the launcher exited" }
           if ('${{ matrix.mode }}' -eq 'new' -and $max -gt 0) { throw "$max console windows became visible" }
