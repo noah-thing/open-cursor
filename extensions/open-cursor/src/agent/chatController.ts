@@ -1343,7 +1343,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (part.status === 'done' || part.status === 'error' || ready) { this.postChatNow(turn.sc); } else { this.schedulePost(turn.sc); }
 	}
 
-	private addError(turn: TurnState, raw: string, action?: 'openSettings' | 'retry'): void {
+	private addError(turn: TurnState, raw: string, action?: 'openSettings' | 'retry', fix?: Extract<MessagePart, { type: 'error' }>['fix']): void {
 		this.closeThinking(turn);
 		const message = stripAnsi(raw).trim();
 		if (isLimitError(message)) {
@@ -1354,7 +1354,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			this.postChatNow(turn.sc);
 			return;
 		}
-		turn.parts.push({ type: 'error', message, action });
+		turn.parts.push({ type: 'error', message, action, ...(fix ? { fix } : {}) });
 		turn.errored = true;
 		this.postChatNow(turn.sc);
 	}
@@ -1562,7 +1562,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		// A command line agent reads the project's own settings (.claude/settings.json, .gemini/, hooks), which
 		// can run programs. In a folder the user has not trusted, it does not start.
 		if (!help && vscode.workspace.workspaceFolders?.length && !vscode.workspace.isTrusted) {
-			this.addError(turn, `This folder is in Restricted Mode, and ${info.label} would read the project's own settings, which can run programs. Trust the folder (Manage Workspace Trust in the command palette) to use it here, or pick an API or local model, which work in Restricted Mode.`);
+			this.addError(turn, `This folder is in Restricted Mode, and ${info.label} would read the project's own settings, which can run programs. Trust the folder to use it here, or pick an API or local model, which work in Restricted Mode.`, undefined, { kind: 'trust' });
 			return;
 		}
 		const cwd = help ? this.helpDir() : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? this.chatFolder(turn);

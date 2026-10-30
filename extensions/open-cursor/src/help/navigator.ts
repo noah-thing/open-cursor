@@ -63,6 +63,7 @@ export class HelpNavigator {
 				break;
 			}
 			case 'report-issue': await this.hooks.reportIssue(a.arg); break;
+			case 'trust': await cmd('workbench.trust.manage'); break;
 			case 'report-problem': await cmd('openCursor.reportProblem'); break;
 		}
 		return label;

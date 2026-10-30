@@ -113,7 +113,8 @@ export function guessModelInfo(provider: ProviderId, model: string, over: Partia
 	};
 }
 
-const NON_CHAT = /embed|whisper|tts|dall-e|moderation|transcribe|realtime|audio|image|imagen|veo|rerank|guard|playai|orpheus|speech|aqa|babbage|davinci|search|instruct$|codex|computer-use|omni-moderation/i;
+// `:batch` variants (gateways list them next to the normal model) only work with a batch API, never chat
+const NON_CHAT = /embed|whisper|tts|dall-e|moderation|transcribe|realtime|audio|image|imagen|veo|rerank|guard|playai|orpheus|speech|aqa|babbage|davinci|search|instruct$|codex|computer-use|omni-moderation|[:-]batch$/i;
 
 /** True if an id from a provider's /models listing looks like a chat model. */
 export function isChatModelId(provider: ProviderId, id: string): boolean {
