@@ -1451,6 +1451,29 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		this.postChats();
 	}
 
+	/**
+	 * With no folder open, a command line agent still needs somewhere to work. Never the app's own
+	 * folder (an update replaces it): each chat gets its own folder under ~/OpenCursor, kept for the chat.
+	 */
+	private chatFolder(turn: TurnState): string {
+		const sc = turn.sc;
+		if (sc.scratchDir && fs.existsSync(sc.scratchDir)) { return sc.scratchDir; }
+		const base = nodePath.join(os.homedir(), 'OpenCursor');
+		const name = sc.chat.title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 48).replace(/[. ]+$/, '') || 'Chat';
+		// names Windows reserves for devices cannot be folders
+		const safe = /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(name) ? 'Chat ' + name : name;
+		let dir = nodePath.join(base, safe);
+		for (let i = 2; fs.existsSync(dir) && sc.scratchDir !== dir; i++) { dir = nodePath.join(base, `${safe} ${i}`); }
+		try {
+			fs.mkdirSync(dir, { recursive: true });
+		} catch {
+			return os.homedir();
+		}
+		sc.scratchDir = dir;
+		this.appendText(turn, `_No folder is open, so this chat works in \`${dir.replace(os.homedir(), '~')}\`. Open that folder (File > Open Folder) to see the files and review changes._\n\n`);
+		return dir;
+	}
+
 	private async runCliTurn(turn: TurnState, userMsg: UserMessage, req: SendRequest): Promise<void> {
 		const { sc, rt } = turn;
 		const signal = rt.abort!.signal;
@@ -1464,7 +1487,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			return;
 		}
 		const help = sc.chat.mode === 'help';
-		const cwd = help ? this.helpDir() : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+		const cwd = help ? this.helpDir() : vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? this.chatFolder(turn);
 		const files = referencedFiles(req.context);
 		const rules = help ? [] : await this.services.context.getRules(files).catch(() => []);
 		const { content, resolvedTexts } = await this.buildUserContent(req, false);
