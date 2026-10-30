@@ -1,27 +1,29 @@
 /*---------------------------------------------------------------------------------------------
  *  OpenCursor. MIT License.
  *  How hard the model thinks. One setting for every chat, picked in the chat box next to the model.
- *  Auto keeps each backend's own sensible default: API models think at high, CLIs use theirs.
+ *  Auto keeps each backend's own default where the provider documents one, CLIs use theirs. For
+ *  Anthropic, which needs an explicit budget, Auto thinks at a moderate one. Auto never means high:
+ *  an agent loop thinks on every step, so high on every step is slow and costly.
  *--------------------------------------------------------------------------------------------*/
 
 import type { Effort } from '../shared/protocol';
 
-export type ApiEffort = 'low' | 'medium' | 'high' | 'max';
+export type ApiEffort = 'auto' | 'low' | 'medium' | 'high' | 'max';
 
-/** What an API model is asked for; undefined means no thinking. */
+/** What an API model is asked for; undefined means no thinking. 'auto' lets each provider mapping pick its default. */
 export function apiEffort(e: Effort): ApiEffort | undefined {
-	return e === 'off' ? undefined : e === 'auto' ? 'high' : e;
+	return e === 'off' ? undefined : e;
 }
 
 /** Anthropic thinking budget. Always below max_tokens, which has to hold the answer too. */
 export function anthropicBudget(e: ApiEffort | undefined, maxTokens: number): number {
-	const want = e === 'low' ? 2_048 : e === 'medium' ? 8_000 : e === 'max' ? 31_000 : 16_000;
+	const want = e === 'low' ? 2_048 : e === 'medium' || e === 'auto' || e === undefined ? 8_000 : e === 'max' ? 31_000 : 16_000;
 	return Math.max(1_024, Math.min(want, maxTokens - 1_024));
 }
 
-/** OpenAI style reasoning_effort; providers stop at high. */
+/** OpenAI style reasoning_effort; providers stop at high. Auto is medium, which is OpenAI's own default. */
 export function openaiEffort(e: ApiEffort | undefined): 'low' | 'medium' | 'high' {
-	return e === 'low' || e === 'medium' ? e : 'high';
+	return e === 'low' || e === 'high' ? e : e === 'max' ? 'high' : 'medium';
 }
 
 /** Claude Code's --effort. Auto leaves its own default alone; it cannot switch thinking off, so Off is its lowest. */

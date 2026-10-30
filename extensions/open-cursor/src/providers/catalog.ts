@@ -2,6 +2,7 @@
  *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
+import { hasThinkingControl } from './thinking';
 import type { ModelInfo, ProviderId } from './types';
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
@@ -70,6 +71,7 @@ export function isFimName(provider: ProviderId, model: string): boolean {
 export function isReasoningName(provider: ProviderId, model: string): boolean {
 	const m = model.toLowerCase();
 	if (provider === 'openai') { return /^(o\d|gpt-5)/.test(m) && !/chat/.test(m); }
+	if (hasThinkingControl(provider, model)) { return true; }
 	return /(^|[-/:])(r1|reasoner|thinking|magistral|qwq|gpt-oss)|qwen3|deepseek-r1|grok-4|grok-3-mini|gemini-(2\.5|3)|\bo\d\b/.test(m);
 }
 

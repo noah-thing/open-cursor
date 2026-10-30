@@ -125,7 +125,7 @@ async function collectText(registry: IProviderRegistry, req: ChatRequest): Promi
 export async function summarizeMessages(registry: IProviderRegistry, model: ModelInfo, older: LLMMessage[], signal: AbortSignal): Promise<string> {
 	try {
 		const text = await collectText(registry, {
-			model, system: SUMMARY_SYSTEM, signal, maxTokens: Math.min(3000, model.maxOutputTokens || 3000),
+			model, system: SUMMARY_SYSTEM, signal, thinking: false, maxTokens: Math.min(3000, model.maxOutputTokens || 3000),
 			messages: [{ role: 'user', content: [{ type: 'text', text: `Conversation to compress:\n\n${renderForSummary(older, Math.max(16_000, Math.min(120_000, Math.floor((model.contextWindow || 128000) * 0.5 * 3))))}` }] }],
 		});
 		if (text) { return text; }

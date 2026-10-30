@@ -152,7 +152,7 @@ test('think tags split across chunks', async () => {
 test('openai: request body (reasoning model, tools, images, tool results)', async () => {
 	const m = { ...model, id: 'openai/o4', provider: 'openai' as const, model: 'o4', supportsThinking: true };
 	const b = buildOpenAIBody(baseReq({
-		model: m, thinking: true, temperature: 0.5, tools: [{ name: 'f', description: 'd', parameters: { type: 'object' } }],
+		model: m, thinking: true, effort: 'high', temperature: 0.5, tools: [{ name: 'f', description: 'd', parameters: { type: 'object' } }],
 		messages: [
 			{ role: 'user', content: [{ type: 'text', text: 'see' }, { type: 'image', mediaType: 'image/png', data: 'AAA' }] },
 			{ role: 'assistant', content: [{ type: 'text', text: 'ok' }, { type: 'tool_use', id: 'c1', name: 'f', input: { q: 1 } }] },

@@ -5,6 +5,7 @@
 import { openaiEffort } from '../agent/effort';
 import { PROVIDER_LABELS, guessModelInfo, isChatModelId, isFimName, isReasoningName, modelId } from './catalog';
 import { guarded, joinUrl, missingKey, parseArgs, request, resolveBase, sseFromBody, verifyByListing, errorKind, type BaseUrl, type KeyGetter, type Rec, type SseEvent } from './http';
+import { thinkingParams, thinkingRejected, thinkingUnverified } from './thinking';
 import { remapToolIds } from './toolIds';
 import { ProviderError, type ChatRequest, type FimRequest, type LLMContent, type LLMMessage, type LLMProvider, type ModelInfo, type ProviderId, type StreamEvent } from './types';
 
@@ -92,6 +93,7 @@ export function buildOpenAIBody(req: ChatRequest, o: CompatOptions): Rec {
 	if (m.supportsThinking && req.thinking !== undefined) {
 		if (o.reasoning === 'openai') { body.reasoning_effort = req.thinking ? openaiEffort(req.effort) : 'low'; }
 		else if (o.reasoning === 'openrouter' && req.thinking) { body.reasoning = { effort: openaiEffort(req.effort) }; }
+		else if (!o.reasoning || o.reasoning === 'none') { Object.assign(body, thinkingParams(o.id, m.model, req.thinking, req.effort)); }
 	}
 	return body;
 }
@@ -235,9 +237,18 @@ export class OpenAICompatibleProvider implements LLMProvider {
 	}
 
 	private async* run(req: ChatRequest): AsyncGenerator<StreamEvent> {
-		const res = await request(this.id, joinUrl(this.base(req.model.id), '/chat/completions'), {
+		const send = async (): Promise<Response> => request(this.id, joinUrl(this.base(req.model.id), '/chat/completions'), {
 			method: 'POST', headers: { ...await this.headers(), accept: 'text/event-stream' }, body: JSON.stringify(buildOpenAIBody(req, this.o)),
 		}, req.signal, req.retries);
+		let res: Response;
+		try {
+			res = await send();
+		} catch (e) {
+			// an undocumented thinking field the provider refuses: drop it for this model and ask again at its default
+			if (!(e instanceof ProviderError) || e.status !== 400 || !thinkingUnverified(this.id, req.model.model) || req.thinking === undefined) { throw e; }
+			thinkingRejected(this.id, req.model.model);
+			res = await send();
+		}
 		yield* parseOpenAIStream(sseFromBody(res, req.onActivity), { provider: this.id, thinkTags: this.o.thinkTags });
 	}
 

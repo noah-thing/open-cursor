@@ -344,7 +344,7 @@ class ProviderRegistry implements IProviderRegistry, vscode.Disposable {
 				timer = setTimeout(() => attempt.abort(), Math.max(1000, Math.min(FIRST_EVENT_MS, QUEUE_CAP_MS - (Date.now() - began))));
 			};
 			try {
-				for await (const ev of this.getProvider(fm.provider).stream({ ...req, model, signal: attempt.signal, retries: 0, onActivity })) {
+				for await (const ev of this.getProvider(fm.provider).stream({ ...req, model, thinking: undefined, signal: attempt.signal, retries: 0, onActivity })) {
 					// our own timer aborting shows up as a clean 'aborted' end: that is a model that never answered
 					if (!started && ev.type === 'done' && ev.stopReason === 'aborted' && attempt.signal.aborted && !req.signal?.aborted) { throw new Error('no answer in time'); }
 					if (!started) { started = true; clearTimeout(timer); }
