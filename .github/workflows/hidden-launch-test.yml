@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: |
           cmd.exe /d /c $env:SCRIPT
-          "exit $LASTEXITCODE"
+          "exit $LASTEXITCODE"; $global:LASTEXITCODE = 0
           Get-Content C:\t\loop.txt, C:\t\done.txt -ErrorAction SilentlyContinue
           Remove-Item C:\t\loop.txt, C:\t\done.txt -ErrorAction SilentlyContinue
       - name: Start it like the updater and count visible console windows
@@ -54,11 +54,13 @@ jobs:
           $js = @'
           const cp = require('child_process'); const p = require('./plan.cjs'); const f = process.env.SCRIPT;
           const l = process.argv[2] === 'new' ? p.hiddenCmdLauncher(f) : { file: 'cmd.exe', args: ['/d', '/c', f] };
-          cp.spawn(l.file, [...l.args], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+          const c = cp.spawn(l.file, [...l.args], { detached: true, stdio: 'ignore', windowsHide: true });
+          c.on('error', e => console.log('spawn error: ' + e.message)); c.on('exit', (code) => console.log('launcher child exited early: ' + code));
+          console.log('pid ' + c.pid); c.unref(); setTimeout(() => process.exit(0), 3000);
           '@
           Set-Content launch.cjs $js
           node launch.cjs ${{ matrix.mode }}
-          "launcher exited"
+          "launcher exited"; Get-Process cmd, powershell, PING, tasklist -ErrorAction SilentlyContinue | Format-Table Id, ProcessName, StartTime -AutoSize | Out-String | Write-Host
           $max = 0; $done = 'C:\t\done.txt'
           for ($i = 0; $i -lt 450 -and -not (Test-Path $done); $i++) { $c = [Win]::Consoles() - $base; if ($c -gt $max) { $max = $c }; Start-Sleep -Milliseconds 200 }
           "mode=${{ matrix.mode }} baseline=$base most visible console windows while waiting=$max finished=$(Test-Path $done) loops=$((Get-Content C:\t\loop.txt -ErrorAction SilentlyContinue) -join ",")"
