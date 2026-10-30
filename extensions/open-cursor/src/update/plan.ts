@@ -347,7 +347,12 @@ export function portablePsScript(o: { readonly staged: string; readonly root: st
  * with no console. Every step in the script is a PowerShell command, so no window ever appears.
  */
 export function windowsLauncher(ps1: string): { readonly file: string; readonly args: readonly string[] } {
-	return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', ps1] };
+	// Started detached, powershell.exe has no console and quits before running anything; started normally it dies
+	// with OpenCursor. So a short-lived PowerShell starts the real one with Start-Process: that one gets its own
+	// hidden console, outlives OpenCursor, and every program it runs shares that hidden console. Prints its id.
+	const inner = `$p = Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -PassThru -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ${psq(`"${ps1.replace(/"/g, '')}"`)}; $p.Id`;
+	// UTF-16LE base64 survives any characters in the path (spaces, quotes, å ä ö) without a second layer of quoting
+	return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(inner, 'utf16le').toString('base64')] };
 }
 
 /**

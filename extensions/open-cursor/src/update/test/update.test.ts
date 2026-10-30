@@ -342,8 +342,11 @@ void done('update');
 	assert.ok(p.includes('/XD "C:\\P.new-update-1-2\\resources" "C:\\P\\data"'), 'data folder never touched');
 	assert.ok(p.includes("'C:\\P.update-lock'"), 'two windows cannot swap at once');
 	assert.ok(!/tasklist|ping |timeout /i.test(p));
-	const l = windowsLauncher('C:\\T\\install.ps1');
+	const l = windowsLauncher("C:\\Users\\Åsa O'Neil\\T\\install.ps1");
 	assert.strictEqual(l.file, 'powershell.exe');
-	assert.deepStrictEqual(l.args.slice(-2), ['-File', 'C:\\T\\install.ps1']);
-	assert.ok(l.args.includes('Bypass'));
+	assert.strictEqual(l.args[l.args.length - 2], '-EncodedCommand');
+	const inner = Buffer.from(l.args[l.args.length - 1], 'base64').toString('utf16le');
+	assert.ok(inner.includes("Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -PassThru"), inner);
+	assert.ok(inner.includes(`'"C:\\Users\\Åsa O''Neil\\T\\install.ps1"'`), inner);
+	assert.ok(inner.trimEnd().endsWith('$p.Id'));
 }

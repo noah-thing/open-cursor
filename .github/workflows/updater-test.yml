@@ -179,9 +179,11 @@ jobs:
           const o = { staged: root + '.new-update', root, exe: root + '\\OpenCursor.exe', relaunchFlag: 'C:\\t\\relaunch', log: 'C:\\t\\update.log' };
           fs.writeFileSync(ps1, '\ufeff' + p.portablePsScript(o), 'utf8');
           const l = p.windowsLauncher(ps1);
-          const c = cp.spawn(l.file, [...l.args], { detached: true, stdio: 'ignore', windowsHide: true });
+          let out = '';
+          const c = cp.spawn(l.file, [...l.args], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+          c.stdout.on('data', d => { out += d; });
           c.on('error', e => { console.log('spawn error ' + e.message); process.exit(1); });
-          console.log(c.pid); c.unref(); setTimeout(() => process.exit(0), 1500);
+          c.on('exit', code => { console.log(out.trim().split(/\s+/).pop()); process.exit(code); });
           '@
           Set-Content launch.cjs $js
           $launched = node launch.cjs $root
@@ -257,9 +259,11 @@ jobs:
           const ps1 = 'C:\\t\\install.ps1';
           fs.writeFileSync(ps1, '\ufeff' + p.windowsPsScript({ setup: 'C:\\to-setup.exe', exe: process.argv[2] + '\\OpenCursor.exe', relaunchFlag: 'C:\\t\\relaunch', log: 'C:\\t\\update.log' }), 'utf8');
           const l = p.windowsLauncher(ps1);
-          const c = cp.spawn(l.file, [...l.args], { detached: true, stdio: 'ignore', windowsHide: true });
+          let out = '';
+          const c = cp.spawn(l.file, [...l.args], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+          c.stdout.on('data', d => { out += d; });
           c.on('error', e => { console.log('spawn error ' + e.message); process.exit(1); });
-          console.log(c.pid); c.unref(); setTimeout(() => process.exit(0), 1500);
+          c.on('exit', code => { console.log(out.trim().split(/\s+/).pop()); process.exit(code); });
           '@
           Set-Content launch.cjs $js
           $pid2 = [int](node launch.cjs $dir)

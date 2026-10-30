@@ -57,7 +57,12 @@ interface Ready {
 }
 
 /** What `build` records about the script it started. */
-interface BuildState { keep: boolean; staged?: string; running: boolean }
+interface BuildState { keep: boolean; staged?: string; running: boolean; pid?: number }
+
+/** True while a process with this id exists. */
+function pidAlive(pid: number): boolean {
+	try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; }
+}
 
 function cfg(): vscode.WorkspaceConfiguration {
 	return vscode.workspace.getConfiguration('openCursor.update');
@@ -404,18 +409,24 @@ class Updater implements vscode.Disposable {
 		// stops the script straight away, the cmd script does the same job (with its brief console windows).
 		const detachWindows = (ps1: string, cmdFile: string): void => {
 			const l = windowsLauncher(ps1);
-			const started = Date.now();
-			detach(l.file, [...l.args]);
-			const ps = cur;
-			const fallback = (): void => { if (cur === ps) { detach('cmd.exe', ['/d', '/c', cmdFile]); } };
-			ps?.once('error', fallback);
-			// the script writes the log first: if it exists, PowerShell ran it and a fast failure is the setup's, not a launch problem
-			ps?.once('exit', code => { if (code !== 0 && Date.now() - started < 10_000 && !fs.existsSync(log)) { fallback(); } });
+			let out = '';
+			let done = false;
+			const fallback = (): void => { if (!done) { done = true; state.pid = undefined; detach('cmd.exe', ['/d', '/c', cmdFile]); } };
+			// the launcher is short-lived and prints the id of the hidden PowerShell that waits; it is not detached on purpose (see windowsLauncher)
+			const launcher = cp.spawn(l.file, [...l.args], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
+			state.running = true;
+			state.keep = true;
+			launcher.stdout?.on('data', d => { out += String(d); });
+			launcher.on('error', fallback);
+			launcher.on('exit', code => {
+				const pid = Number(out.trim().split(/\s+/).pop());
+				if (code === 0 && Number.isInteger(pid) && pid > 0) { done = true; state.pid = pid; } else { fallback(); }
+			});
 		};
 		let cur: cp.ChildProcess | undefined;
 		const made = (extra: Pick<Ready, 'installed'> & { revive?: () => void }): Ready => ({
 			version: release.version, relaunchFlag, release, ...extra,
-			alive: () => state.running,
+			alive: () => (state.pid !== undefined ? pidAlive(state.pid) : state.running),
 			discard: () => {
 				fs.rmSync(work, { recursive: true, force: true });
 				if (state.staged) { fs.rmSync(state.staged, { recursive: true, force: true }); }
