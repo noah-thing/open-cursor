@@ -48,8 +48,8 @@ jobs:
           const l = process.argv[2] === 'new' ? p.hiddenCmdLauncher(f) : { file: 'cmd.exe', args: ['/d', '/c', f] };
           cp.spawn(l.file, [...l.args], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
           '@
-          Set-Content launch.js $js
-          node launch.js ${{ matrix.mode }}
+          Set-Content launch.cjs $js
+          node launch.cjs ${{ matrix.mode }}
           "launcher exited"
           $max = 0; $done = Join-Path (Split-Path $env:SCRIPT) 'done.txt'
           for ($i = 0; $i -lt 120 -and -not (Test-Path $done); $i++) { $c = [Win]::Consoles() - $base; if ($c -gt $max) { $max = $c }; Start-Sleep -Milliseconds 200 }
