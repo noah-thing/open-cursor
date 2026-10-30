@@ -38,7 +38,7 @@ else
 fi
 
 step "Finding the latest OpenCursor release"
-RELEASE=$(curl -fsSL -H "Accept: application/vnd.github+json" "$API") || fail "could not reach GitHub"
+RELEASE=$(curl -fsSL -H "Accept: application/vnd.github+json" "$API") || fail "could not read the release from GitHub (no internet, no release with that version, or GitHub is rate limiting you; try again in a few minutes)"
 TAG=$(printf '%s' "$RELEASE" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
 tag_of() { case "$1" in */download/*/*) printf '%s' "$1" | sed 's|.*/download/\([^/]*\)/.*|\1|' ;; *) printf '%s' "$TAG" ;; esac; }
 
@@ -80,6 +80,8 @@ download() {
 
 SUDO=""
 [ "$(id -u)" -eq 0 ] || SUDO="sudo"
+# no sudo on this system (a minimal container, say): run the package manager directly and let it say what is missing
+if [ "$OS" = linux ] && [ -n "$SUDO" ] && ! command -v sudo >/dev/null 2>&1; then SUDO=""; fi
 
 if [ "$OS" = macos ]; then
 	URL=$(asset "-macos-$ARCH.dmg")
@@ -112,12 +114,13 @@ fi
 if command -v apt-get >/dev/null 2>&1 && URL=$(asset "-linux-$ARCH.deb") && [ -n "$URL" ]; then
 	download "$URL" opencursor.deb
 	step "Installing with apt (you may be asked for your password)"
-	$SUDO apt-get install -y "$TMP/opencursor.deb"
+	# curl | sh feeds this script through stdin, so package managers get /dev/null and cannot read the rest of it
+	$SUDO apt-get install -y "$TMP/opencursor.deb" </dev/null
 	WHERE="the applications menu, or run: open-cursor"
 elif { command -v dnf >/dev/null 2>&1 || command -v zypper >/dev/null 2>&1; } && URL=$(asset "-linux-$ARCH.rpm") && [ -n "$URL" ]; then
 	download "$URL" opencursor.rpm
 	step "Installing the package (you may be asked for your password)"
-	if command -v dnf >/dev/null 2>&1; then $SUDO dnf install -y "$TMP/opencursor.rpm"; else $SUDO zypper --non-interactive install --allow-unsigned-rpm "$TMP/opencursor.rpm"; fi
+	if command -v dnf >/dev/null 2>&1; then $SUDO dnf install -y "$TMP/opencursor.rpm" </dev/null; else $SUDO zypper --non-interactive install --allow-unsigned-rpm "$TMP/opencursor.rpm" </dev/null; fi
 	WHERE="the applications menu, or run: open-cursor"
 else
 	URL=$(asset "-linux-$ARCH.tar.gz")

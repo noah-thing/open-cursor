@@ -152,12 +152,12 @@ function normalize(q: string): string {
 }
 
 /** A hand written answer when the question is short, about one topic and not about a problem. */
-export function instantAnswer(question: string): InstantAnswer | undefined {
+export function instantAnswer(question: string, platform: string = process.platform): InstantAnswer | undefined {
 	const q = normalize(question);
 	if (!q || q.split(' ').length > 14 || PROBLEM.test(q)) { return undefined; }
 	for (const i of INTENTS) {
 		if (i.all.every(r => r.test(q)) && !(i.not ?? []).some(r => r.test(q))) {
-			return { id: i.id, text: i.text, open: i.open };
+			return { id: i.id, text: platform === 'darwin' ? i.text : i.text.replace(/\bCmd\b/g, 'Ctrl'), open: i.open };
 		}
 	}
 	return undefined;

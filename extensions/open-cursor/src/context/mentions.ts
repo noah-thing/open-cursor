@@ -443,7 +443,7 @@ export async function readDocumentText(uri: vscode.Uri): Promise<string | undefi
 
 export function git(cwd: string, args: string[], timeoutMs = 15000): Promise<string> {
 	return new Promise((resolve, reject) => {
-		execFile('git', args, { cwd, timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+		execFile('git', args, { cwd, windowsHide: true, timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
 			if (err) {
 				reject(new Error(stripAnsi(String(stderr || err.message)).trim()));
 			} else {

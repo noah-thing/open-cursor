@@ -32,7 +32,7 @@ export function findRipgrep(): string {
 export function runRipgrep(args: string[], cwd: string, signal: AbortSignal, maxLines: number): Promise<{ lines: string[]; code: number | null; stderr: string; truncated: boolean }> {
 	return new Promise((resolve, reject) => {
 		if (signal.aborted) { reject(new Error('aborted')); return; }
-		const child = spawn(findRipgrep(), args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+		const child = spawn(findRipgrep(), args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
 		const lines: string[] = [];
 		let buf = '';
 		let stderr = '';

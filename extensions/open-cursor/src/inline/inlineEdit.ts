@@ -116,7 +116,7 @@ export function registerInlineEdit(ctx: vscode.ExtensionContext, services: Servi
 			if (text !== expected) {
 				const idx = s.replacement ? text.indexOf(s.replacement) : -1;
 				if (idx >= 0) { start = idx; }
-				else { return void await status(args.sessionId, 'error', 'The edited region changed. Close this box and start a new Cmd+K.'); }
+				else { return void await status(args.sessionId, 'error', `The edited region changed. Close this box and start a new ${process.platform === 'darwin' ? 'Cmd' : 'Ctrl'}+K.`); }
 			}
 			const end = start + s.replacement.length;
 			region = { kind: s.kind, start, end, startLine: s.startLine, endLine: s.startLine, before: text.slice(0, start), selected: s.replacement, after: text.slice(end) };

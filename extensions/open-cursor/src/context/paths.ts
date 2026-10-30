@@ -42,7 +42,7 @@ export function resolvePath(input: string): ResolvedPath {
 		const uri = vscode.Uri.file(nodePath.normalize(vscode.Uri.parse(p).fsPath));
 		return { uri, inWorkspace: !!vscode.workspace.getWorkspaceFolder(uri) && !leavesThroughLink(uri) };
 	}
-	if (p === '~' || p.startsWith('~/')) {
+	if (p === '~' || p.startsWith('~/') || p.startsWith('~\\')) {
 		p = nodePath.join(os.homedir(), p.slice(1));
 	}
 	const roots = workspaceRoots();
@@ -55,7 +55,7 @@ export function resolvePath(input: string): ResolvedPath {
 		let rel = clean;
 		if (roots.length > 1) {
 			const folders = vscode.workspace.workspaceFolders ?? [];
-			const first = clean.split('/')[0];
+			const first = clean.split(/[\\/]/)[0];
 			const match = folders.find(f => f.name === first);
 			if (match) {
 				base = match.uri;

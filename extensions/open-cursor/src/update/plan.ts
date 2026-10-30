@@ -240,6 +240,7 @@ export function windowsScript(o: { readonly setup: string; readonly exe: string;
  * no console, so every program it runs (tasklist, find, ping) would open a console window of its own,
  * about once a second while it waits. PowerShell starts it instead with a hidden console that those
  * programs share, and stays until the script ends so its exit code is still the script's.
+ * Not used yet: it has to pass hidden-launch-test on a real Windows desktop first.
  */
 export function hiddenCmdLauncher(script: string): { readonly file: string; readonly args: readonly string[] } {
 	const q = (v: string): string => `'${v.replace(/'/g, "''")}'`;

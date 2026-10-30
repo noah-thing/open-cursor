@@ -44,7 +44,7 @@ export function registerTerminalCmdK(ctx: vscode.ExtensionContext, services: Ser
 		const terminal = vscode.window.activeTerminal;
 		if (!terminal) { return; }
 		const request = await vscode.window.showInputBox({
-			title: 'Terminal Cmd+K',
+			title: `Terminal ${process.platform === 'darwin' ? 'Cmd' : 'Ctrl'}+K`,
 			prompt: 'Describe the command…',
 			placeHolder: 'e.g. find files larger than 100 MB in this folder',
 			ignoreFocusOut: true,

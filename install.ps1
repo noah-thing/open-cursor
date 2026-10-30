@@ -32,19 +32,19 @@ try {
 		if ($asset.digest -match '^sha256:([0-9a-fA-F]{64})$') {
 			$got = (Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash
 			if ($got -ne $Matches[1]) {
-				Remove-Item $file -Force
+				Remove-Item -LiteralPath $file -Force
 				throw 'The download does not match the checksum GitHub published.'
 			}
 		}
 
 		Write-Host 'Installing' -ForegroundColor White
 		# The per-user setup needs no administrator rights; runcode would open the app before this script ends.
-		$p = Start-Process $file -ArgumentList '/VERYSILENT', '/NORESTART', '/MERGETASKS=!runcode' -Wait -PassThru
-		Remove-Item $file -Force -ErrorAction SilentlyContinue
+		$p = Start-Process $file -ArgumentList '/VERYSILENT', '/NORESTART', '/SUPPRESSMSGBOXES', '/MERGETASKS=!runcode' -Wait -PassThru
+		Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue
 		if ($p.ExitCode -ne 0) { throw "The installer stopped with exit code $($p.ExitCode)." }
 
 		Write-Host ''
-		Write-Host "OpenCursor $($release.tag_name) is installed. Find it in the Start menu, or run: open-cursor"
+		Write-Host "OpenCursor $($release.tag_name) is installed. Find it in the Start menu, or open a new terminal window and run: open-cursor"
 	}
 } finally {
 	[Net.ServicePointManager]::SecurityProtocol = $oldTls

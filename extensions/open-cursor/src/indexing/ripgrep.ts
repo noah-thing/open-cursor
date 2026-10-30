@@ -43,7 +43,7 @@ export async function keywordSearch(query: string, folders: readonly vscode.Work
 		if (opts.includeGlob) { args.push('--glob', opts.includeGlob); }
 		args.push('--', '.');
 		await new Promise<void>(resolve => {
-			const child = spawn(rg, args, { cwd: folder.uri.fsPath, stdio: ['ignore', 'pipe', 'ignore'] });
+			const child = spawn(rg, args, { cwd: folder.uri.fsPath, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
 			const onAbort = () => child.kill();
 			if (opts.signal.aborted) { child.kill(); }
 			opts.signal.addEventListener('abort', onAbort, { once: true });

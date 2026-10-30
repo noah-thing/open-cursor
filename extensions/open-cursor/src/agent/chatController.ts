@@ -502,7 +502,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	private async openLocalApp(id: 'ollama' | 'lmstudio'): Promise<void> {
 		const which = (bin: string): Promise<boolean> => new Promise(res => {
 			const cmd = process.platform === 'win32' ? `where ${bin}` : `command -v ${bin}`;
-			cp.exec(cmd, { shell: process.platform === 'win32' ? undefined : process.env.SHELL || '/bin/sh' }, err => res(!err));
+			cp.exec(cmd, { windowsHide: true, shell: process.platform === 'win32' ? undefined : process.env.SHELL || '/bin/sh' }, err => res(!err));
 		});
 		if (id === 'ollama' && await which('ollama')) {
 			await vscode.commands.executeCommand('workbench.action.restoreAuxiliaryBar').then(undefined, () => undefined);

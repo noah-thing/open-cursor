@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
-	assetProblem, detectInstall, hiddenCmdLauncher, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, stagedStamp, swapScript, windowsScript,
+	assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, stagedStamp, swapScript, windowsScript,
 	type InstallKind, type Release, type ReleaseAsset,
 } from './plan';
 
@@ -345,13 +345,6 @@ class Updater implements vscode.Disposable {
 			child.on('error', stopped).on('exit', stopped).unref();
 			state.keep = true;
 		};
-		// Windows: through hiddenCmdLauncher, so the waiting script opens no windows; plain cmd if PowerShell will not start
-		const detachCmd = (file: string): void => {
-			const l = hiddenCmdLauncher(file);
-			detach(l.file, [...l.args]);
-			const ps = cur;
-			ps?.once('error', () => { if (cur === ps) { detach('cmd.exe', ['/d', '/c', file]); } });
-		};
 		let cur: cp.ChildProcess | undefined;
 		const made = (extra: Pick<Ready, 'installed'> & { revive?: () => void }): Ready => ({
 			version: release.version, relaunchFlag, release, ...extra,
@@ -408,14 +401,14 @@ class Updater implements vscode.Disposable {
 				fs.rmSync(staged, { recursive: true, force: true });
 				throw new Error(`could not unpack the new version${x.out ? ` (${x.out.slice(-200)})` : ''}`);
 			}
-			detachCmd(script('install.cmd', portableScript({ staged, root, exe, relaunchFlag, log, download: file })));
+			detach('cmd.exe', ['/d', '/c', script('install.cmd', portableScript({ staged, root, exe, relaunchFlag, log, download: file }))]);
 			return made({ installed: false });
 		}
 
 		if (kind === 'win-setup') {
 			// newer Windows installs keep the versioned files one folder below the launcher
 			const exe = [root, path.dirname(root)].map(d => path.join(d, 'OpenCursor.exe')).find(p => fs.existsSync(p)) ?? path.join(root, 'OpenCursor.exe');
-			detachCmd(script('install.cmd', windowsScript({ setup: file, exe, relaunchFlag, log, download: file })));
+			detach('cmd.exe', ['/d', '/c', script('install.cmd', windowsScript({ setup: file, exe, relaunchFlag, log, download: file }))]);
 			return made({ installed: false });
 		}
 
