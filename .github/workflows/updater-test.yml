@@ -204,5 +204,5 @@ jobs:
           echo "installed version: $got"
           test "$got" = "$want"
           test ! -e "$STAGED" || { echo "staging left behind"; exit 1; }
-          "/tmp/t/Apps/OpenCursor.app/Contents/Resources/app/bin/open-cursor" --version
+          "/tmp/t/Apps/OpenCursor.app/Contents/Resources/app/bin/code" --version
           echo "all checks passed"
