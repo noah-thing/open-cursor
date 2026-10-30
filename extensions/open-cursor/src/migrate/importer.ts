@@ -145,7 +145,7 @@ async function runImport(ctx: vscode.ExtensionContext, src: Source): Promise<voi
 		const failed: string[] = [];
 		let done = 0;
 		// Offline, every install fails the same way; say so instead of blaming the extensions.
-		// The check ignores http.proxy, so a failed check is only a hint: the first install decides.
+		// A failed check is only a hint (a proxy or a slow network can fail it): the first install decides.
 		let offline = false;
 		let checkFailed = ids.length > 0 && !(await openVsxReachable());
 		for (const id of ids) {

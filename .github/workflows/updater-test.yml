@@ -125,6 +125,165 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "updated app does not start" }
           "all checks passed"
 
+
+  # The same updates, started exactly as the app starts them: detached through PowerShell. Fails if the
+  # script dies with its launcher, does not wait, does not install, or shows a single console window.
+  windows-portable-hidden:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Bundle the update plan
+        run: npx -y esbuild@0.24.0 extensions/open-cursor/src/update/plan.ts --bundle --platform=node --format=cjs --outfile=plan.cjs
+      - name: Download both portable zips
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download ${{ inputs.from }} -R ${{ github.repository }} -p "*-windows-x64-portable.zip" -O from.zip
+          gh release download ${{ inputs.to }} -R ${{ github.repository }} -p "*-windows-x64-portable.zip" -O to.zip
+      - name: Lay out an old portable copy in a folder with a space and a non English letter
+        shell: pwsh
+        run: |
+          $root = "C:\t\Ö C\OC"
+          New-Item -ItemType Directory -Force $root | Out-Null
+          tar -xf from.zip -C $root
+          New-Item -ItemType Directory -Force "$root\data\user-data" | Out-Null
+          Set-Content "$root\data\user-data\marker.txt" "keep me"
+          Set-Content "$root\my-own-file.txt" "keep me too"
+          New-Item -ItemType Directory -Force "$root.new-update" | Out-Null
+          tar -xf to.zip -C "$root.new-update"
+      - name: Start it like the app and watch the screen
+        shell: pwsh
+        run: |
+          Add-Type @"
+          using System; using System.Text; using System.Runtime.InteropServices;
+          public static class Win {
+            public delegate bool Cb(IntPtr h, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool EnumWindows(Cb cb, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+            public static int Consoles() { int n = 0; EnumWindows((h, l) => { if (IsWindowVisible(h)) { var s = new StringBuilder(256); GetClassName(h, s, 256); if (s.ToString() == "ConsoleWindowClass" || s.ToString() == "PseudoConsoleWindow") n++; } return true; }, IntPtr.Zero); return n; }
+          }
+          "@
+          $root = "C:\t\Ö C\OC"
+          New-Item -ItemType Directory -Force C:\t\fake | Out-Null
+          Copy-Item "$env:SystemRoot\System32\PING.EXE" C:\t\fake\OpenCursor.exe
+          $fake = Start-Process C:\t\fake\OpenCursor.exe -ArgumentList "-n","12","127.0.0.1" -PassThru -WindowStyle Hidden
+          $base = [Win]::Consoles()
+          $js = @'
+          const cp = require('child_process'), fs = require('fs'), p = require('./plan.cjs');
+          const root = process.argv[2], ps1 = 'C:\\t\\install.ps1';
+          const o = { staged: root + '.new-update', root, exe: root + '\\OpenCursor.exe', relaunchFlag: 'C:\\t\\relaunch', log: 'C:\\t\\update.log' };
+          fs.writeFileSync(ps1, '\ufeff' + p.portablePsScript(o), 'utf8');
+          const l = p.windowsLauncher(ps1);
+          const c = cp.spawn(l.file, [...l.args], { detached: true, stdio: 'ignore', windowsHide: true });
+          c.on('error', e => { console.log('spawn error ' + e.message); process.exit(1); });
+          console.log(c.pid); c.unref(); setTimeout(() => process.exit(0), 1500);
+          '@
+          Set-Content launch.cjs $js
+          $launched = node launch.cjs $root
+          "launcher pid $launched; launcher process has exited"
+          $max = 0; $sw = [Diagnostics.Stopwatch]::StartNew()
+          while ($sw.Elapsed.TotalSeconds -lt 300) {
+            $c = [Win]::Consoles() - $base; if ($c -gt $max) { $max = $c }
+            if ((Test-Path C:\t\update.log) -and (Select-String -Path C:\t\update.log -Pattern 'update: (done|failed)' -Quiet)) { break }
+            Start-Sleep -Milliseconds 200
+          }
+          "finished after $([int]$sw.Elapsed.TotalSeconds) s, most visible console windows: $max, fake app still running: $(!$fake.HasExited)"
+          Get-Content C:\t\update.log -Tail 5
+          if (!(Select-String -Path C:\t\update.log -Pattern 'update: done' -Quiet)) { throw "the update did not finish" }
+          if ($sw.Elapsed.TotalSeconds -lt 8) { throw "did not wait for OpenCursor.exe to quit" }
+          if ($max -gt 0) { throw "$max console windows became visible" }
+      - name: Check the result
+        shell: pwsh
+        run: |
+          $root = "C:\t\Ö C\OC"
+          $want = "${{ inputs.to }}".TrimStart("v")
+          $pkg = Get-Content "$root\resources\app\extensions\open-cursor\package.json" -Raw | ConvertFrom-Json
+          "installed version: $($pkg.version)"
+          if ($pkg.version -ne $want) { throw "expected $want" }
+          if (!(Test-Path "$root\data\user-data\marker.txt")) { throw "data folder was touched" }
+          if (!(Test-Path "$root\my-own-file.txt")) { throw "a file outside the app was deleted" }
+          if (Test-Path "$root.new-update") { throw "staging folder left behind" }
+          if (Test-Path "$root.update-lock") { throw "lock left behind" }
+          "all checks passed"
+
+  windows-setup-hidden:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Bundle the update plan
+        run: npx -y esbuild@0.24.0 extensions/open-cursor/src/update/plan.ts --bundle --platform=node --format=cjs --outfile=plan.cjs
+      - name: Download both setups
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download ${{ inputs.from }} -R ${{ github.repository }} -p "*-windows-x64-setup.exe" -O C:\from-setup.exe
+          gh release download ${{ inputs.to }} -R ${{ github.repository }} -p "*-windows-x64-setup.exe" -O C:\to-setup.exe
+      - name: Install the old version
+        shell: pwsh
+        run: |
+          Start-Process C:\from-setup.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/MERGETASKS=!runcode' -Wait
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\OpenCursor'
+          if (!(Test-Path "$dir\OpenCursor.exe")) { throw "old version not installed" }
+      - name: Start it like the app and watch the screen
+        shell: pwsh
+        run: |
+          Add-Type @"
+          using System; using System.Text; using System.Runtime.InteropServices;
+          public static class Win {
+            public delegate bool Cb(IntPtr h, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool EnumWindows(Cb cb, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+            public static int Consoles() { int n = 0; EnumWindows((h, l) => { if (IsWindowVisible(h)) { var s = new StringBuilder(256); GetClassName(h, s, 256); if (s.ToString() == "ConsoleWindowClass" || s.ToString() == "PseudoConsoleWindow") n++; } return true; }, IntPtr.Zero); return n; }
+          }
+          "@
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\OpenCursor'
+          New-Item -ItemType Directory -Force C:\t\fake | Out-Null
+          Copy-Item "$env:SystemRoot\System32\PING.EXE" C:\t\fake\OpenCursor.exe
+          $fake = Start-Process C:\t\fake\OpenCursor.exe -ArgumentList "-n","12","127.0.0.1" -PassThru -WindowStyle Hidden
+          New-Item -ItemType File -Force C:\t\relaunch-not-wanted | Out-Null
+          $base = [Win]::Consoles()
+          $js = @'
+          const cp = require('child_process'), fs = require('fs'), p = require('./plan.cjs');
+          const ps1 = 'C:\\t\\install.ps1';
+          fs.writeFileSync(ps1, '\ufeff' + p.windowsPsScript({ setup: 'C:\\to-setup.exe', exe: process.argv[2] + '\\OpenCursor.exe', relaunchFlag: 'C:\\t\\relaunch', log: 'C:\\t\\update.log' }), 'utf8');
+          const l = p.windowsLauncher(ps1);
+          const c = cp.spawn(l.file, [...l.args], { detached: true, stdio: 'ignore', windowsHide: true });
+          c.on('error', e => { console.log('spawn error ' + e.message); process.exit(1); });
+          console.log(c.pid); c.unref(); setTimeout(() => process.exit(0), 1500);
+          '@
+          Set-Content launch.cjs $js
+          $pid2 = [int](node launch.cjs $dir)
+          "script pid $pid2; launcher process has exited"
+          $max = 0; $sw = [Diagnostics.Stopwatch]::StartNew()
+          while ($sw.Elapsed.TotalSeconds -lt 600 -and (Get-Process -Id $pid2 -ErrorAction SilentlyContinue)) {
+            $c = [Win]::Consoles() - $base; if ($c -gt $max) { $max = $c }
+            Start-Sleep -Milliseconds 200
+          }
+          "script ended after $([int]$sw.Elapsed.TotalSeconds) s, most visible console windows: $max"
+          if (Get-Process -Id $pid2 -ErrorAction SilentlyContinue) { throw "the update script never finished" }
+          if ($sw.Elapsed.TotalSeconds -lt 8) { throw "did not wait for OpenCursor.exe to quit" }
+          if ($max -gt 0) { throw "$max console windows became visible" }
+      - name: Check the result
+        shell: pwsh
+        run: |
+          $want = "${{ inputs.to }}".TrimStart("v")
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\OpenCursor'
+          $pkg = Get-ChildItem $dir -Recurse -Filter package.json | Where-Object { $_.FullName -match 'extensions\\open-cursor\\package\.json$' } | Select-Object -First 1
+          $v = (Get-Content $pkg.FullName -Raw | ConvertFrom-Json).version
+          "installed version: $v"
+          if ($v -ne $want) { throw "expected $want" }
+          "all checks passed"
+
   linux-tar:
     runs-on: ubuntu-latest
     timeout-minutes: 30

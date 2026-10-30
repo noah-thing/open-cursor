@@ -255,18 +255,85 @@ export function windowsScript(o: { readonly setup: string; readonly exe: string;
 	].join('\r\n');
 }
 
+/** A PowerShell single quoted string. PowerShell also treats the curly quotes as quote marks, so they are doubled too. */
+function psq(s: string): string {
+	return `'${s.replace(/['\u2018\u2019\u201A\u201B]/g, m => m + m)}'`;
+}
+
+/** The process name PowerShell knows OpenCursor.exe by. */
+function psName(exe: string): string {
+	return (exe.split('\\').pop() ?? 'OpenCursor.exe').replace(/\.exe$/i, '');
+}
+
 /**
- * How a cmd script is started on Windows without a single window showing. Started detached, cmd has
- * no console, so every program it runs (tasklist, find, ping) would open a console window of its own,
- * about once a second while it waits. PowerShell starts it instead with a hidden console that those
- * programs share, and stays until the script ends so its exit code is still the script's.
- * Not used yet: it has to pass hidden-launch-test on a real Windows desktop first.
+ * Waits for every OpenCursor.exe to exit using PowerShell's own commands only. The script runs detached
+ * with no console, and a console program (tasklist, find, ping) started from it would open a window of
+ * its own every second; Get-Process and Start-Sleep never do.
  */
-export function hiddenCmdLauncher(script: string): { readonly file: string; readonly args: readonly string[] } {
-	const q = (v: string): string => `'${v.replace(/'/g, "''")}'`;
-	const ps = `$p = Start-Process -FilePath 'cmd.exe' -ArgumentList ${q(`/d /c "${script.replace(/"/g, '')}"`)} -WindowStyle Hidden -PassThru; $p.WaitForExit(); exit $p.ExitCode`;
-	// UTF-16LE base64 survives any characters in the path (spaces, quotes, å ä ö) without a second layer of quoting
-	return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')] };
+function psWait(exe: string): string[] {
+	return [`while (Get-Process -Name ${psq(psName(exe))} -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 1 }`];
+}
+
+/** Windows setup install, as PowerShell: waits for OpenCursor to quit, runs the setup silently, reopens it if the flag file exists. */
+export function windowsPsScript(o: { readonly setup: string; readonly exe: string; readonly relaunchFlag: string; readonly log: string; readonly download?: string }): string {
+	return [
+		"$ErrorActionPreference = 'Continue'",
+		...psWait(o.exe),
+		// Start-Process joins the arguments with spaces, so the log path carries its own quotes
+		`$p = Start-Process -FilePath ${psq(o.setup)} -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/MERGETASKS=!runcode', ${psq(`/LOG="${o.log.replace(/"/g, '')}"`)} -Wait -PassThru`,
+		'$rc = $p.ExitCode',
+		`if ($rc -eq 0) { Remove-Item -LiteralPath ${psq(o.download ?? o.setup)} -Force -ErrorAction SilentlyContinue }`,
+		// reopen either way: after a failed setup the old copy is still there
+		`if (Test-Path -LiteralPath ${psq(o.relaunchFlag)}) { Start-Process -FilePath ${psq(o.exe)} }`,
+		'exit $rc',
+		'',
+	].join('\r\n');
+}
+
+/** Windows portable update, as PowerShell: the same steps as portableScript, without a single visible window. */
+export function portablePsScript(o: { readonly staged: string; readonly root: string; readonly exe: string; readonly relaunchFlag: string; readonly log: string; readonly download?: string }): string {
+	const name = o.exe.split('\\').pop() ?? 'OpenCursor.exe';
+	const r = (s: string): string => s.replace(/\\+$/, '');
+	// robocopy is a console program: it runs with its own hidden window and its exit code is read back
+	const robo = (args: string): string => `(Start-Process -FilePath 'robocopy.exe' -ArgumentList ${psq(args)} -WindowStyle Hidden -Wait -PassThru).ExitCode`;
+	const dq = (s: string): string => `"${s.replace(/"/g, '')}"`;
+	const lock = `${r(o.root)}.update-lock`;
+	return [
+		"$ErrorActionPreference = 'Continue'",
+		`$log = ${psq(o.log)}`,
+		"function Note($t) { Add-Content -LiteralPath $log -Value $t -ErrorAction SilentlyContinue }",
+		`function Reopen { if (Test-Path -LiteralPath ${psq(o.relaunchFlag)}) { Start-Process -FilePath ${psq(o.exe)} } }`,
+		`function Fail { Note 'update: failed'; Remove-Item -LiteralPath ${psq(r(o.staged))} -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath ${psq(lock)} -Force -ErrorAction SilentlyContinue; Reopen; exit 1 }`,
+		...psWait(o.exe),
+		// another window may be swapping the same copy: wait for it (up to a minute), take over a lock older than 10 minutes
+		'$waited = 0',
+		`while ($true) {`,
+		`	try { New-Item -ItemType Directory -Path ${psq(lock)} -ErrorAction Stop | Out-Null; break } catch {}`,
+		`	$old = Get-Item -LiteralPath ${psq(lock)} -ErrorAction SilentlyContinue`,
+		`	if ($old -and ((Get-Date) - $old.CreationTime).TotalMinutes -gt 10) { Remove-Item -LiteralPath ${psq(lock)} -Force -ErrorAction SilentlyContinue; continue }`,
+		`	if ($waited -ge 60) { Remove-Item -LiteralPath ${psq(r(o.staged))} -Recurse -Force -ErrorAction SilentlyContinue; Reopen; exit 0 }`,
+		'	Start-Sleep -Seconds 1; $waited++',
+		'}',
+		`if (!(Test-Path -LiteralPath ${psq(r(o.staged) + '\\' + name)}) -or !(Test-Path -LiteralPath ${psq(r(o.staged) + '\\resources\\app')})) { Fail }`,
+		// top level files first: if this copy fails, nothing has changed yet, and the old resources still match the old exe
+		`if (${robo(`${dq(r(o.staged))} ${dq(r(o.root))} /E /IS /IT /XD ${dq(r(o.staged) + '\\resources')} ${dq(r(o.root) + '\\data')} /R:5 /W:1 /NP /NFL /NDL /LOG+:${dq(o.log)}`)} -ge 8) { Fail }`,
+		`if (${robo(`${dq(r(o.staged) + '\\resources')} ${dq(r(o.root) + '\\resources')} /MIR /R:5 /W:1 /NP /NFL /NDL /LOG+:${dq(o.log)}`)} -ge 8) { Fail }`,
+		`Remove-Item -LiteralPath ${psq(r(o.staged))} -Recurse -Force -ErrorAction SilentlyContinue`,
+		...(o.download ? [`Remove-Item -LiteralPath ${psq(o.download)} -Force -ErrorAction SilentlyContinue`] : []),
+		"Note 'update: done'",
+		`Remove-Item -LiteralPath ${psq(lock)} -Force -ErrorAction SilentlyContinue`,
+		'Reopen',
+		'exit 0',
+		'',
+	].join('\r\n');
+}
+
+/**
+ * How a PowerShell update script is started on Windows: detached (it must outlive OpenCursor) and
+ * with no console. Every step in the script is a PowerShell command, so no window ever appears.
+ */
+export function windowsLauncher(ps1: string): { readonly file: string; readonly args: readonly string[] } {
+	return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', ps1] };
 }
 
 /**

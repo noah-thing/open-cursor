@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
-	assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, stagedStamp, swapScript, windowsScript,
+	assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portablePsScript, portableScript, relaunchScript, stagedStamp, swapScript, windowsLauncher, windowsPsScript, windowsScript,
 	type InstallKind, type Release, type ReleaseAsset,
 } from './plan';
 
@@ -35,8 +35,9 @@ function explain(e: unknown): string {
 	const proxy = String(vscode.workspace.getConfiguration('http').get<string>('proxy') ?? '').trim();
 	const network = e instanceof TypeError || (e instanceof Error && (e.name === 'TimeoutError' || /fetch failed|ECONN|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/i.test(msg)));
 	if (!network) { return msg; }
+	// the editor routes extension requests through http.proxy (http.fetchAdditionalSupport), so a set proxy is the likely culprit
 	return proxy
-		? `could not reach GitHub. OpenCursor's updater does not use the proxy set in http.proxy (${proxy}), so updates may need the download page`
+		? `could not reach GitHub through the proxy set in http.proxy (${proxy}). Check the proxy, or use the download page`
 		: 'could not reach GitHub. Check the connection';
 }
 
@@ -386,8 +387,8 @@ class Updater implements vscode.Disposable {
 		const root = installRoot(process.platform, vscode.env.appRoot);
 		const script = (name: string, body: string): string => {
 			const p = path.join(work, name);
-			// UTF-8 without a BOM; the cmd scripts switch to that code page themselves
-			fs.writeFileSync(p, body, { mode: 0o755, encoding: 'utf8' });
+			// cmd scripts switch to UTF-8 themselves; Windows PowerShell 5.1 reads a script without a BOM in the old code page
+			fs.writeFileSync(p, (name.endsWith('.ps1') ? '\ufeff' : '') + body, { mode: 0o755, encoding: 'utf8' });
 			return p;
 		};
 		const detach = (cmd: string, args: string[]): void => {
@@ -398,6 +399,17 @@ class Updater implements vscode.Disposable {
 			cur = child;
 			child.on('error', stopped).on('exit', stopped).unref();
 			state.keep = true;
+		};
+		// Windows: the PowerShell script waits without opening a single window. If PowerShell cannot start, or a policy
+		// stops the script straight away, the cmd script does the same job (with its brief console windows).
+		const detachWindows = (ps1: string, cmdFile: string): void => {
+			const l = windowsLauncher(ps1);
+			const started = Date.now();
+			detach(l.file, [...l.args]);
+			const ps = cur;
+			const fallback = (): void => { if (cur === ps) { detach('cmd.exe', ['/d', '/c', cmdFile]); } };
+			ps?.once('error', fallback);
+			ps?.once('exit', code => { if (code !== 0 && Date.now() - started < 10_000) { fallback(); } });
 		};
 		let cur: cp.ChildProcess | undefined;
 		const made = (extra: Pick<Ready, 'installed'> & { revive?: () => void }): Ready => ({
@@ -455,14 +467,16 @@ class Updater implements vscode.Disposable {
 				fs.rmSync(staged, { recursive: true, force: true });
 				throw new Error(`could not unpack the new version${x.out ? ` (${x.out.slice(-200)})` : ''}`);
 			}
-			detach('cmd.exe', ['/d', '/c', script('install.cmd', portableScript({ staged, root, exe, relaunchFlag, log, download: file }))]);
+			const po = { staged, root, exe, relaunchFlag, log, download: file };
+			detachWindows(script('install.ps1', portablePsScript(po)), script('install.cmd', portableScript(po)));
 			return made({ installed: false });
 		}
 
 		if (kind === 'win-setup') {
 			// newer Windows installs keep the versioned files one folder below the launcher
 			const exe = [root, path.dirname(root)].map(d => path.join(d, 'OpenCursor.exe')).find(p => fs.existsSync(p)) ?? path.join(root, 'OpenCursor.exe');
-			detach('cmd.exe', ['/d', '/c', script('install.cmd', windowsScript({ setup: file, exe, relaunchFlag, log, download: file }))]);
+			const wo = { setup: file, exe, relaunchFlag, log, download: file };
+			detachWindows(script('install.ps1', windowsPsScript(wo)), script('install.cmd', windowsScript(wo)));
 			return made({ installed: false });
 		}
 

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { assert, done, test } from '../../agent/test/harness';
-import { assetProblem, detectInstall, hiddenCmdLauncher, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, stagedStamp, swapScript, windowsScript } from '../plan';
+import { assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portablePsScript, portableScript, relaunchScript, stagedStamp, swapScript, windowsLauncher, windowsPsScript, windowsScript } from '../plan';
 
 const NAMES = [
 	'OpenCursor-0.2.0-linux-arm64.deb', 'OpenCursor-0.2.0-linux-arm64.rpm', 'OpenCursor-0.2.0-linux-arm64.tar.gz',
@@ -321,11 +321,23 @@ test('a script that loses the lock still reopens the app when Restart was presse
 void done('update');
 
 {
-	// the Windows launcher runs the script hidden, keeps its exit code, and survives quotes and non English names in the path
-	const l = hiddenCmdLauncher("C:\\Users\\Åsa O'Neil\\AppData\\Local\\Temp\\u\\install.cmd");
+	// Windows: PowerShell scripts wait with Get-Process and Start-Sleep only, so no console program ever opens a window
+	const exe = "C:\\Users\\Åsa O'Neil\\AppData\\Local\\Programs\\OpenCursor\\OpenCursor.exe";
+	const w = windowsPsScript({ setup: 'C:\\T\\setup.exe', exe, relaunchFlag: 'C:\\T\\relaunch', log: 'C:\\T\\up date.log', download: 'C:\\T\\setup.exe' });
+	assert.ok(w.includes("Get-Process -Name 'OpenCursor'") && w.includes('Start-Sleep'), w);
+	assert.ok(!/tasklist|ping|timeout|find /i.test(w), 'no console programs in the wait');
+	assert.ok(w.includes(`'/LOG="C:\\T\\up date.log"'`), w);
+	assert.ok(w.includes("Start-Process -FilePath 'C:\\Users\\Åsa O''Neil\\AppData\\Local\\Programs\\OpenCursor\\OpenCursor.exe'"), 'apostrophes doubled in PowerShell quotes');
+	assert.ok(w.trimEnd().endsWith('exit $rc'));
+	const curly = windowsPsScript({ setup: 'C:\\T\\s.exe', exe: 'C:\\Users\\O\u2019Neil\\OpenCursor.exe', relaunchFlag: 'C:\\f', log: 'C:\\l' });
+	assert.ok(curly.includes('O\u2019\u2019Neil'), 'curly quotes doubled too');
+	const p = portablePsScript({ staged: 'C:\\P.new-update-1-2', root: 'C:\\P', exe: 'C:\\P\\OpenCursor.exe', relaunchFlag: 'C:\\T\\relaunch', log: 'C:\\T\\log', download: 'C:\\T\\p.zip' });
+	assert.ok(p.includes('robocopy.exe') && p.includes('-WindowStyle Hidden -Wait -PassThru'), 'robocopy runs hidden');
+	assert.ok(p.includes('/XD "C:\\P.new-update-1-2\\resources" "C:\\P\\data"'), 'data folder never touched');
+	assert.ok(p.includes("'C:\\P.update-lock'"), 'two windows cannot swap at once');
+	assert.ok(!/tasklist|ping |timeout /i.test(p));
+	const l = windowsLauncher('C:\\T\\install.ps1');
 	assert.strictEqual(l.file, 'powershell.exe');
-	const ps = Buffer.from(l.args[l.args.length - 1], 'base64').toString('utf16le');
-	assert.ok(ps.includes("-WindowStyle Hidden -PassThru"), ps);
-	assert.ok(ps.includes("/d /c \"C:\\Users\\Åsa O''Neil\\AppData\\Local\\Temp\\u\\install.cmd\""), ps);
-	assert.ok(ps.endsWith('exit $p.ExitCode'), ps);
+	assert.deepStrictEqual(l.args.slice(-2), ['-File', 'C:\\T\\install.ps1']);
+	assert.ok(l.args.includes('Bypass'));
 }
