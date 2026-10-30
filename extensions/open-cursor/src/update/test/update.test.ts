@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { assert, done, test } from '../../agent/test/harness';
-import { detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, relaunchScript, swapScript, windowsScript } from '../plan';
+import { detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, swapScript, windowsScript } from '../plan';
 
 const NAMES = [
 	'OpenCursor-0.2.0-linux-arm64.deb', 'OpenCursor-0.2.0-linux-arm64.rpm', 'OpenCursor-0.2.0-linux-arm64.tar.gz',
@@ -69,7 +69,7 @@ test('the right file for every install and processor', () => {
 	assert.strictEqual(name('linux-deb', 'x64'), 'OpenCursor-0.2.0-linux-x64.deb');
 	assert.strictEqual(name('linux-rpm', 'arm64'), 'OpenCursor-0.2.0-linux-arm64.rpm');
 	assert.strictEqual(name('linux-tar', 'x64'), 'OpenCursor-0.2.0-linux-x64.tar.gz');
-	assert.strictEqual(name('win-portable', 'x64'), undefined);
+	assert.strictEqual(name('win-portable', 'x64'), 'OpenCursor-0.2.0-windows-x64-portable.zip');
 	assert.strictEqual(name('unknown', 'x64'), undefined);
 	assert.strictEqual(name('mac-app', 'ia32'), undefined);
 });
@@ -129,6 +129,28 @@ test('the swap script really swaps, keeps the old copy on failure, and reopens o
 	} finally {
 		fs.rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+test('an unzipped Windows copy without an uninstaller updates as portable, never through the setup', () => {
+	const win = { platform: 'win32' as const, appRoot: 'C:\\Tools\\OpenCursor\\resources\\app', portable: false, writable: true };
+	assert.strictEqual(detectInstall({ ...win, hasUninstaller: false }), 'win-portable');
+	assert.strictEqual(detectInstall({ ...win, hasUninstaller: true }), 'win-setup');
+	assert.strictEqual(detectInstall({ ...win, portable: true, hasUninstaller: true }), 'win-portable');
+	assert.strictEqual(detectInstall(win), 'win-setup');
+});
+
+test('the portable script only mirrors resources and never touches data', () => {
+	const s = portableScript({ staged: 'C:\\Tools\\OpenCursor.new-update', root: 'C:\\Tools\\OpenCursor', exe: 'C:\\Tools\\OpenCursor\\OpenCursor.exe', relaunchFlag: 'C:\\T\\relaunch', log: 'C:\\T\\update.log' });
+	const lines = s.split('\r\n');
+	const mir = lines.filter(l => l.includes('/MIR'));
+	assert.strictEqual(mir.length, 1);
+	assert.ok(mir[0].includes('"C:\\Tools\\OpenCursor.new-update\\resources" "C:\\Tools\\OpenCursor\\resources"'));
+	const rest = lines.find(l => l.startsWith('robocopy') && !l.includes('/MIR'))!;
+	assert.ok(rest.includes('/XD') && rest.includes('"C:\\Tools\\OpenCursor\\data"') && !rest.includes('/PURGE'));
+	assert.ok(!/\b(del|rd|rmdir)\b[^\r\n]*C:\\Tools\\OpenCursor"/i.test(s), 'never deletes the install folder');
+	assert.ok(s.includes('rmdir /s /q "C:\\Tools\\OpenCursor.new-update"'));
+	assert.ok(s.indexOf('if not exist "C:\\Tools\\OpenCursor.new-update\\OpenCursor.exe" goto fail') < s.indexOf('robocopy'));
+	assert.ok(s.includes('if errorlevel 8 goto fail'));
 });
 
 void done('update');

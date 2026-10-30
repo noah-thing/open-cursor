@@ -1,0 +1,81 @@
+name: updater-test
+# Runs the real Windows portable update script against two published releases.
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: Release to update from
+        default: v0.1.3
+      to:
+        description: Release to update to
+        default: v0.1.4
+permissions:
+  contents: read
+jobs:
+  windows-portable:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Bundle the update plan
+        run: npx -y esbuild@0.24.0 extensions/open-cursor/src/update/plan.ts --bundle --platform=node --format=cjs --outfile=plan.cjs
+      - name: Download both portable zips
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download ${{ inputs.from }} -R ${{ github.repository }} -p "*-windows-x64-portable.zip" -O from.zip
+          gh release download ${{ inputs.to }} -R ${{ github.repository }} -p "*-windows-x64-portable.zip" -O to.zip
+      - name: Lay out an old portable copy in a folder with other files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force C:\t\OC | Out-Null
+          tar -xf from.zip -C C:\t\OC
+          New-Item -ItemType Directory -Force C:\t\OC\data\user-data | Out-Null
+          Set-Content C:\t\OC\data\user-data\marker.txt "keep me"
+          Set-Content C:\t\OC\my-own-file.txt "keep me too"
+          Set-Content C:\t\OC\resources\app\stale-from-old-version.txt "should go"
+          Get-Content C:\t\OC\resources\app\extensions\open-cursor\package.json | Select-String '"version"' | Select-Object -First 1
+      - name: Unpack the new version the way the app does
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force C:\t\OC.new-update | Out-Null
+          tar -xf to.zip -C C:\t\OC.new-update
+          if (!(Test-Path C:\t\OC.new-update\OpenCursor.exe)) { throw "no exe in staged" }
+      - name: Write the update script with the app's own code
+        run: node -e "const p=require('./plan.cjs');require('fs').writeFileSync('C:/t/install.cmd',p.portableScript({staged:'C:\\t\\OC.new-update',root:'C:\\t\\OC',exe:'C:\\t\\OC\\OpenCursor.exe',relaunchFlag:'C:\\t\\relaunch',log:'C:\\t\\update.log'}))"
+      - name: Run it while a process named OpenCursor.exe is still open
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force C:\t\fake | Out-Null
+          Copy-Item "$env:SystemRoot\System32\PING.EXE" C:\t\fake\OpenCursor.exe
+          $fake = Start-Process C:\t\fake\OpenCursor.exe -ArgumentList "-n","9","127.0.0.1" -PassThru -WindowStyle Hidden
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          cmd.exe /d /c C:\t\install.cmd
+          $code = $LASTEXITCODE
+          $sw.Stop()
+          "exit $code after $([int]$sw.Elapsed.TotalSeconds) s"
+          Get-Content C:\t\update.log -Tail 5
+          if ($code -ne 0) { throw "update script failed" }
+          if ($sw.Elapsed.TotalSeconds -lt 5) { throw "did not wait for OpenCursor.exe to quit" }
+      - name: Check the result
+        shell: pwsh
+        run: |
+          $want = "${{ inputs.to }}".TrimStart("v")
+          $pkg = Get-Content C:\t\OC\resources\app\extensions\open-cursor\package.json -Raw | ConvertFrom-Json
+          "installed version: $($pkg.version)"
+          if ($pkg.version -ne $want) { throw "expected $want" }
+          if (!(Test-Path C:\t\OC\data\user-data\marker.txt)) { throw "data folder was touched" }
+          if (!(Test-Path C:\t\OC\my-own-file.txt)) { throw "a file outside the app was deleted" }
+          if (Test-Path C:\t\OC\resources\app\stale-from-old-version.txt) { throw "stale app file not removed" }
+          if (Test-Path C:\t\OC.new-update) { throw "staging folder left behind" }
+          if (!(Select-String -Path C:\t\update.log -Pattern "update: done" -Quiet)) { throw "log does not say done" }
+          "all checks passed"
+      - name: The updated copy starts
+        shell: pwsh
+        run: |
+          $out = & C:\t\OC\bin\open-cursor.cmd --version 2>&1
+          $out
+          if ($LASTEXITCODE -ne 0) { throw "updated app does not start" }

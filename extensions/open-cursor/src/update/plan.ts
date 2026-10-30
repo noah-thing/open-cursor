@@ -69,6 +69,8 @@ export interface InstallFacts {
 	readonly appRoot: string;
 	/** Set by the app when it runs from a portable folder. */
 	readonly portable: boolean;
+	/** Windows: the installer left its uninstaller next to the app. Without one it is an unzipped copy. */
+	readonly hasUninstaller?: boolean;
 	/** The Linux package manager that owns the install, if any. */
 	readonly linuxPackage?: 'deb' | 'rpm';
 	/** Whether the folder that holds the install can be written by this user. */
@@ -80,7 +82,8 @@ export function detectInstall(f: InstallFacts): InstallKind {
 		return /\.app\/Contents\/Resources\/app\/?$/.test(f.appRoot) && f.writable ? 'mac-app' : 'unknown';
 	}
 	if (f.platform === 'win32') {
-		return f.portable ? 'win-portable' : 'win-setup';
+		// an unzipped copy without a data folder is not in portable mode, but the setup must not update it
+		return f.portable || f.hasUninstaller === false ? 'win-portable' : 'win-setup';
 	}
 	if (f.platform === 'linux') {
 		if (f.linuxPackage) { return f.linuxPackage === 'deb' ? 'linux-deb' : 'linux-rpm'; }
@@ -96,9 +99,10 @@ export function installRoot(platform: NodeJS.Platform, appRoot: string): string 
 	return parts.slice(0, platform === 'darwin' ? -3 : -2).join(sep);
 }
 
-const ASSET_SUFFIX: Record<Exclude<InstallKind, 'unknown' | 'win-portable'>, string> = {
+const ASSET_SUFFIX: Record<Exclude<InstallKind, 'unknown'>, string> = {
 	'mac-app': 'macos-{arch}.dmg',
 	'win-setup': 'windows-{arch}-setup.exe',
+	'win-portable': 'windows-{arch}-portable.zip',
 	'linux-deb': 'linux-{arch}.deb',
 	'linux-rpm': 'linux-{arch}.rpm',
 	'linux-tar': 'linux-{arch}.tar.gz',
@@ -106,7 +110,7 @@ const ASSET_SUFFIX: Record<Exclude<InstallKind, 'unknown' | 'win-portable'>, str
 
 /** The release file for this install and processor (`arm64` or `x64`). */
 export function pickAsset(release: Release, kind: InstallKind, arch: string): ReleaseAsset | undefined {
-	if (kind === 'unknown' || kind === 'win-portable') { return undefined; }
+	if (kind === 'unknown') { return undefined; }
 	const a = arch === 'arm64' ? 'arm64' : arch === 'x64' ? 'x64' : undefined;
 	if (!a) { return undefined; }
 	const suffix = '-' + ASSET_SUFFIX[kind].replace('{arch}', a);
@@ -186,6 +190,44 @@ export function windowsScript(o: { readonly setup: string; readonly exe: string;
 		':install',
 		`${cmd(o.setup)} /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /MERGETASKS=!runcode /LOG=${cmd(o.log)}`,
 		`if exist ${cmd(o.relaunchFlag)} start "" ${cmd(o.exe)}`,
+		'',
+	].join('\r\n');
+}
+
+/**
+ * Windows portable: waits for OpenCursor.exe to exit, then copies the unzipped new version over the
+ * old one. Only the app's own `resources` folder is mirrored (old files in it removed); everything else
+ * is overwritten in place and nothing is ever deleted outside `resources`, because a portable copy
+ * may sit in a folder that also holds the person's own files. The `data` folder is never touched.
+ */
+export function portableScript(o: { readonly staged: string; readonly root: string; readonly exe: string; readonly relaunchFlag: string; readonly log: string }): string {
+	const name = o.exe.split('\\').pop() ?? 'OpenCursor.exe';
+	const q = (s: string): string => cmd(s);
+	const r = (s: string): string => s.replace(/\\+$/, '');
+	return [
+		'@echo off',
+		'set /a n=0',
+		':wait',
+		`tasklist /FI "IMAGENAME eq ${name}" 2>nul | find /I "${name}" >nul`,
+		'if errorlevel 1 goto swap',
+		'set /a n+=1',
+		'if %n% gtr 3600 exit /b 1',
+		'timeout /t 1 /nobreak >nul',
+		'goto wait',
+		':swap',
+		`if not exist ${q(r(o.staged) + '\\' + name)} goto fail`,
+		`if not exist ${q(r(o.staged) + '\\resources\\app')} goto fail`,
+		`robocopy ${q(r(o.staged) + '\\resources')} ${q(r(o.root) + '\\resources')} /MIR /R:5 /W:1 /NP /NFL /NDL /LOG+:${q(o.log)}`,
+		'if errorlevel 8 goto fail',
+		`robocopy ${q(r(o.staged))} ${q(r(o.root))} /E /IS /IT /XD ${q(r(o.staged) + '\\resources')} ${q(r(o.root) + '\\data')} /R:5 /W:1 /NP /NFL /NDL /LOG+:${q(o.log)}`,
+		'if errorlevel 8 goto fail',
+		`rmdir /s /q ${q(r(o.staged))}`,
+		`echo update: done>>${q(o.log)}`,
+		`if exist ${q(o.relaunchFlag)} start "" ${q(o.exe)}`,
+		'exit /b 0',
+		':fail',
+		`echo update: failed>>${q(o.log)}`,
+		'exit /b 1',
 		'',
 	].join('\r\n');
 }

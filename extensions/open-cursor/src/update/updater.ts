@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
-	detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, relaunchScript, swapScript, windowsScript,
+	detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, swapScript, windowsScript,
 	type InstallKind, type Release, type ReleaseAsset,
 } from './plan';
 
@@ -103,7 +103,7 @@ class Updater implements vscode.Disposable {
 		}
 		// a release whose file for this system is still uploading is not offered yet
 		const kind = this.kind();
-		const waiting = !!release && (kind !== 'unknown' && kind !== 'win-portable') && !pickAsset(release, kind, process.arch);
+		const waiting = !!release && kind !== 'unknown' && !pickAsset(release, kind, process.arch);
 		if (!release || !isNewer(release.version, this.current) || waiting) {
 			if (manual) { void vscode.window.showInformationMessage(`OpenCursor ${this.current} is the latest version.`); }
 			return;
@@ -134,7 +134,7 @@ class Updater implements vscode.Disposable {
 
 	/** Installs that need no password or manual step can update in the background. */
 	private silent(kind: InstallKind, release: Release): boolean {
-		return (kind === 'mac-app' || kind === 'linux-tar' || kind === 'win-setup') && !!pickAsset(release, kind, process.arch);
+		return (kind === 'mac-app' || kind === 'linux-tar' || kind === 'win-setup' || kind === 'win-portable') && !!pickAsset(release, kind, process.arch);
 	}
 
 	private kind(): InstallKind {
@@ -145,7 +145,8 @@ class Updater implements vscode.Disposable {
 			linuxPackage = fs.existsSync('/usr/bin/dpkg') && cp.spawnSync('dpkg', ['-S', root], { stdio: 'ignore' }).status === 0 ? 'deb'
 				: fs.existsSync('/usr/bin/rpm') && cp.spawnSync('rpm', ['-qf', root], { stdio: 'ignore' }).status === 0 ? 'rpm' : undefined;
 		}
-		return detectInstall({ platform: process.platform, appRoot, portable: !!process.env.VSCODE_PORTABLE, linuxPackage, writable: writable(path.dirname(root)) && writable(root) });
+		const hasUninstaller = process.platform === 'win32' ? fs.existsSync(path.join(root, 'unins000.exe')) || fs.existsSync(path.join(path.dirname(root), 'unins000.exe')) : undefined;
+		return detectInstall({ platform: process.platform, appRoot, portable: !!process.env.VSCODE_PORTABLE, hasUninstaller, linuxPackage, writable: writable(path.dirname(root)) && writable(root) });
 	}
 
 	/** `quiet` downloads in the status bar instead of a notification and does not ask to restart:
@@ -155,7 +156,7 @@ class Updater implements vscode.Disposable {
 		const asset = pickAsset(release, kind, process.arch);
 		if (!asset) {
 			const go = await vscode.window.showInformationMessage(
-				kind === 'win-portable' ? 'Portable copies update by downloading the new zip.' : 'This copy of OpenCursor cannot update itself. Download the new version from the release page.',
+				'This copy of OpenCursor cannot update itself. Download the new version from the release page.',
 				'Open release page');
 			if (go) { void vscode.env.openExternal(vscode.Uri.parse(release.pageUrl || 'https://github.com/noah-thing/open-cursor/releases')); }
 			return;
@@ -267,6 +268,25 @@ class Updater implements vscode.Disposable {
 				if (x.code !== 0) { throw new Error(`could not unpack the new version (${x.out})`); }
 			}
 			detach('/bin/sh', [script('install.sh', swapScript({ platform: process.platform === 'darwin' ? 'darwin' : 'linux', staged, target: root, relaunchFlag, log }))]);
+			return { version: release.version, relaunchFlag, installed: false };
+		}
+
+		if (kind === 'win-portable') {
+			// unzipped beside the copy (same disk), checked, and copied over it once the app quits
+			const staged = root + '.new-update';
+			fs.rmSync(staged, { recursive: true, force: true });
+			fs.mkdirSync(staged);
+			progress.report({ message: 'Unpacking the new version' });
+			let x = await run('tar', ['-xf', file, '-C', staged]);
+			if (x.code !== 0) {
+				x = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Expand-Archive -LiteralPath '${file.replace(/'/g, "''")}' -DestinationPath '${staged.replace(/'/g, "''")}' -Force`]);
+			}
+			const exe = path.join(root, 'OpenCursor.exe');
+			if (x.code !== 0 || !fs.existsSync(path.join(staged, 'OpenCursor.exe')) || !fs.existsSync(path.join(staged, 'resources', 'app'))) {
+				fs.rmSync(staged, { recursive: true, force: true });
+				throw new Error(`could not unpack the new version${x.out ? ` (${x.out.slice(-200)})` : ''}`);
+			}
+			detach('cmd.exe', ['/d', '/c', script('install.cmd', portableScript({ staged, root, exe, relaunchFlag, log }))]);
 			return { version: release.version, relaunchFlag, installed: false };
 		}
 
