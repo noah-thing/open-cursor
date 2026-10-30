@@ -3,9 +3,10 @@
  *  Pieces of an assistant turn: thinking, tool rows, edit rows, approval and error cards.
  *--------------------------------------------------------------------------------------------*/
 
-import { memo, useState, type ReactElement, type ReactNode } from 'react';
+import { memo, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { ContextItem, MessagePart, ToolPart } from '../../../src/shared/protocol';
 import { Icon, Spinner, type IconName } from '../common/icons';
+import { thoughtTail } from './live';
 import { Markdown } from './markdown';
 import { post } from './host';
 import { HelpJumpRow } from './help';
@@ -53,14 +54,30 @@ function Chevron({ open }: { readonly open: boolean }): ReactElement {
 	return <Icon name="chevronRight" size={12} className={'oc-chev' + (open ? ' is-open' : '')} />;
 }
 
-/** The sentence being thought right now, without markdown marks. */
-function lastLine(text: string): { text: string; n: number } {
-	const lines = text.replace(/[*_`#>]/g, '').split(/\n+/).map(l => l.trim()).filter(Boolean);
-	const last = lines[lines.length - 1] ?? '';
-	const sentences = last.split(/(?<=[.!?])\s+/);
-	const line = sentences[sentences.length - 1].length > 12 ? sentences[sentences.length - 1] : last;
-	// `n` counts sentences so far: the line slides in once per new sentence, not once per streamed word.
-	return { text: line.length > 110 ? '…' + line.slice(-110) : line, n: lines.length * 1000 + sentences.length };
+/**
+ * The live window under Thinking: the reasoning streams in and the window follows the newest line.
+ * Scrolling up inside it stops the follow so a line can be read; scrolling back down resumes it.
+ */
+function ThoughtStream({ text }: { readonly text: string }): ReactElement {
+	const ref = useRef<HTMLDivElement>(null);
+	const follow = useRef(true);
+	const paras = thoughtTail(text);
+	// Keys count paragraphs from the start of the whole thought, so a new paragraph mounts (and rises in)
+	// while the ones above keep their element even as the window's tail moves on.
+	const first = (text.match(/\n\s*\n/g)?.length ?? 0) + 1 - paras.length;
+	useLayoutEffect(() => {
+		const el = ref.current;
+		if (el && follow.current) { el.scrollTop = el.scrollHeight; }
+	}, [text]);
+	return (
+		<div
+			ref={ref}
+			className="oc-think-stream"
+			onScroll={e => { const el = e.currentTarget; follow.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 6; }}
+		>
+			{paras.map((p, i) => <p key={first + i} className={i === paras.length - 1 ? 'is-newest' : undefined}>{p}</p>)}
+		</div>
+	);
 }
 
 export const Thinking = memo(function Thinking({ part, show }: { readonly part: Extract<MessagePart, { type: 'thinking' }>; readonly show: boolean }): ReactElement {
@@ -68,8 +85,9 @@ export const Thinking = memo(function Thinking({ part, show }: { readonly part: 
 	const canOpen = show && part.text.trim().length > 0;
 	const open = canOpen && (userOpen ?? false);
 	const secs = formatDuration(part.durationMs);
-	// While it thinks, the newest line of thought drifts past under the title, so the wait reads as work.
-	const live = !part.done && show && !open ? lastLine(part.text) : undefined;
+	// While it thinks and nobody has opened or closed it, the reasoning streams in a small window.
+	// It stays mounted after the thought ends so the window can glide shut instead of vanishing.
+	const peek = canOpen && userOpen === undefined;
 	return (
 		<div className={'oc-thinking' + (part.done ? '' : ' is-live')}>
 			<button type="button" className="oc-row-head" disabled={!canOpen} onClick={() => setUserOpen(!open)} aria-expanded={open}>
@@ -79,7 +97,11 @@ export const Thinking = memo(function Thinking({ part, show }: { readonly part: 
 				</span>
 				{canOpen ? <Chevron open={open} /> : null}
 			</button>
-			{live?.text ? <div className="oc-think-live"><span key={live.n}>{live.text}</span></div> : null}
+			{peek ? (
+				<div className={'oc-think-peek' + (part.done ? '' : ' is-on')} aria-hidden={part.done}>
+					<div className="oc-think-peek-inner"><ThoughtStream text={part.text} /></div>
+				</div>
+			) : null}
 			{open ? (
 				<div className="oc-thinking-body">
 					<Markdown text={part.text} />
@@ -212,8 +234,10 @@ const ApprovalCard = memo(function ApprovalCard({ part, chatId }: { readonly par
 	);
 });
 
-export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fix, onRetry, onSwitch }: {
+export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fix, limit, chatId, onRetry, onSwitch }: {
 	readonly message: string;
+	readonly limit?: boolean;
+	readonly chatId?: string;
 	readonly action?: 'openSettings' | 'retry';
 	readonly switchTo?: { readonly id: string; readonly label: string };
 	readonly fix?: Extract<MessagePart, { type: 'error' }>['fix'];
@@ -221,6 +245,33 @@ export const ErrorCard = memo(function ErrorCard({ message, action, switchTo, fi
 	readonly onSwitch?: (id: string) => void;
 }): ReactElement {
 	const [switched, setSwitched] = useState(false);
+	if (limit && chatId) {
+		const go = (modelId?: string): void => { if (modelId) { setSwitched(true); } post({ type: 'continueOn', chatId, ...(modelId ? { modelId } : {}) }); };
+		return (
+			<div className="oc-error is-limit" role="alert">
+				<Icon name="warning" size={14} className="oc-error-icon" />
+				<div className="oc-error-main">
+					<div className="oc-error-text">{message}</div>
+					<div className="oc-error-carry">
+						{switchTo
+							? 'Keep going on another model. It gets the whole conversation and every change so far, and picks up exactly where this stopped.'
+							: 'Connect another provider to keep going. The next model gets the whole conversation and every change so far, so nothing is lost.'}
+					</div>
+					<div className="oc-error-actions">
+						{switchTo ? (
+							<>
+								<button type="button" className="oc-btn is-primary" disabled={switched} onClick={() => go(switchTo.id)}>Continue on {switchTo.label}</button>
+								<button type="button" className="oc-btn" disabled={switched} onClick={() => go()}>Choose a model</button>
+							</>
+						) : (
+							<button type="button" className="oc-btn is-primary" onClick={() => post({ type: 'helpAction', href: 'opencursor:free-models' })}>Connect another provider</button>
+						)}
+						{onRetry ? <button type="button" className="oc-btn" disabled={switched} onClick={onRetry}>Try again</button> : null}
+					</div>
+				</div>
+			</div>
+		);
+	}
 	return (
 		<div className="oc-error" role="alert">
 			<Icon name="warning" size={14} className="oc-error-icon" />

@@ -3,6 +3,7 @@
  *  Chat controller: owns chats, runs turns (native loop or CLI agent), talks to the webview.
  *--------------------------------------------------------------------------------------------*/
 
+import { handoffBrief, isLimitError } from './handoff';
 import { apiEffort } from './effort';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
@@ -390,6 +391,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'renameChat': return this.renameChat(m.chatId, m.title);
 			case 'setMode': return this.setMode(m.chatId, m.mode);
 			case 'setModel': return this.setModel(m.chatId, m.modelId);
+			case 'continueOn': return this.continueOn(m.chatId, m.modelId);
 			case 'approveTool': this.runtime(m.chatId).approvals.get(m.toolCallId)?.(m.decision); return;
 			case 'restoreCheckpoint': return this.restoreCheckpoint(m.chatId, m.messageId);
 			case 'searchMentions': {
@@ -574,6 +576,33 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			vscode.window.onDidChangeWindowState(w => { if (w.focused) { void recheck(); } }),
 		];
 		this.agentWatch = { dispose: () => subs.forEach(x => x.dispose()) };
+	}
+
+	/** Another model that can take over after `current` hit a limit: not the same CLI or key, which share the limit. */
+	private fallbackFor(current: string): ModelOption | undefined {
+		const family = (id: string): string => (id.startsWith('cli:') ? id.slice(0, id.indexOf('/')) : id.slice(0, id.indexOf('/')));
+		const ok = (m: ModelOption | undefined): m is ModelOption => !!m && m.hasKey && m.id !== current && family(m.id) !== family(current);
+		const free = this.modelOptions.find(m => m.id === FREE_AUTO_ID);
+		const candidates = [current !== FREE_AUTO_ID ? free : undefined, this.subscription(), this.modelOptions.find(m => m.id === this.defaultModelId()), ...this.modelOptions];
+		return candidates.find(ok);
+	}
+
+	/** Continues the chat on another model after a limit: the earlier turns, edits and commands all carry over. */
+	private async continueOn(chatId: string, modelId?: string): Promise<void> {
+		const sc = await this.store.get(chatId);
+		if (!sc || this.runtime(chatId).running) { return; }
+		let target = modelId;
+		if (!target) {
+			const current = sc.chat.modelId;
+			const items = this.modelOptions.filter(m => m.hasKey && m.id !== current).map(m => ({ label: m.label, description: m.free ? 'Free' : undefined, id: m.id }));
+			if (!items.length) { await this.help.run({ target: 'free-models' }); return; }
+			const pick = await vscode.window.showQuickPick(items, { title: 'Continue on another model', placeHolder: 'It gets the whole conversation and every change so far' });
+			if (!pick) { return; }
+			target = pick.id;
+		}
+		if (!this.usable(target)) { return; }
+		await this.setModel(chatId, target);
+		await this.onSend(chatId, { text: 'Continue where you left off.', context: [], mode: sc.chat.mode === 'help' ? undefined : sc.chat.mode, modelId: target });
 	}
 
 	private usable(id: string | undefined): boolean {
@@ -1252,6 +1281,14 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private addError(turn: TurnState, message: string, action?: 'openSettings' | 'retry'): void {
 		this.closeThinking(turn);
+		if (isLimitError(message)) {
+			// A limit is not the end of the work: offer the next model, which gets the whole conversation.
+			const next = this.fallbackFor(turn.sc.chat.modelId);
+			turn.parts.push({ type: 'error', message, action: 'retry', limit: true, ...(next ? { switchTo: { id: next.id, label: next.label } } : { fix: { kind: 'freeModels' } }) });
+			turn.errored = true;
+			this.postChatNow(turn.sc);
+			return;
+		}
 		turn.parts.push({ type: 'error', message, action });
 		turn.errored = true;
 		this.postChatNow(turn.sc);
@@ -1318,8 +1355,12 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		if (signal.aborted) { return; }
 
 		// model history: stored transcript, or rebuilt from the UI for chats created before one existed
-		if (sc.transcript.length === 0 && sc.chat.messages.length > 2) {
-			sc.transcript = buildHistoryFromChat(sc.chat.messages.slice(0, -2));
+		// and rebuilt as well when turns ran on a command line agent since, so this model sees them too
+		const earlier = sc.chat.messages.slice(0, -2);
+		const covered = new Set(sc.transcript.map(e => e.turn));
+		const missedCli = earlier.some((m, i) => m.role === 'user' && !covered.has(m.id) && earlier[i + 1]?.role === 'assistant' && (earlier[i + 1] as AssistantMessage).modelId?.startsWith('cli:'));
+		if (earlier.length && (sc.transcript.length === 0 || missedCli)) {
+			sc.transcript = buildHistoryFromChat(earlier);
 		}
 		const msgs = sc.transcript.map(e => e.msg);
 		const lastTurn = sc.transcript[sc.transcript.length - 1];
@@ -1429,7 +1470,20 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const { content, resolvedTexts } = await this.buildUserContent(req, false);
 		const ruleText = rules.filter(r => !r.agentRequested && !/^(AGENTS|CLAUDE)\.md$/.test(r.name)).map(r => `Rule ${r.name}:\n${r.content}`).join('\n\n');
 		const first = content.find(c => c.type === 'text');
-		const prompt = [ruleText ? `<project_rules>\n${ruleText}\n</project_rules>` : '', first && first.type === 'text' ? first.text : (req.promptText ?? req.text)].filter(Boolean).join('\n\n');
+		// The CLI's own session remembers its turns. Anything it has not seen (the whole chat when it starts
+		// fresh, or turns that ran on other models since) is handed over in writing, so nothing is lost.
+		const resume = sc.cliSessionAgent === agent && sc.cliSessionCwd === cwd ? sc.cliSessionId : undefined;
+		const earlier = sc.chat.messages.slice(0, -2);
+		let brief = '';
+		if (!help && earlier.length) {
+			if (!resume) {
+				brief = handoffBrief(earlier, { todos: sc.chat.todos });
+			} else if (sc.cliSessionUpTo) {
+				const seen = earlier.findIndex(m => m.id === sc.cliSessionUpTo);
+				if (seen !== -1 && seen < earlier.length - 1) { brief = handoffBrief(earlier.slice(seen + 1), { since: true }); }
+			}
+		}
+		const prompt = [ruleText ? `<project_rules>\n${ruleText}\n</project_rules>` : '', brief, first && first.type === 'text' ? first.text : (req.promptText ?? req.text)].filter(Boolean).join('\n\n');
 		void resolvedTexts;
 		const images = content.filter((c): c is Extract<LLMContent, { type: 'image' }> => c.type === 'image').map(c => ({ mediaType: c.mediaType, data: c.data }));
 
@@ -1469,7 +1523,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 		const result = await this.services.cli.runTurn({
 			agent, model, mode: sc.chat.mode, prompt, images: images.length ? images : undefined, cwd,
-			sessionId: sc.cliSessionAgent === agent && sc.cliSessionCwd === cwd ? sc.cliSessionId : undefined,
+			sessionId: resume,
 			autoRun: readAutoRun(), effort: readEffort(), signal,
 			callbacks: {
 				onText: d => this.appendText(turn, d),
@@ -1487,7 +1541,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			},
 		});
 		await chain;
-		if (result.sessionId) { sc.cliSessionId = result.sessionId; sc.cliSessionAgent = agent; sc.cliSessionCwd = cwd; }
+		if (result.sessionId) { sc.cliSessionId = result.sessionId; sc.cliSessionAgent = agent; sc.cliSessionCwd = cwd; sc.cliSessionUpTo = turn.msg.id; }
 		// OpenCode's free models share one quota. When it runs out before anything was produced, the same
 		// message carries on with the free keys the user connected, instead of stopping the work.
 		const answered = turn.parts.some(p => p.type === 'text' || p.type === 'tool');

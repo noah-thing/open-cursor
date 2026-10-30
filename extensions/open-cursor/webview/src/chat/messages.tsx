@@ -9,6 +9,7 @@ import { Markdown } from './markdown';
 import { post } from './host';
 import { ContextPill, ErrorCard, ExploreGroup, Thinking, ToolPartView, isExploreTool } from './parts';
 import { basename } from './util';
+import { toolActivity } from './live';
 
 type Node =
 	| { kind: 'part'; part: MessagePart; key: string }
@@ -59,6 +60,9 @@ function phase(message: AssistantMessage): { label: string; waiting: boolean } {
 		if (last.status === 'running' || last.status === 'streaming') {
 			if (last.edit) { return { label: 'Editing ' + basename(last.edit.path), waiting: false }; }
 			if (last.name === 'open_in_app') { return { label: 'Opening', waiting: false }; }
+			// only once its arguments are complete: a label that changes per streamed character would flicker
+			const doing = last.status === 'running' ? toolActivity(last) : undefined;
+			if (doing) { return { label: doing, waiting: false }; }
 			if (last.command || last.name === 'run_terminal_cmd') { return { label: 'Running a command', waiting: false }; }
 			if (isExploreTool(last)) { return { label: 'Exploring', waiting: false }; }
 			return { label: 'Working', waiting: false };
@@ -127,6 +131,8 @@ export const AssistantBlock = memo(function AssistantBlock({ message, chatId, sh
 								action={p.action}
 								switchTo={p.switchTo}
 								fix={p.fix}
+								limit={p.limit}
+								chatId={chatId}
 								onRetry={() => onRetry()}
 								onSwitch={id => onRetry(id)}
 							/>

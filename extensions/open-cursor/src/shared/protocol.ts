@@ -60,6 +60,8 @@ export type MessagePart =
 	| ToolPart
 	| {
 		readonly type: 'error'; readonly message: string; readonly action?: 'openSettings' | 'retry';
+		/** A usage or rate limit: offer to continue on another model with the whole conversation. */
+		readonly limit?: boolean;
 		/** A model the user can run right now, offered as a one-click retry. */
 		readonly switchTo?: { readonly id: string; readonly label: string };
 		/** What would make the chosen model work: signing in to its CLI, or adding an API key. */
@@ -191,6 +193,8 @@ export type WebviewMessage =
 	| { readonly type: 'setMode'; readonly chatId: string; readonly mode: ChatMode }
 	| { readonly type: 'setModel'; readonly chatId: string; readonly modelId: string }
 	| { readonly type: 'setAutoRun'; readonly autoRun: UiSettings['autoRun'] }
+	/** After a limit: carry on in a new turn on `modelId`, or on one the user picks when it is missing. */
+	| { readonly type: 'continueOn'; readonly chatId: string; readonly modelId?: string }
 	| { readonly type: 'setEffort'; readonly effort: Effort }
 	| { readonly type: 'approveTool'; readonly chatId: string; readonly toolCallId: string; readonly decision: 'run' | 'skip' | 'allowAlways' }
 	| { readonly type: 'restoreCheckpoint'; readonly chatId: string; readonly messageId: string }

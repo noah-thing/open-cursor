@@ -5,6 +5,7 @@
 
 import type { LLMContent, LLMMessage } from '../providers/types';
 import type { ChatMessage } from '../shared/protocol';
+import { actionLine } from './handoff';
 
 /** One LLM message plus the id of the UI user message whose turn it belongs to. */
 export interface TranscriptEntry {
@@ -34,6 +35,19 @@ export function buildHistoryFromChat(messages: readonly ChatMessage[]): Transcri
 			turn = m.id;
 			const ctx = m.context.length ? `[Attached: ${m.context.map(c => c.label).join(', ')}]\n` : '';
 			out.push({ turn, msg: { role: 'user', content: [{ type: 'text', text: ctx + m.text }] } });
+			continue;
+		}
+		// A turn a command line agent ran used its own tools, which this model does not have: it reads as
+		// text, with one line per file changed and command run, instead of tool calls it cannot match.
+		if (m.modelId?.startsWith('cli:')) {
+			const lines: string[] = [];
+			const acts: string[] = [];
+			for (const p of m.parts) {
+				if (p.type === 'text' && p.text.trim()) { if (acts.length) { lines.push('[' + acts.splice(0).join('; ') + ']'); } lines.push(p.text.trim()); }
+				else if (p.type === 'tool') { const a = actionLine(p); if (a) { acts.push(a); } }
+			}
+			if (acts.length) { lines.push('[' + acts.join('; ') + ']'); }
+			if (lines.length) { out.push({ turn, msg: { role: 'assistant', content: [{ type: 'text', text: lines.join('\n\n') }] } }); }
 			continue;
 		}
 		let blocks: LLMContent[] = [];
