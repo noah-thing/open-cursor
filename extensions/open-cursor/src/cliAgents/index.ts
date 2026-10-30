@@ -15,7 +15,7 @@ import { runGemini } from './gemini';
 import { runGrok } from './grok';
 import { runOpenCode } from './opencode';
 import { installOpenCodeCli, resetOpenCodeModelCache } from './opencodeSetup';
-import { cliHint } from '../shared/cliHints';
+import { cliHint, installCommand } from '../shared/cliHints';
 import type { CliAgentId, RunOptions, RunResult, TurnHost } from './types';
 import { effectiveAutoRun } from './policy';
 
@@ -141,7 +141,7 @@ export function createCliAgents(ctx: vscode.ExtensionContext): ICliAgents {
 				info = (await run()).find(i => i.id === opts.agent);
 			}
 			if (!info?.binaryPath) {
-				const hint = `Install it with \`${cliHint(opts.agent).install}\`, then sign in.`;
+				const hint = `Install it with \`${installCommand(cliHint(opts.agent))}\`, then sign in.`;
 				return { stopReason: 'error', error: `${info?.label ?? opts.agent} was not found on this machine. ${hint} You can also set openCursor.cli.paths.` };
 			}
 			if (opts.signal.aborted) {

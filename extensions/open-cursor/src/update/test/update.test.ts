@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { assert, done, test } from '../../agent/test/harness';
-import { assetProblem, detectInstall, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, stagedStamp, swapScript, windowsScript } from '../plan';
+import { assetProblem, detectInstall, hiddenCmdLauncher, installRoot, isNewer, linuxPackageCommand, parseRelease, pickAsset, portableScript, relaunchScript, stagedStamp, swapScript, windowsScript } from '../plan';
 
 const NAMES = [
 	'OpenCursor-0.2.0-linux-arm64.deb', 'OpenCursor-0.2.0-linux-arm64.rpm', 'OpenCursor-0.2.0-linux-arm64.tar.gz',
@@ -261,3 +261,13 @@ test('the swap script removes its work folder on success and keeps the log on fa
 });
 
 void done('update');
+
+{
+	// the Windows launcher runs the script hidden, keeps its exit code, and survives quotes and non English names in the path
+	const l = hiddenCmdLauncher("C:\\Users\\Åsa O'Neil\\AppData\\Local\\Temp\\u\\install.cmd");
+	assert.strictEqual(l.file, 'powershell.exe');
+	const ps = Buffer.from(l.args[l.args.length - 1], 'base64').toString('utf16le');
+	assert.ok(ps.includes("-WindowStyle Hidden -PassThru"), ps);
+	assert.ok(ps.includes("/d /c \"C:\\Users\\Åsa O''Neil\\AppData\\Local\\Temp\\u\\install.cmd\""), ps);
+	assert.ok(ps.endsWith('exit $p.ExitCode'), ps);
+}

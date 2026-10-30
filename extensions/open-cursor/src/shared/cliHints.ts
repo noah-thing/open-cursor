@@ -27,10 +27,15 @@ function viaNpm(pkg: string, label: string): string {
 export const CLI_HINTS: Readonly<Record<string, CliHint>> = {
 	'claude-code': { install: 'curl -fsSL https://claude.ai/install.sh | bash', installWindows: 'irm https://claude.ai/install.ps1 | iex', login: 'Run `claude` once in a terminal and sign in with your Claude account.', loginCommand: 'claude' },
 	codex: { install: viaNpmOrBrew('@openai/codex', 'codex', 'Codex'), installWindows: viaNpm('@openai/codex', 'Codex'), login: 'Run `codex login` in a terminal and sign in with ChatGPT.', loginCommand: 'codex login' },
-	grok: { install: 'curl -fsSL https://x.ai/cli/install.sh | bash', login: 'Run `grok login` in a terminal and sign in with your Grok account.', loginCommand: 'grok login' },
+	grok: { install: 'curl -fsSL https://x.ai/cli/install.sh | bash', installWindows: 'irm https://x.ai/cli/install.ps1 | iex', login: 'Run `grok login` in a terminal and sign in with your Grok account.', loginCommand: 'grok login' },
 	'gemini-cli': { install: viaNpmOrBrew('@google/gemini-cli', 'gemini-cli', 'Gemini CLI'), installWindows: viaNpm('@google/gemini-cli', 'Gemini CLI'), login: 'Run `gemini` once in a terminal and sign in with Google.', loginCommand: 'gemini' },
 	opencode: { install: 'curl -fsSL https://opencode.ai/v2/install | bash', login: 'The free models need no sign in. To use your own provider, run `opencode auth login` in a terminal.', loginCommand: 'opencode auth login' },
 };
+
+/** The install command for the system OpenCursor runs on: PowerShell on Windows, sh elsewhere. */
+export function installCommand(hint: CliHint, platform: string = process.platform): string {
+	return platform === 'win32' ? hint.installWindows ?? hint.install : hint.install;
+}
 
 export function cliHint(id: string): CliHint {
 	return CLI_HINTS[id] ?? { install: '', login: 'Sign in with this CLI in a terminal.', loginCommand: '' };

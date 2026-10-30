@@ -9,7 +9,7 @@ import * as nodePath from 'node:path';
 import * as os from 'node:os';
 import type { Services } from '../services';
 import type { ModelInfo } from '../providers/types';
-import { cliHint } from '../shared/cliHints';
+import { cliHint, installCommand } from '../shared/cliHints';
 import { isAllowedExternalUrl } from '../shared/externalLink';
 import {
 	CONFIG_DEFAULTS, SECTIONS,
@@ -261,7 +261,7 @@ class SettingsPanel implements vscode.Disposable {
 				binaryPath: a.binaryPath,
 				version: a.version,
 				loggedIn: a.loggedIn,
-				installHint: cliHint(a.id).install,
+				installHint: installCommand(cliHint(a.id)),
 				loginHint: cliHint(a.id).login,
 			}));
 		} catch { /* detection failed, show none */ }

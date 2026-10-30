@@ -2,7 +2,7 @@
 	"name": "open-cursor",
 	"displayName": "OpenCursor",
 	"description": "Agent, Tab, inline edit and chat for OpenCursor.",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"publisher": "open-cursor",
 	"license": "MIT",
 	"author": "Noah",

@@ -236,6 +236,19 @@ export function windowsScript(o: { readonly setup: string; readonly exe: string;
 }
 
 /**
+ * How a cmd script is started on Windows without a single window showing. Started detached, cmd has
+ * no console, so every program it runs (tasklist, find, ping) would open a console window of its own,
+ * about once a second while it waits. PowerShell starts it instead with a hidden console that those
+ * programs share, and stays until the script ends so its exit code is still the script's.
+ */
+export function hiddenCmdLauncher(script: string): { readonly file: string; readonly args: readonly string[] } {
+	const q = (v: string): string => `'${v.replace(/'/g, "''")}'`;
+	const ps = `$p = Start-Process -FilePath 'cmd.exe' -ArgumentList ${q(`/d /c "${script.replace(/"/g, '')}"`)} -WindowStyle Hidden -PassThru; $p.WaitForExit(); exit $p.ExitCode`;
+	// UTF-16LE base64 survives any characters in the path (spaces, quotes, å ä ö) without a second layer of quoting
+	return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')] };
+}
+
+/**
  * Windows portable: waits for OpenCursor.exe to exit, then copies the unzipped new version over the
  * old one. Only the app's own `resources` folder is mirrored (old files in it removed); everything else
  * is overwritten in place and nothing is ever deleted outside `resources`, because a portable copy

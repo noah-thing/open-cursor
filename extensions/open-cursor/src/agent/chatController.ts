@@ -21,7 +21,7 @@ import type {
 import type { IContextServiceEx } from '../context/service';
 import { toDisplayPath } from '../context/paths';
 import type { CliAgentInfo } from '../services';
-import { cliHint } from '../shared/cliHints';
+import { cliHint, installCommand } from '../shared/cliHints';
 import { cliEnv, loginShellInfo } from '../cliAgents/detect';
 import { installWithPrivateNode } from '../cliAgents/npmSetup';
 import { COMMON_BIN_DIRS, executableNames } from '../cliAgents/util';
@@ -567,7 +567,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			return;
 		}
 		const hint = cliHint(id);
-		const command = action === 'install' ? (process.platform === 'win32' ? hint.installWindows ?? hint.install : hint.install) : hint.loginCommand;
+		const command = action === 'install' ? installCommand(hint) : hint.loginCommand;
 		if (!command) {
 			void vscode.window.showInformationMessage(hint.login);
 			return;
