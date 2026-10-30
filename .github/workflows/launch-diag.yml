@@ -48,7 +48,7 @@ jobs:
             $base = [Win]::Consoles(); $max = 0
             $o = node C:\d\launch.cjs $m
             $sw = [Diagnostics.Stopwatch]::StartNew()
-            while ($sw.Elapsed.TotalSeconds -lt 25) { $c = [Win]::Consoles() - $base; if ($c -gt $max) { $max = $c }; if (Select-String -Path "C:\d\mark-$m.txt" -Pattern finished -Quiet -ErrorAction SilentlyContinue) { break }; Start-Sleep -Milliseconds 200 }
+            while ($sw.Elapsed.TotalSeconds -lt 25) { $c = [Win]::Consoles() - $base; if ($c -gt $max) { $max = $c }; if ((Test-Path "C:\d\mark-$m.txt") -and (Select-String -Path "C:\d\mark-$m.txt" -Pattern finished -Quiet)) { break }; Start-Sleep -Milliseconds 200 }
             $mark = (Get-Content "C:\d\mark-$m.txt" -ErrorAction SilentlyContinue) -join ','
             "RESULT $m | node said: $($o -join ' / ') | marker: [$mark] | visible consoles: $max"
           }
