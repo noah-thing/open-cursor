@@ -72,11 +72,28 @@ test('anthropic: request body caching, thinking round trip, tool_result ordering
 	assert.deepEqual(b.system[0].cache_control, { type: 'ephemeral' });
 	assert.equal(b.tools[0].cache_control, undefined);
 	assert.deepEqual(b.tools[1].cache_control, { type: 'ephemeral' });
-	assert.equal(b.thinking.type, 'enabled');
+	assert.deepEqual(b.thinking, { type: 'adaptive' });
+	assert.deepEqual(b.output_config, { effort: 'medium' });
 	assert.deepEqual(b.messages[1].content[0], { type: 'thinking', thinking: 'plan', signature: 'S1' });
 	assert.equal(b.messages[2].content[0].type, 'tool_result');
 	assert.deepEqual(b.messages[2].content[1].cache_control, { type: 'ephemeral' });
 	assert.deepEqual(b.messages[0].content[0].cache_control, { type: 'ephemeral' });
+});
+
+test('anthropic: Claude 5 takes adaptive thinking with an effort, older models a budget', async () => {
+	for (const m of ANTHROPIC_MODELS) {
+		const b = buildAnthropicBody(baseReq({ model: m, thinking: true, effort: 'max' }));
+		assert.deepEqual(b.thinking, { type: 'adaptive' }, m.model);
+		assert.deepEqual(b.output_config, { effort: 'high' }, m.model);
+	}
+	assert.deepEqual(buildAnthropicBody(baseReq({ thinking: true, effort: 'low' })).output_config, { effort: 'low' });
+	const old = buildAnthropicBody(baseReq({ model: { ...model, model: 'claude-sonnet-4-5' }, thinking: true, effort: 'low' }));
+	assert.deepEqual(old.thinking, { type: 'enabled', budget_tokens: 2_048 });
+	assert.equal(old.output_config, undefined);
+	const off = buildAnthropicBody(baseReq({ thinking: false, temperature: 0.2 }));
+	assert.equal(off.thinking, undefined);
+	assert.equal(off.output_config, undefined);
+	assert.equal(off.temperature, 0.2);
 });
 
 test('anthropic: thinking is skipped when a tool turn has no signed thinking block', async () => {

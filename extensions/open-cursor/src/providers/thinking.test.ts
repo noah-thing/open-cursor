@@ -113,15 +113,17 @@ test('request bodies carry the fields', () => {
 	assert.equal(other.thinking, undefined);
 });
 
-test('Anthropic: Auto thinks at a moderate budget and keeps the cache breakpoints', () => {
-	const m = guessModelInfo('anthropic', 'claude-sonnet-5-5', { supportsThinking: true });
-	const b = buildAnthropicBody({
-		model: m, system: 's', thinking: true, effort: 'auto', maxTokens: 32_000, signal: new AbortController().signal,
+test('Anthropic: Auto thinks at a moderate level and keeps the cache breakpoints', () => {
+	const body = (model: string) => buildAnthropicBody({
+		model: guessModelInfo('anthropic', model, { supportsThinking: true }), system: 's', thinking: true, effort: 'auto', maxTokens: 32_000, signal: new AbortController().signal,
 		tools: [{ name: 't', description: 'd', parameters: { type: 'object' } }],
 		messages: [{ role: 'user', content: [{ type: 'text', text: 'a' }] }],
 	});
-	assert.equal(b.thinking.budget_tokens, 8_000);
+	const b = body('claude-sonnet-5-5');
+	assert.deepEqual(b.thinking, { type: 'adaptive' });
+	assert.equal(b.output_config.effort, 'medium');
 	assert.ok(b.system[0].cache_control && b.tools[0].cache_control && b.messages[0].content[0].cache_control);
+	assert.equal(body('claude-sonnet-4-5').thinking.budget_tokens, 8_000);
 });
 
 {

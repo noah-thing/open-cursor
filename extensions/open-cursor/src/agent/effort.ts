@@ -21,6 +21,11 @@ export function anthropicBudget(e: ApiEffort | undefined, maxTokens: number): nu
 	return Math.max(1_024, Math.min(want, maxTokens - 1_024));
 }
 
+/** Anthropic output_config.effort for models that only take adaptive thinking. Auto is medium, never high. */
+export function anthropicEffort(e: ApiEffort | undefined): 'low' | 'medium' | 'high' {
+	return e === 'low' || e === 'high' ? e : e === 'max' ? 'high' : 'medium';
+}
+
 /** OpenAI style reasoning_effort; providers stop at high. Auto is medium, which is OpenAI's own default. */
 export function openaiEffort(e: ApiEffort | undefined): 'low' | 'medium' | 'high' {
 	return e === 'low' || e === 'high' ? e : e === 'max' ? 'high' : 'medium';

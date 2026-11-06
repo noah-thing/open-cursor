@@ -2,7 +2,7 @@
  *  OpenCursor. MIT License.
  *--------------------------------------------------------------------------------------------*/
 
-import { anthropicBudget } from '../agent/effort';
+import { anthropicBudget, anthropicEffort } from '../agent/effort';
 import { ANTHROPIC_MODELS, guessModelInfo, isChatModelId } from './catalog';
 import { guarded, joinUrl, missingKey, parseArgs, request, resolveBase, sseFromBody, verifyByListing, errorKind, type BaseUrl, type KeyGetter, type Rec, type SseEvent } from './http';
 import { remapToolIds } from './toolIds';
@@ -11,6 +11,8 @@ import { ProviderError, type ChatRequest, type LLMContent, type LLMMessage, type
 const VERSION = '2023-06-01';
 const REDACTED = 'redacted:';
 const CACHE = { type: 'ephemeral' } as const;
+// Claude 5 and later reject thinking.type "enabled" with a 400: they take adaptive thinking plus output_config.effort
+const ADAPTIVE = /^claude-(opus|sonnet|haiku|fable)-([5-9]|\d{2,})(-|$)/i;
 
 export interface AnthropicOptions {
 	getKey: KeyGetter;
@@ -85,7 +87,10 @@ export function buildAnthropicBody(req: ChatRequest): Rec {
 			...(i === a.length - 1 ? { cache_control: CACHE } : {}),
 		}));
 	}
-	if (req.thinking && m.supportsThinking && max > 2048 && canThink(req.messages)) {
+	if (req.thinking && m.supportsThinking && ADAPTIVE.test(m.model) && canThink(req.messages)) {
+		body.thinking = { type: 'adaptive' };
+		body.output_config = { effort: anthropicEffort(req.effort) };
+	} else if (req.thinking && m.supportsThinking && max > 2048 && canThink(req.messages)) {
 		body.thinking = { type: 'enabled', budget_tokens: anthropicBudget(req.effort, max) };
 	} else if (req.temperature !== undefined) {
 		body.temperature = req.temperature;
