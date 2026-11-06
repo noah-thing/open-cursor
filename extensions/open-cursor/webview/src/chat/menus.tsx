@@ -174,7 +174,7 @@ export function PermissionMenu({ autoRun, modelId }: { readonly autoRun: AutoRun
 					))}
 					<div className="oc-menu-foot">
 						{note ? <span className="oc-perm-note">{note}</span> : null}
-						File edits never ask; you keep or undo them. The denylist always asks.{' '}
+						File edits never ask; you keep or undo them. The denylist asks in every mode but Full access.{' '}
 						<button type="button" className="oc-linkbtn" onClick={() => { post({ type: 'openSettings', section: 'general' }); setOpen(false); }}>Edit lists</button>
 					</div>
 				</Popover>

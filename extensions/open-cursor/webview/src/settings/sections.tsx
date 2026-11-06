@@ -54,7 +54,7 @@ export function General({ state, set, send }: SectionProps): ReactElement {
 				<Row stacked label="Allowlist" desc={'Commands starting with these run without asking in Allowlist and Auto.'} disabled={c['agent.autoRun'] !== 'allowlist' && c['agent.autoRun'] !== 'auto'}>
 					<ListEditor label="Command allowlist" items={c['agent.commandAllowlist']} onChange={v => set('agent.commandAllowlist', v)} placeholder="npm test" />
 				</Row>
-				<Row stacked label="Denylist" desc="Commands starting with these always ask, whatever the policy.">
+				<Row stacked label="Denylist" desc="Commands with these always ask, except in Full access.">
 					<ListEditor label="Command denylist" items={c['agent.commandDenylist']} onChange={v => set('agent.commandDenylist', v)} placeholder="git push" />
 				</Row>
 			</Group>

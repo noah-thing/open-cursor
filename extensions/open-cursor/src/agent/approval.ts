@@ -9,7 +9,7 @@ import { posix } from 'path';
 /**
  * ask: every command waits. allowlist: listed commands run, the rest wait. auto: listed commands run,
  * and the agent marks which of the rest need the user (CAREFUL commands always do). always: nothing waits.
- * The denylist asks in every policy.
+ * The denylist asks in every policy but always: Full access means full.
  */
 export type AutoRun = 'ask' | 'allowlist' | 'auto' | 'always';
 
@@ -137,8 +137,8 @@ export function stripGitGlobals(segment: string): string {
  * `requires_approval` for this command; only Auto reads it, and a missing answer counts as asking.
  */
 export function needsApproval(cmd: string, policy: ApprovalPolicy, agentSaysAsk?: boolean): boolean {
-	if (isDenied(cmd, policy.denylist)) { return true; }
 	if (policy.autoRun === 'always') { return false; }
+	if (isDenied(cmd, policy.denylist)) { return true; }
 	if (policy.autoRun === 'ask') { return true; }
 	if (policy.autoRun === 'auto') { return autoNeedsApproval(cmd, policy, agentSaysAsk); }
 	return !listed(cmd, policy);

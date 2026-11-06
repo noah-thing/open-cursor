@@ -121,7 +121,7 @@ const INTENTS: readonly Intent[] = [
 	{
 		id: 'autorun',
 		all: [/\b(auto-?run|allowlist|denylist|approv(e|al)|ask(s|ing)? before|permissions?|full access|yolo)\b/],
-		text: 'The shield next to the model in the chat box sets when the agent may run a command without asking:\n\n- **Ask every time**: every command waits for you.\n- **Allowlist**: commands on your allowlist run, the rest ask.\n- **Auto**: safe commands run; it asks before deleting, installing or going online.\n- **Full access**: every command and tool runs without asking.\n\nThe same setting, with the allowlist and the **Denylist** (always asks), is in **Settings > General > Terminal commands**. File edits never ask; they land as changes you keep or undo.',
+		text: 'The shield next to the model in the chat box sets when the agent may run a command without asking:\n\n- **Ask every time**: every command waits for you.\n- **Allowlist**: commands on your allowlist run, the rest ask.\n- **Auto**: safe commands run; it asks before deleting, installing or going online.\n- **Full access**: every command and tool runs without asking.\n\nThe same setting, with the allowlist and the **Denylist** (asks in every mode but Full access), is in **Settings > General > Terminal commands**. File edits never ask; they land as changes you keep or undo.',
 		open: { target: 'settings', arg: 'general' },
 	},
 	{

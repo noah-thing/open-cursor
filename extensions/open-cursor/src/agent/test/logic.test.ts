@@ -60,8 +60,11 @@ test('approval: auto runs the allowlist and what the agent calls safe, never car
 });
 test('approval: modes and denylist', () => {
 	assert.strictEqual(needsApproval('npm install', policy('always')), false);
-	assert.strictEqual(needsApproval('sudo make install', policy('always')), true);
-	assert.strictEqual(needsApproval('rm -rf /', policy('always')), true);
+	assert.strictEqual(needsApproval('sudo make install', policy('always')), false, 'Full access skips the denylist');
+	assert.strictEqual(needsApproval('rm -rf /tmp/x', policy('always')), false);
+	for (const mode of ['ask', 'allowlist', 'auto'] as const) {
+		assert.strictEqual(needsApproval('shutdown -h now', policy(mode), false), true, `denylist in ${mode}`);
+	}
 	assert.strictEqual(needsApproval('ls', policy('ask')), true);
 	const withSession: ApprovalPolicy = { ...policy('allowlist'), sessionAllow: new Set(['npm install']) };
 	assert.strictEqual(needsApproval('npm install foo', withSession), false);

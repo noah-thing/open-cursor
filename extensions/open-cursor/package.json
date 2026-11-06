@@ -510,7 +510,7 @@
 							"Ask before every terminal command.",
 							"Run commands on the allowlist automatically, ask for the rest.",
 							"Run the allowlist; for other commands the agent decides whether to ask. Commands that delete, install, publish, go online or leave the project always ask.",
-							"Full access: run every command and tool without asking (denylisted commands still ask)."
+							"Full access: run every command and tool without asking, denylist included."
 						],
 						"default": "allowlist",
 						"markdownDescription": "How the agent runs terminal commands. File edits never ask; they land as pending edits you can keep or undo."
@@ -629,7 +629,7 @@
 							"shutdown",
 							"reboot"
 						],
-						"markdownDescription": "Substrings that always require approval, in every auto-run mode."
+						"markdownDescription": "Substrings that always require approval, in every auto-run mode except Full access."
 					},
 					"openCursor.agent.maxIterations": {
 						"type": "number",
