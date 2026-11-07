@@ -454,11 +454,12 @@ export function Indexing({ state, set, send }: SectionProps): ReactElement {
 				<Row label="Index this workspace" desc="Chunks are embedded with the model below and stored locally.">
 					<Toggle label="Enable indexing" checked={c['index.enabled']} onChange={v => set('index.enabled', v)} />
 				</Row>
-				<Row label="Embedding model" desc={<><code>auto</code> picks an OpenAI key, then Gemini, then a local Ollama model. Or write <code>provider/model</code>. Changing it rebuilds the index.</>}>
-					<TextField label="Embedding model" mono width={260} value={c['index.embeddingModel']} onCommit={v => set('index.embeddingModel', v || 'auto')} placeholder="auto" list="oc-embed-models" />
+				<Row label="Embedding model" desc={<><code>auto</code> picks one from your keys and local servers. Or write <code>provider/model</code>, such as <code>custom/&lt;model&gt;</code> for the server under Models &gt; Custom.</>}>
+					<TextField label="Embedding model" mono width={260} value={c['index.embeddingModel']} onCommit={v => set('index.embeddingModel', v.trim() || 'auto')} placeholder="auto" list="oc-embed-models" />
 					<datalist id="oc-embed-models">
 						<option value="auto" /><option value="openai/text-embedding-3-small" /><option value="openai/text-embedding-3-large" />
 						<option value="google/gemini-embedding-001" /><option value="ollama/nomic-embed-text" />
+						<option value="lmstudio/text-embedding-nomic-embed-text-v1.5" /><option value="custom/" />
 					</datalist>
 				</Row>
 			</Group>
@@ -481,7 +482,7 @@ export function Indexing({ state, set, send }: SectionProps): ReactElement {
 							<div style={{ width: Math.round((i.progress ?? 0) * 100) + '%' }} />
 						</div>
 					) : null}
-					{i.error ? <div className="st-row-desc is-error">{i.error}</div> : null}
+					{i.error ? <div className="st-row-desc is-error">{i.error}</div> : i.note ? <div className="st-row-desc">{i.note}</div> : null}
 				</div>
 			</Group>
 		</Page>

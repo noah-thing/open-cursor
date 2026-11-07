@@ -121,6 +121,20 @@ Builds are not signed yet, so the first launch of a downloaded file needs one ex
 
 A subscription runs the CLI you already use in the background, so you keep OpenCursor's chat, review and checkpoints while the work counts against your plan. With a free key connected, Free (auto) moves to another free model when one hits its limit. API keys stay in your system keychain.
 
+### Codebase index
+
+Semantic codebase search needs an embedding model, set in **Settings > Indexing**. `auto` uses an OpenAI key, then a Gemini key, then an embedding model it finds on Ollama, LM Studio or your custom server. To pick one yourself, write `provider/model`:
+
+| Backend | Embedding model setting |
+|---|---|
+| OpenAI | `openai/text-embedding-3-small` |
+| Google Gemini | `google/gemini-embedding-001` |
+| Ollama | `ollama/nomic-embed-text` |
+| LM Studio | `lmstudio/text-embedding-nomic-embed-text-v1.5` |
+| Any OpenAI compatible server (vLLM, llama.cpp, LiteLLM, LocalAI) | `custom/<model id>`, with the server address in **Settings > Models > Custom**, for example `http://localhost:8000/v1`, and a key there if it needs one |
+
+The Status line under Indexing tells you why nothing is indexed, for example when no model was found or the server did not answer. Without an embedding model, search falls back to plain text matching. Files are only sent off your computer and local network after you allow it, and never from a folder in Restricted Mode.
+
 ## Development
 
 <details>

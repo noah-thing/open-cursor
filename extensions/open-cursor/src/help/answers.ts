@@ -127,7 +127,7 @@ const INTENTS: readonly Intent[] = [
 	{
 		id: 'index',
 		all: [/\b(index(ing)?|codebase search|semantic search|embeddings?)\b/],
-		text: '**Settings > Indexing** turns the local codebase index on or off, sets the embedding model, and rebuilds or clears it. Without an embedding model, codebase search falls back to keyword search.',
+		text: '**Settings > Indexing** turns the local codebase index on or off, sets the embedding model, and rebuilds or clears it. For an OpenAI-compatible server (vLLM, llama.cpp, LiteLLM and others), set its address under **Settings > Models > Custom**, then set the embedding model to `custom/<model>`. Without an embedding model, codebase search falls back to keyword search, and the Status line says why.',
 		open: { target: 'settings', arg: 'indexing' },
 	},
 	{

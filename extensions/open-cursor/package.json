@@ -793,7 +793,7 @@
 					"openCursor.index.embeddingModel": {
 						"type": "string",
 						"default": "auto",
-						"markdownDescription": "Embedding model for the codebase index: `auto` (OpenAI key, then Gemini key, then a local Ollama embedding model) or `provider/model`, for example `openai/text-embedding-3-large`, `google/gemini-embedding-001` or `ollama/nomic-embed-text`. Changing it rebuilds the index."
+						"markdownDescription": "Embedding model for the codebase index: `auto` (OpenAI key, then Gemini key, then an embedding model found on Ollama, LM Studio or the custom server) or `provider/model`, for example `openai/text-embedding-3-large`, `google/gemini-embedding-001`, `ollama/nomic-embed-text`, `lmstudio/text-embedding-nomic-embed-text-v1.5` or `custom/embeddinggemma` for any OpenAI-compatible server at `#openCursor.providers.custom.baseUrl#`. Changing it rebuilds the index."
 					}
 				}
 			},

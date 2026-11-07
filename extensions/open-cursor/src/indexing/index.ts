@@ -23,6 +23,7 @@ const SKIP_DIRS = ['node_modules', '.git', 'dist', 'out', 'build', '.next', 'tar
 const SKIP_DIR_RE = new RegExp(`(^|/)(${SKIP_DIRS.map(d => d.replace(/\./g, '\\.')).join('|')})(/|$)`);
 const EXCLUDE_GLOB = `**/{${SKIP_DIRS.join(',')}}/**`;
 const BINARY_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'tiff', 'svgz', 'pdf', 'zip', 'gz', 'tgz', 'bz2', 'xz', '7z', 'rar', 'tar', 'jar', 'war', 'class', 'o', 'a', 'so', 'dylib', 'dll', 'exe', 'bin', 'wasm', 'node', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'mp3', 'mp4', 'mov', 'avi', 'mkv', 'wav', 'flac', 'ogg', 'webm', 'psd', 'ai', 'sketch', 'fig', 'dmg', 'iso', 'pyc', 'sqlite', 'db', 'lock', 'map', 'glb', 'gltf', 'obj', 'fbx', 'usdz', 'ds_store']);
+const SERVER_SETTINGS = ['openai', 'ollama', 'lmstudio', 'custom'].map(p => `openCursor.providers.${p}.baseUrl`);
 const SKIP_NAMES = new Set(['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'Cargo.lock', 'composer.lock', 'Gemfile.lock', 'poetry.lock']);
 
 interface FolderIgnore {
@@ -39,8 +40,11 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 	let state: Status['state'] = 'idle';
 	let error: string | undefined;
 	let progress: number | undefined;
+	let note: string | undefined;
 	let embedder: Embedder | undefined;
 	let embedderResolved = false;
+	/** Why no embedder is in use, from the last resolve. */
+	let problem: { text: string; isError: boolean } | undefined;
 	let abort: AbortController | undefined;
 	let running: Promise<void> | undefined;
 	let loaded: Promise<void> | undefined;
@@ -121,7 +125,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 
 	async function indexFiles(files: string[], signal: AbortSignal, onProgress?: (done: number, total: number) => void): Promise<void> {
 		const emb = embedder;
-		if (!emb || (!vscode.workspace.isTrusted && !emb.id.startsWith('ollama/'))) { return; }
+		if (!emb || (!vscode.workspace.isTrusted && emb.remote)) { return; }
 		const keyOf = (p: string) => vscode.Uri.file(p).toString();
 		const todo: { fsPath: string; key: string; sig: string }[] = [];
 		for (const p of files) {
@@ -200,45 +204,53 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		return loaded;
 	}
 
-	// One time, per workspace and provider: sending files to a cloud embedder needs a yes.
+	// One time, per workspace and receiver: sending files off this computer and network needs a yes.
 	// The in-flight prompt is shared so two callers never show two toasts.
 	let consentAsk: Promise<boolean> | undefined;
-	function cloudConsent(embedderId: string, setting: string): Promise<boolean> {
-		consentAsk ??= askConsent(embedderId, setting).finally(() => { consentAsk = undefined; });
+	function cloudConsent(remote: NonNullable<Embedder['remote']>, setting: string, askAgain: boolean): Promise<boolean> {
+		consentAsk ??= askConsent(remote, setting, askAgain).finally(() => { consentAsk = undefined; });
 		return consentAsk;
 	}
-	async function askConsent(embedderId: string, setting: string): Promise<boolean> {
+	async function askConsent(remote: NonNullable<Embedder['remote']>, setting: string, askAgain: boolean): Promise<boolean> {
 		const KEY = 'openCursor.index.cloudConsent';
 		const MODEL_KEY = 'openCursor.index.cloudConsentSetting';
-		const provider = embedderId.startsWith('google/') ? 'google' : 'openai';
 		const stored = ctx.workspaceState.get<unknown>(KEY);
 		// older installs stored a bare boolean with no provider; that no longer covers anything
 		const rec = stored && typeof stored === 'object' ? stored as { provider?: string; allowed?: boolean } : undefined;
 		const askedFor = ctx.workspaceState.get<string>(MODEL_KEY);
-		// asked again only when the user explicitly picks a different cloud model
+		// asked again only when the user explicitly picks a different cloud model, or presses Rebuild after a no
 		const changed = setting !== 'auto' && askedFor !== undefined && askedFor !== setting;
-		if (rec?.provider === provider && typeof rec.allowed === 'boolean' && !changed) { return rec.allowed; }
-		const who = provider === 'google' ? 'Google' : 'OpenAI';
+		if (rec?.provider === remote.key && typeof rec.allowed === 'boolean' && !changed && !(askAgain && !rec.allowed)) { return rec.allowed; }
 		const pick = await vscode.window.showInformationMessage(
-			`Index this project for semantic search? Files that are not ignored (never secret files) are sent to ${who} to make embeddings. Without it, search uses plain text matching on this computer.`,
+			`Index this project for semantic search? Files that are not ignored (never secret files) are sent to ${remote.label} to make embeddings. Without it, search uses plain text matching on this computer.`,
 			'Allow', 'Not now');
 		if (pick === undefined) { return false; } // dismissed: no answer stored, ask next time
-		await ctx.workspaceState.update(KEY, { provider, allowed: pick === 'Allow' });
+		await ctx.workspaceState.update(KEY, { provider: remote.key, allowed: pick === 'Allow' });
 		await ctx.workspaceState.update(MODEL_KEY, setting);
 		return pick === 'Allow';
 	}
 
-	async function getEmbedder(refresh = false): Promise<Embedder | undefined> {
+	async function getEmbedder(refresh = false, askAgain = false): Promise<Embedder | undefined> {
 		if (!embedderResolved || refresh) {
 			const setting = cfg().get<string>('embeddingModel', 'auto');
-			embedder = await resolveEmbedder(ctx, setting);
-			if (embedder && !embedder.id.startsWith('ollama/') && vscode.workspace.isTrusted && !(await cloudConsent(embedder.id, setting))) {
-				embedder = undefined; // plain text search (ripgrep) takes over
+			const r = await resolveEmbedder(ctx, setting);
+			embedder = r.embedder;
+			problem = r.embedder ? undefined : { text: r.problem, isError: r.isError };
+			if (embedder?.remote && vscode.workspace.isTrusted && !(await cloudConsent(embedder.remote, setting, askAgain))) {
+				problem = { text: `Not allowed to send files to ${embedder.remote.label}, so codebase search uses plain text matching. Press Rebuild to be asked again, or choose a local embedding model.`, isError: false };
+				embedder = undefined;
 			}
 			embedderResolved = true;
 		}
-		// A folder that is not trusted never has its files sent to a cloud embedder; a local one is fine.
-		return embedder && (vscode.workspace.isTrusted || embedder.id.startsWith('ollama/')) ? embedder : undefined;
+		// A folder that is not trusted never has its files sent off this computer and network; a local server is fine.
+		return embedder && (vscode.workspace.isTrusted || !embedder.remote) ? embedder : undefined;
+	}
+
+	function whyNoEmbedder(): { text: string; isError: boolean } | undefined {
+		if (embedder?.remote && !vscode.workspace.isTrusted) {
+			return { text: `This folder is in Restricted Mode, so its files are not sent to ${embedder.remote.label}. Trust the folder, or choose a local embedding model.`, isError: false };
+		}
+		return problem;
 	}
 
 	function saveSoon(): void {
@@ -251,6 +263,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		if (running) { return running; }
 		if (!enabled() || !dir || !vscode.workspace.workspaceFolders?.length) {
 			state = enabled() ? 'idle' : 'disabled';
+			note = enabled() ? 'Open a folder to index it.' : undefined;
 			fire();
 			return Promise.resolve();
 		}
@@ -260,9 +273,17 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 			try {
 				await ensureLoaded();
 				const emb = await getEmbedder();
-				if (!emb) { state = 'idle'; error = undefined; progress = undefined; fire(); return; }
+				if (!emb) {
+					const why = whyNoEmbedder();
+					state = why?.isError ? 'error' : 'idle';
+					error = why?.isError ? why.text : undefined;
+					note = why && !why.isError ? why.text : undefined;
+					progress = undefined;
+					fire();
+					return;
+				}
 				if (store.embedder !== emb.id) { store.clear(); store.embedder = emb.id; }
-				state = 'indexing'; error = undefined; progress = 0; fire();
+				state = 'indexing'; error = undefined; note = undefined; progress = 0; fire();
 				ignoresCache = undefined; // a full scan always reads fresh
 				const ignores = await loadIgnores();
 				const files = await listFiles(ignores, ac.signal);
@@ -386,7 +407,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 
 	function getStatus(): Status {
 		if (!enabled()) { return { state: 'disabled', files: 0, chunks: 0 }; }
-		return { state, files: store.fileCount, chunks: store.chunkCount, ...(progress !== undefined ? { progress } : {}), ...(error ? { error } : {}) };
+		return { state, files: store.fileCount, chunks: store.chunkCount, ...(progress !== undefined ? { progress } : {}), ...(error ? { error } : note ? { note } : {}) };
 	}
 
 	async function clear(): Promise<void> {
@@ -395,6 +416,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		store.embedder = '';
 		state = enabled() ? 'idle' : 'disabled';
 		error = undefined;
+		note = undefined;
 		progress = undefined;
 		if (dir) { await fs.promises.rm(dir, { recursive: true, force: true }); }
 		fire();
@@ -402,7 +424,7 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 
 	async function rebuild(): Promise<void> {
 		await clear();
-		await getEmbedder(true);
+		await getEmbedder(true, true);
 		await scan();
 	}
 
@@ -431,10 +453,10 @@ export function createCodebaseIndex(ctx: vscode.ExtensionContext, registry: IPro
 		onDidChange,
 		watcher,
 		vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('openCursor.index')) { reconfigure(); }
+			if (e.affectsConfiguration('openCursor.index') || SERVER_SETTINGS.some(s => e.affectsConfiguration(s))) { reconfigure(); }
 		}),
 		ctx.secrets.onDidChange(e => {
-			if (e.key === 'openCursor.key.openai' || e.key === 'openCursor.key.google') { reconfigure(); }
+			if (e.key === 'openCursor.key.openai' || e.key === 'openCursor.key.google' || e.key === 'openCursor.key.custom') { reconfigure(); }
 		}),
 		vscode.workspace.onDidChangeWorkspaceFolders(() => { ignoresCache = undefined; reconfigure(); }),
 		vscode.workspace.onDidGrantWorkspaceTrust(() => reconfigure()),

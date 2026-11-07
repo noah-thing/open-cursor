@@ -133,6 +133,7 @@ export interface IndexRow {
 	chunks: number;
 	progress?: number;
 	error?: string;
+	note?: string;
 }
 
 export interface RuleRow {

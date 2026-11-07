@@ -92,7 +92,8 @@ export interface IMcpManager {
 /** Embedding index of the codebase, with a ripgrep fallback. */
 export interface ICodebaseIndex {
 	readonly onDidChange: vscode.Event<void>;
-	getStatus(): { state: 'disabled' | 'idle' | 'indexing' | 'ready' | 'error'; files: number; chunks: number; progress?: number; error?: string };
+	/** `note` says why nothing is indexed when that is not an error, e.g. no embedding model was found. */
+	getStatus(): { state: 'disabled' | 'idle' | 'indexing' | 'ready' | 'error'; files: number; chunks: number; progress?: number; error?: string; note?: string };
 	/** Falls back to keyword search when no embedding model or key is configured. */
 	search(query: string, opts: { limit: number; includeGlob?: string; signal: AbortSignal }): Promise<{ uri: string; path: string; startLine: number; endLine: number; text: string; score: number }[]>;
 	rebuild(): Promise<void>;

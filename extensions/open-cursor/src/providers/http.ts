@@ -183,7 +183,7 @@ export function parseArgs(json: string): unknown {
 	try { return JSON.parse(json); } catch { return json; }
 }
 
-function isLocalHost(h: string): boolean {
+export function isLocalHost(h: string): boolean {
 	h = h.toLowerCase();
 	return h === 'localhost' || h === '[::1]' || /^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\.|\.local$|\.lan$/.test(h) || !h.includes('.');
 }
