@@ -1557,6 +1557,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 
 	private async confirmOutside(absPath: string, action: string, signal: AbortSignal): Promise<boolean> {
 		if (signal.aborted) { return false; }
+		if (readAutoRun() === 'always') { return true; }
 		const choice = await vscode.window.showWarningMessage(`OpenCursor wants to access a path outside the workspace.`, { modal: true, detail: `${action}: ${absPath}` }, 'Allow');
 		return choice === 'Allow' && !signal.aborted;
 	}
