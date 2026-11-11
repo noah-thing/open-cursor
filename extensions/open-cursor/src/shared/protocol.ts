@@ -243,7 +243,22 @@ export type HostMessageExt =
 	/** Outcome of the key or server the user just tried to connect. */
 	| { readonly type: 'connectResult'; readonly target: string; readonly ok: boolean; readonly message: string }
 	/** Help sent the user to the connect panel of a new chat. */
-	| { readonly type: 'showConnect' };
+	| { readonly type: 'showConnect' }
+	/** A message from the project feed, drawn as a card above the composer; null takes it away. */
+	| { readonly type: 'notice'; readonly notice: NoticeCard | null };
+
+/** What the chat panel needs of a card notice. Links stay on the host; the card only says go or close. */
+export interface NoticeCard {
+	readonly id: string;
+	readonly title: string;
+	readonly body?: string;
+	readonly brand?: { readonly name: string; readonly icon?: string };
+	readonly eyebrow?: string;
+	readonly points?: readonly { readonly title: string; readonly text: string }[];
+	readonly more?: string;
+	readonly action?: string;
+	readonly note?: string;
+}
 
 export interface LocalServerStatus {
 	readonly id: 'ollama' | 'lmstudio' | 'custom';
@@ -301,4 +316,6 @@ export type WebviewMessageExt =
 	/** A clicked opencursor: link in a Help answer. The host checks it against the catalog. */
 	| { readonly type: 'helpAction'; readonly href: string }
 	/** The credit line: open an https link on x.com or github.com in the browser. */
-	| { readonly type: 'openExternal'; readonly url: string };
+	| { readonly type: 'openExternal'; readonly url: string }
+	/** The person pressed the notice card's button (open) or closed it. */
+	| { readonly type: 'noticeAction'; readonly id: string; readonly open: boolean };

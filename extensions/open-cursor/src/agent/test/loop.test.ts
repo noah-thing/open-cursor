@@ -132,6 +132,14 @@ test('max iterations stops the loop', async () => {
 	assert.ok(/3 steps/.test(s.errors[0].message));
 });
 
+test('max iterations 0 never stops the loop', async () => {
+	const t = tool('t', true, async () => ({ content: 'x' }));
+	const s = setup((_r, i) => i < 120 ? [...call(`c${i}`, 't', { n: i }), { type: 'done', stopReason: 'tool_use' }] : [{ type: 'text', text: 'ok' }, { type: 'done', stopReason: 'end_turn' }], [t], { max: 0 });
+	assert.strictEqual(await runAgentLoop(s.params), 'done');
+	assert.strictEqual(s.requests.length, 121);
+	assert.strictEqual(s.errors.length, 0);
+});
+
 test('max_tokens continuation and empty response error', async () => {
 	const s = setup((_r, i) => i === 0 ? [{ type: 'text', text: 'part' }, { type: 'done', stopReason: 'max_tokens' }] : [{ type: 'text', text: ' rest' }, { type: 'done', stopReason: 'end_turn' }], []);
 	assert.strictEqual(await runAgentLoop(s.params), 'done');

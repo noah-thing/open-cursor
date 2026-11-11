@@ -11,7 +11,7 @@ import type { ChatMode, ToolPart } from '../shared/protocol';
 import { needsApproval, suggestAllowPrefix, type ApprovalPolicy } from './approval';
 import { mergeUserEntry, transcriptMessages, type TranscriptEntry } from './history';
 import {
-	applySummary, capText, chooseSplit, estimateRequestTokens, pruneOldToolResults, renderForSummary,
+	applySummary, capText, chooseSplit, dropOrphanToolResults, estimateRequestTokens, pruneOldToolResults, renderForSummary,
 } from './tokens';
 import {
 	DEBUG_MARKER, cleanupReminder, formatTodoState, openTodos, toolBlockedReason, turnEndReminders, type MarkerHit,
@@ -265,7 +265,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 
 	while (true) {
 		if (signal.aborted) { return 'aborted'; }
-		if (iterations >= settings.maxIterations) {
+		if (settings.maxIterations > 0 && iterations >= settings.maxIterations) {
 			hooks.onError(`Stopped after ${settings.maxIterations} steps. Send a message such as "continue" to keep going, or raise openCursor.agent.maxIterations.`);
 			return 'max_iterations';
 		}
@@ -287,7 +287,7 @@ export async function runAgentLoop(p: LoopParams): Promise<StopReason> {
 		for (;;) {
 			calls.clear(); text = ''; thinking = ''; signature = undefined; stopReason = undefined; failure = undefined;
 			const req: ChatRequest = {
-				model, system: p.system, messages: transcriptMessages(transcript), tools: p.tools.schemas.length ? p.tools.schemas : undefined,
+				model, system: p.system, messages: dropOrphanToolResults(transcriptMessages(transcript)), tools: p.tools.schemas.length ? p.tools.schemas : undefined,
 				maxTokens: Math.min(model.maxOutputTokens || 8192, 32000, affordCap ?? Infinity), thinking: !thinkingOff && settings.thinking && model.supportsThinking, effort: settings.effort, signal,
 			};
 			try {

@@ -1039,3 +1039,25 @@ body.vscode-light .oc-holo { background-image: linear-gradient(105deg, transpare
 }
 .oc-menu-footer.is-free:hover { background: color-mix(in srgb, var(--oc-holo-b) 8%, var(--oc-hover)); }
 @media (prefers-reduced-motion: reduce) { .oc-holo, .oc-holo-icon { animation: none; } }
+
+/* A message from the project feed, above the composer. Shown once, gone after either button. */
+.oc-feedcard { position: relative; margin: 0 0 10px; padding: 14px 16px 14px; border-radius: 12px; background: linear-gradient(180deg, var(--oc-ink-6), var(--oc-ink-4)); box-shadow: inset 0 0 0 1px var(--oc-stroke); animation: oc-feedcard-in 260ms cubic-bezier(.23, 1, .32, 1) both; }
+@keyframes oc-feedcard-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .oc-feedcard { animation: none; } }
+.oc-feedcard-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.oc-feedcard-icon { width: 22px; height: 22px; flex: none; }
+.oc-feedcard-who { display: flex; flex-direction: column; min-width: 0; font-size: 11px; line-height: 1.4; color: var(--oc-fg-3); }
+.oc-feedcard-who b { color: var(--oc-fg); font-size: 12.5px; font-weight: 600; }
+.oc-feedcard-x { margin-left: auto; width: 22px; height: 22px; align-self: flex-start; }
+.oc-feedcard-x.is-float { position: absolute; top: 8px; right: 8px; }
+.oc-feedcard-title { font-size: 15.5px; line-height: 1.22; font-weight: 650; letter-spacing: -0.01em; color: var(--oc-fg); text-wrap: balance; }
+.oc-feedcard-body { margin-top: 6px; color: var(--oc-fg-2); font-size: 12.5px; line-height: 1.5; text-wrap: pretty; }
+.oc-feedcard-points { list-style: none; padding: 0; margin: 11px 0 0; display: flex; flex-direction: column; gap: 7px; }
+.oc-feedcard-points li { display: flex; gap: 9px; color: var(--oc-fg-2); font-size: 12.5px; line-height: 1.4; }
+.oc-feedcard-points li b { color: var(--oc-fg); font-weight: 600; }
+.oc-feedcard-points i { flex: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: var(--oc-fg); color: var(--oc-bg-editor); display: grid; place-items: center; }
+.oc-feedcard-more { margin-top: 9px; color: var(--oc-fg-3); font-size: 12px; }
+.oc-feedcard-go { display: flex; align-items: center; justify-content: center; text-align: center; width: 100%; height: 32px; margin-top: 14px; border: 0; border-radius: 7px; background: var(--oc-fg); color: var(--oc-bg-editor); font: 600 13px var(--vscode-font-family); cursor: pointer; transition: opacity 140ms; }
+.oc-feedcard-go:hover { opacity: 0.88; }
+.oc-feedcard-go:focus-visible { outline: 2px solid var(--oc-focus); outline-offset: 2px; }
+.oc-feedcard-note { margin-top: 8px; text-align: center; color: var(--oc-fg-3); font-size: 10.5px; }

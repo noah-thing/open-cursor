@@ -48,8 +48,9 @@ export function readLists(): { allowlist: string[]; denylist: string[] } {
 }
 
 export function readMaxIterations(): number {
-	const n = cfg().get<number>('agent.maxIterations', 50);
-	return typeof n === 'number' && n >= 1 ? Math.min(500, Math.floor(n)) : 50;
+	// 0 means no limit: a long task should never stop to wait for a "continue"
+	const n = cfg().get<number>('agent.maxIterations', 0);
+	return typeof n === 'number' && Number.isFinite(n) && n >= 1 ? Math.floor(n) : 0;
 }
 
 export function readUiSettings(): UiSettings {

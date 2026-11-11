@@ -5,7 +5,7 @@ import { htmlToText, stripAnsi } from '../../context/html';
 import { buildHistoryFromChat, ensureValid, truncateTranscript, type TranscriptEntry } from '../history';
 import { fallbackTitle, sanitizeTitle } from '../store';
 import { mergeTodos } from '../tools/todo_write';
-import { appendUserContent, applySummary, chooseSplit, estimateMessagesTokens, pruneOldToolResults, tailLines, capText } from '../tokens';
+import { appendUserContent, applySummary, chooseSplit, dropOrphanToolResults, estimateMessagesTokens, pruneOldToolResults, tailLines, capText } from '../tokens';
 import { parsePartialJson } from '../loop';
 import type { LLMMessage } from '../../providers/types';
 import { assert, done, test } from './harness';
@@ -133,6 +133,30 @@ test('chooseSplit and applySummary keep alternation and tool pairs', () => {
 	assert.strictEqual(m2[0].role, 'user');
 	assert.strictEqual(m2[1].role, 'assistant');
 	assert.strictEqual(chooseSplit([U('a'), A('b')], 3), undefined);
+});
+test('a "continue" merged into tool results is never a summary cut', () => {
+	// the turn stopped with its tool results as the last message, so the next user text merged into that message
+	const merged: LLMMessage = { role: 'user', content: [{ type: 'tool_result', toolUseId: 'm', content: 'x' }, { type: 'text', text: 'continue' }] };
+	const msgs: LLMMessage[] = [U('turn 0'), AT('t0'), R('t0'), A('done 0'), U('turn 1'), AT('m'), merged, A('done 1')];
+	for (let i = 2; i < 4; i++) { msgs.push(U(`turn ${i}`), AT(`t${i}`), R(`t${i}`), A(`done ${i}`)); }
+	const split = chooseSplit(msgs, 3)!;
+	const kept = applySummary('SUM', msgs.slice(split));
+	assert.ok(!kept[0].content.some(c => c.type === 'tool_result'), 'the first message must not hold a tool_result');
+	assert.ok(kept[0].content.some(c => c.type === 'text'));
+});
+test('dropOrphanToolResults repairs a transcript that already starts with a stray result', () => {
+	const bad: LLMMessage[] = [
+		{ role: 'user', content: [{ type: 'text', text: 'SUM' }, { type: 'tool_result', toolUseId: 'gone', content: 'x' }, { type: 'text', text: 'continue' }] },
+		A('ok'), AT('k'), R('k'), A('end'),
+	];
+	const fixed = dropOrphanToolResults(bad);
+	assert.deepStrictEqual(fixed[0].content.map(c => c.type), ['text', 'text']);
+	assert.strictEqual(fixed[3], bad[3], 'a result that follows its tool_use stays untouched');
+	const only: LLMMessage[] = [R('gone'), A('ok')];
+	const f2 = dropOrphanToolResults(only);
+	assert.strictEqual(f2[0].role, 'user');
+	assert.ok(f2[0].content.every(c => c.type === 'text'));
+	assert.strictEqual(dropOrphanToolResults([U('a'), AT('1'), R('1')])[2].content[0].type, 'tool_result');
 });
 test('appendUserContent merges into trailing user message', () => {
 	const m: LLMMessage[] = [U('a'), A('b'), R('x')];

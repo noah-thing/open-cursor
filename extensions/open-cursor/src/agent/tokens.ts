@@ -65,13 +65,13 @@ export function pruneOldToolResults(messages: readonly LLMMessage[], keepRecent:
 	});
 }
 
-function isToolResultOnly(m: LLMMessage): boolean {
-	return m.role === 'user' && m.content.length > 0 && m.content.every(c => c.type === 'tool_result');
-}
-
-/** A user message that starts a new turn (carries user authored text, not just tool results). */
+/**
+ * A user message that starts a new turn and is safe to cut at. One that also holds tool results (the text
+ * of a "continue" merged into the results the stopped turn left behind) is not: its tool_use would be
+ * summarised away and the result left without a partner.
+ */
 export function isTurnStart(m: LLMMessage): boolean {
-	return m.role === 'user' && !isToolResultOnly(m);
+	return m.role === 'user' && !m.content.some(c => c.type === 'tool_result');
 }
 
 /**
@@ -104,6 +104,21 @@ export function applySummary(summary: string, kept: readonly LLMMessage[]): LLMM
 		return [{ role: 'user', content: [note, ...first.content] }, ...kept.slice(1)];
 	}
 	return [{ role: 'user', content: [note] }, ...kept];
+}
+
+/**
+ * Removes tool_result blocks whose tool_use is not in the message right before them; providers reject
+ * those with a 400. Heals transcripts that were already saved with a stray result (an old summary cut).
+ */
+export function dropOrphanToolResults(messages: readonly LLMMessage[]): LLMMessage[] {
+	return messages.map((m, i) => {
+		if (m.role !== 'user' || !m.content.some(c => c.type === 'tool_result')) { return m; }
+		const prev = messages[i - 1];
+		const asked = new Set(prev && prev.role === 'assistant' ? prev.content.filter(c => c.type === 'tool_use').map(c => (c as { id: string }).id) : []);
+		const content = m.content.filter(c => c.type !== 'tool_result' || asked.has(c.toolUseId));
+		if (content.length === m.content.length) { return m; }
+		return { role: 'user', content: content.length ? content : [{ type: 'text', text: '(earlier tool output was dropped)' }] };
+	});
 }
 
 /** Renders messages as plain text for the summariser prompt. */

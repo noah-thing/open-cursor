@@ -35,6 +35,7 @@ export interface ConfigValues {
 	'chat.defaultMode': 'agent' | 'plan' | 'debug' | 'ask';
 	'chat.submitWithModEnter': boolean;
 	'privacy.anonymousCount': boolean;
+	'notices.enabled': boolean;
 	'chat.showThinking': boolean;
 	'agent.effort': 'auto' | 'off' | 'low' | 'medium' | 'high' | 'max';
 	'update.mode': 'auto' | 'notify' | 'off';
@@ -66,6 +67,7 @@ export const CONFIG_DEFAULTS: ConfigValues = {
 	'chat.defaultMode': 'agent',
 	'chat.submitWithModEnter': false,
 	'privacy.anonymousCount': true,
+	'notices.enabled': true,
 	'chat.showThinking': true,
 	'agent.effort': 'auto',
 	'update.mode': 'auto',

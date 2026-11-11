@@ -112,6 +112,8 @@ Prefer GitHub? Help can also open a GitHub issue filled in with your description
 API keys stay in the system keychain and only go to the provider they belong to. Code is sent only to the model you chose for that chat. Subscriptions run on your own CLI login. Local models never leave your network.
 Once a day OpenCursor sends an anonymous install count: a random ID made on this computer, the version and the OS, nothing else. Turn it off in Settings > General > Privacy (Anonymous install count). [General settings](opencursor:settings/general)
 
+Now and then OpenCursor shows a message from the project, such as news about OpenCursor or an app from the same maker: a page in a tab, a card above the chat box or a small notice. Each one shows once and never again, at most one at a time, and never in the first session after installing. OpenCursor only downloads the messages, signed so nobody else can send one; nothing is sent back. Turn them off in Settings > General > Privacy (News from OpenCursor). [General settings](opencursor:settings/general)
+
 ## When something does not work
 - "No model" or nothing happens on send: connect a model (Connect panel, Free models page, or Settings > Models).
 - A key is rejected: check it on the provider's key page and paste it again in Settings > Models; the check button says why.

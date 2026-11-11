@@ -317,10 +317,9 @@
 			},
 			"openCursor.agent.maxIterations": {
 				"type": "number",
-				"default": 50,
-				"minimum": 1,
-				"maximum": 500,
-				"markdownDescription": "Maximum model steps (tool call rounds) in one agent turn."
+				"default": 0,
+				"minimum": 0,
+				"markdownDescription": "Maximum model steps (tool call rounds) in one agent turn. 0 means no limit, so a long task never stops to wait for \"continue\"."
 			},
 			"openCursor.agent.thinking": {
 				"type": "boolean",

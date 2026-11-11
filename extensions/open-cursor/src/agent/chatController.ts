@@ -14,9 +14,10 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import type { LLMContent, ModelInfo } from '../providers/types';
 import { isAllowedExternalUrl } from '../shared/externalLink';
+import { IMAGE_ORIGINS, type Notice } from '../notices/feed';
 import type { Services } from '../services';
 import type {
-	AssistantMessage, ChatMode, ChatSummary, ContextItem, HostMessage, HostMessageExt, MessagePart, ModelOption, SlashCommandInfo, ToolPart, UserMessage, WebviewMessage, WebviewMessageExt,
+	AssistantMessage, ChatMode, ChatSummary, ContextItem, HostMessage, HostMessageExt, MessagePart, ModelOption, NoticeCard, SlashCommandInfo, ToolPart, UserMessage, WebviewMessage, WebviewMessageExt,
 } from '../shared/protocol';
 import type { IContextServiceEx } from '../context/service';
 import { toDisplayPath } from '../context/paths';
@@ -59,6 +60,9 @@ export interface IChatController extends vscode.Disposable {
 	useModel(modelId: string): Promise<void>;
 	/** Writes every unsaved chat to disk. */
 	flush(): Promise<void>;
+	/** Draws a feed notice as a card above the composer, or takes it away. */
+	showNotice(n: Notice | undefined): void;
+	onNoticeAction(handler: (id: string, open: boolean) => void): void;
 }
 
 interface Runtime {
@@ -173,6 +177,8 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 	private readonly sessionAllow = new Set<string>();
 	private view: vscode.WebviewView | undefined;
 	private webviewReady = false;
+	private notice: NoticeCard | null = null;
+	private noticeHandler: ((id: string, open: boolean) => void) | undefined;
 	private readonly outbox: HostMessage[] = [];
 	private modelOptions: ModelOption[] = [];
 	private viewResolved: (() => void) | undefined;
@@ -312,7 +318,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		const css = webview.asWebviewUri(vscode.Uri.joinPath(dist, 'chat.css'));
 		const csp = [
 			'default-src \'none\'',
-			`img-src ${webview.cspSource} data: blob:`,
+			`img-src ${webview.cspSource} data: blob: ${IMAGE_ORIGINS.join(' ')}`,
 			`style-src ${webview.cspSource} 'unsafe-inline'`,
 			`font-src ${webview.cspSource} data:`,
 			`script-src 'nonce-${nonce}'`,
@@ -441,6 +447,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			case 'openExternal':
 				if (isAllowedExternalUrl(m.url)) { await vscode.env.openExternal(vscode.Uri.parse(m.url)); }
 				return;
+			case 'noticeAction': this.noticeHandler?.(m.id, m.open); return;
 			case 'openChat': return this.openChat(m.chatId);
 			case 'closeChatTab': return this.closeTab(m.chatId);
 			case 'deleteChat': return this.deleteChat(m.chatId);
@@ -497,6 +504,7 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 			type: 'init', chats: this.store.summaries(), openChatIds: openIds, activeChat: sc.chat, models: this.modelOptions,
 			settings: readUiSettings(), pendingEdits: this.services.pendingEdits.getFiles(), workspaceName: vscode.workspace.name,
 		});
+		if (this.notice) { this.post({ type: 'notice', notice: this.notice }); }
 		const queued = this.outbox.splice(0);
 		for (const q of queued) { this.post(q); }
 		void this.postAgents();
@@ -954,6 +962,18 @@ class ChatController implements IChatController, vscode.WebviewViewProvider {
 		sc.chat.mode = mode;
 		this.touch(sc);
 		this.postChatNow(sc);
+	}
+
+	showNotice(n: Notice | undefined): void {
+		this.notice = n ? {
+			id: n.id, title: n.title, body: n.body, brand: n.brand, eyebrow: n.eyebrow, points: n.points, more: n.more,
+			action: n.action?.label, note: n.note,
+		} : null;
+		this.post({ type: 'notice', notice: this.notice });
+	}
+
+	onNoticeAction(handler: (id: string, open: boolean) => void): void {
+		this.noticeHandler = handler;
 	}
 
 	activeModelId(): string {

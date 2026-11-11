@@ -15,6 +15,7 @@ import { onHostMessage, post, saveUiState } from './host';
 import { CodeActions } from './markdown';
 import { AssistantBlock, UserBubble } from './messages';
 import { QueueTray, ReviewBar, TodoTray } from './trays';
+import { NoticeCard } from './notice';
 import { initialState, lastAssistant, reducer, type State } from './store';
 import { retryTarget } from './util';
 
@@ -444,6 +445,7 @@ export function App(): ReactElement {
 						<MessageList chat={chat} showThinking={state.settings.showThinking} editingId={editingId} setEditingId={setEditingId} scrollTo={editingId} />
 					)}
 					<div className="oc-dock" ref={dockRef}>
+						{state.notice ? <NoticeCard n={state.notice} onDone={() => dispatch({ kind: 'noticeDone' })} /> : null}
 						{chat.todos.length > 0 ? <TodoTray todos={chat.todos} /> : null}
 						{chat.queued.length > 0 ? <QueueTray chat={chat} /> : null}
 						{reviewFiles.length > 0 ? <ReviewBar files={reviewFiles} chatId={chat.id} /> : null}

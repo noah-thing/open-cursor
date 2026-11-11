@@ -22,6 +22,7 @@ import { registerImporter } from './migrate/importer';
 import { FreeModelsPanel } from './connect/freePanel';
 import { registerUpdater } from './update/updater';
 import { registerInstallCount } from './stats/installCount';
+import { registerNotices } from './notices/service';
 import { ReportPanel, type ReportContext } from './report/reportPanel';
 import { readEffort, setEffort } from './agent/env';
 import type { Effort } from './shared/protocol';
@@ -29,6 +30,8 @@ import type { Effort } from './shared/protocol';
 let chatHost: ReturnType<typeof createChatController> | undefined;
 
 export function activate(ctx: vscode.ExtensionContext): void {
+	// Read before anything below writes state: an empty store means this is the first start of a new install.
+	const freshInstall = ctx.globalState.keys().length === 0;
 	const registry = createProviderRegistry(ctx);
 	const pendingEdits = createPendingEdits(ctx);
 	const checkpoints = createCheckpoints(ctx, { onRestore: uris => pendingEdits.forget(uris) });
@@ -52,6 +55,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
 	registerImporter(ctx);
 	registerUpdater(ctx);
 	registerInstallCount(ctx);
+	registerNotices(ctx, chat, { freshInstall });
 	const report = new ReportPanel(ctx);
 	ctx.subscriptions.push(report, vscode.commands.registerCommand('openCursor.reportProblem', (c?: ReportContext) => report.open(c ?? {})));
 	ctx.subscriptions.push(vscode.commands.registerCommand('openCursor.setEffort', async () => {

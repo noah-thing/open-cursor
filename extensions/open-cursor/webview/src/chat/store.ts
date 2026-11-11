@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type {
-	AgentStatus, ApiProviderStatus, Chat, ChatMessage, LocalServerStatus, ChatMode, ChatSummary, ContextItem, HostMessageExt, ModelOption, PendingFileEdit, SlashCommandInfo, UiSettings,
+	AgentStatus, ApiProviderStatus, Chat, ChatMessage, LocalServerStatus, ChatMode, ChatSummary, ContextItem, HostMessageExt, ModelOption, NoticeCard, PendingFileEdit, SlashCommandInfo, UiSettings,
 } from '../../../src/shared/protocol';
 import { loadUiState } from './host';
 import { restoreOmitted } from '../../../src/agent/snapshot';
@@ -48,6 +48,8 @@ export interface State {
 	providers: ApiProviderStatus[] | undefined;
 	/** Last outcome per connect target (a provider id, or 'server'). */
 	connectResults: Record<string, { ok: boolean; message: string }>;
+	/** A message from the project feed, shown above the composer until it is answered. */
+	notice: NoticeCard | null;
 }
 
 export type Action =
@@ -57,7 +59,8 @@ export type Action =
 	| { kind: 'contexts'; chatId: string; items: ContextItem[] }
 	| { kind: 'override'; chatId: string; o: Overrides }
 	| { kind: 'dismissSuggest'; chatId: string; id: string }
-	| { kind: 'connectHidden'; hidden: boolean };
+	| { kind: 'connectHidden'; hidden: boolean }
+	| { kind: 'noticeDone' };
 
 export const DEFAULT_SETTINGS: UiSettings = { autoRun: 'ask', effort: 'auto', showThinking: true, fontSize: 13, submitWithModEnter: false };
 
@@ -85,6 +88,7 @@ export function initialState(): State {
 		dismissedSuggest: {},
 		agents: [],
 		connectHidden: !!saved.connectHidden,
+		notice: null,
 		local: undefined,
 		trusted: undefined,
 		providers: undefined,
@@ -172,6 +176,8 @@ export function reducer(s: State, a: Action): State {
 			return { ...s, dismissedSuggest: { ...s.dismissedSuggest, [a.chatId]: a.id } };
 		case 'connectHidden':
 			return { ...s, connectHidden: a.hidden };
+		case 'noticeDone':
+			return { ...s, notice: null };
 		case 'host':
 			return hostReducer(s, a.m);
 	}
@@ -252,6 +258,8 @@ function hostReducer(s: State, m: HostMessageExt): State {
 			return { ...s, view: 'history' };
 		case 'showConnect':
 			return { ...s, view: 'chat', connectHidden: false };
+		case 'notice':
+			return { ...s, notice: m.notice };
 		case 'mentionResults':
 			return s; // consumed by the composer through a subscription
 	}

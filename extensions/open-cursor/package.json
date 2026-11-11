@@ -2,7 +2,7 @@
 	"name": "open-cursor",
 	"displayName": "OpenCursor",
 	"description": "Agent, Tab, inline edit and chat for OpenCursor.",
-	"version": "0.1.9",
+	"version": "0.1.10",
 	"publisher": "open-cursor",
 	"license": "MIT",
 	"author": "Noah",
@@ -633,10 +633,9 @@
 					},
 					"openCursor.agent.maxIterations": {
 						"type": "number",
-						"default": 50,
-						"minimum": 1,
-						"maximum": 500,
-						"markdownDescription": "Maximum model steps (tool call rounds) in one agent turn."
+						"default": 0,
+						"minimum": 0,
+						"markdownDescription": "Maximum model steps (tool call rounds) in one agent turn. 0 means no limit, so a long task never stops to wait for \"continue\"."
 					},
 					"openCursor.agent.effort": {
 						"type": "string",
@@ -800,6 +799,12 @@
 			{
 				"title": "OpenCursor: Privacy",
 				"properties": {
+					"openCursor.notices.enabled": {
+						"type": "boolean",
+						"default": true,
+						"scope": "application",
+						"markdownDescription": "Show messages from the OpenCursor project, such as news about OpenCursor and apps from the same maker. Each one shows once, at most one at a time, and never in the first session after installing. OpenCursor only downloads them; nothing is sent."
+					},
 					"openCursor.privacy.anonymousCount": {
 						"type": "boolean",
 						"default": true,
