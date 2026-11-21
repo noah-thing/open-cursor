@@ -2,7 +2,7 @@ import { assert, done, test } from '../../agent/test/harness';
 import { scrub } from '../scrub';
 
 test('home folders lose the user name on every system', () => {
-	assert.strictEqual(scrub('at /Users/noahmalekani/proj/a.ts:3'), 'at ~/proj/a.ts:3');
+	assert.strictEqual(scrub('at /Users/sam/proj/a.ts:3'), 'at ~/proj/a.ts:3');
 	assert.strictEqual(scrub('ENOENT /home/anna.k/x'), 'ENOENT ~/x');
 	assert.strictEqual(scrub('C:\\Users\\Åsa Berg\\AppData'.replace(' ', '_')), '~\\AppData');
 	assert.strictEqual(scrub('"C:\\\\Users\\\\bob\\\\code"'), '"~\\\\code"');
